@@ -5,6 +5,7 @@ import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import Link from "next/link";
+import { PhotoImageOverlay } from "@/components/photo-image-overlay";
 import { appHref } from "@/lib/paths";
 import { publicPhotoUrl } from "@/lib/storage";
 import type { Photo, Profile, ViewerMode } from "@/lib/types";
@@ -82,12 +83,19 @@ export default function PhotoMap({
                   href={appHref(mode, shareKey, "photo", photo.id)}
                   className="block w-40"
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={src}
-                    alt={photo.title || `Foto von ${author}`}
-                    className="mb-2 h-24 w-full rounded-lg object-cover"
-                  />
+                  <div className="relative mb-2 overflow-hidden rounded-lg">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={src}
+                      alt={photo.title || `Foto von ${author}`}
+                      className="h-24 w-full object-cover"
+                    />
+                    <PhotoImageOverlay
+                      photo={photo}
+                      authorName={author}
+                      compact
+                    />
+                  </div>
                   <strong className="block text-sm leading-snug">
                     {photo.title || author}
                   </strong>

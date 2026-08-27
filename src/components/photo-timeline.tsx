@@ -4,6 +4,7 @@ import Link from "next/link";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 import { MapPin } from "lucide-react";
+import { PhotoImageOverlay } from "@/components/photo-image-overlay";
 import { appHref } from "@/lib/paths";
 import { publicPhotoUrl } from "@/lib/storage";
 import type { Photo, Profile, ViewerMode } from "@/lib/types";
@@ -68,13 +69,20 @@ export function PhotoTimeline({
                       href={appHref(mode, shareKey, "photo", photo.id)}
                       className="flex gap-3 rounded-2xl bg-card p-3 shadow-card ring-1 ring-border transition hover:ring-primary"
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={src}
-                        alt={photo.title || `Foto von ${author}`}
-                        className="size-20 shrink-0 rounded-xl object-cover"
-                        loading="lazy"
-                      />
+                      <div className="relative w-24 shrink-0 overflow-hidden rounded-xl">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={src}
+                          alt={photo.title || `Foto von ${author}`}
+                          className="aspect-[4/5] w-full object-cover"
+                          loading="lazy"
+                        />
+                        <PhotoImageOverlay
+                          photo={photo}
+                          authorName={author}
+                          compact
+                        />
+                      </div>
                       <div className="min-w-0 flex-1">
                         <p className="font-medium leading-snug break-words">
                           {photo.title || "Ohne Titel"}

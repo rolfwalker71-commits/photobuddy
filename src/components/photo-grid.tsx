@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { PhotoImageOverlay } from "@/components/photo-image-overlay";
 import { appHref } from "@/lib/paths";
 import { publicPhotoUrl } from "@/lib/storage";
 import type { Photo, Profile, ViewerMode } from "@/lib/types";
@@ -44,9 +45,7 @@ export function PhotoGrid({ photos, profiles, mode, shareKey }: PhotoGridProps) 
                 className="aspect-[4/5] w-full object-cover transition duration-300 group-hover:scale-[1.03]"
                 loading="lazy"
               />
-              <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-foreground/70 to-transparent p-2 text-xs text-primary-foreground">
-                {author}
-              </span>
+              <PhotoImageOverlay photo={photo} authorName={author} />
             </Link>
           </li>
         );
