@@ -3,10 +3,15 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Copy, Plus, Users } from "lucide-react";
+import { Copy, MapPin, Plus, Users } from "lucide-react";
 import { InstallButton } from "@/components/pwa/install-button";
 import { api } from "@/lib/api";
 import { getSiteUrl } from "@/lib/env";
+import {
+  isGeotaggingEnabled,
+  setGeotaggingEnabled,
+  subscribeGeotagging,
+} from "@/lib/geotag";
 import type { Profile, ShareLink } from "@/lib/types";
 
 export function SettingsPanel() {
@@ -16,6 +21,7 @@ export function SettingsPanel() {
   const [displayName, setDisplayName] = useState("");
   const [accent, setAccent] = useState("#0f766e");
   const [status, setStatus] = useState<string | null>(null);
+  const [geotag, setGeotag] = useState(true);
 
   useEffect(() => {
     const load = async () => {
@@ -28,6 +34,8 @@ export function SettingsPanel() {
       setLinks(data.shareLinks);
     };
     void load();
+    setGeotag(isGeotaggingEnabled());
+    return subscribeGeotagging(setGeotag);
   }, []);
 
   async function saveProfile() {
@@ -177,6 +185,49 @@ export function SettingsPanel() {
             );
           })}
         </ul>
+      </section>
+
+      <section className="space-y-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border">
+        <h2 className="font-display text-base font-semibold">Standort</h2>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={geotag}
+          onClick={() => {
+            const next = !geotag;
+            setGeotaggingEnabled(next);
+            setGeotag(next);
+          }}
+          className="flex min-h-11 w-full items-center justify-between gap-3 rounded-2xl bg-background px-3 py-3 text-left ring-1 ring-border"
+        >
+          <span className="min-w-0">
+            <span className="flex items-center gap-2 text-sm font-medium leading-snug">
+              <MapPin className="size-4 shrink-0" aria-hidden />
+              Geotagging
+            </span>
+            <span className="mt-0.5 block text-sm text-muted-foreground leading-snug">
+              {geotag
+                ? "Neue Fotos bekommen EXIF-GPS oder den aktuellen Standort."
+                : "Neue Fotos werden ohne Koordinaten gespeichert."}
+            </span>
+          </span>
+          <span
+            className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
+              geotag ? "bg-primary" : "bg-muted"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 size-6 rounded-full bg-card shadow transition-transform ${
+                geotag ? "translate-x-5" : "translate-x-0.5"
+              }`}
+            />
+          </span>
+        </button>
+        <p className="text-sm text-muted-foreground leading-snug">
+          Am iPhone: Safari darf den Standort nutzen, und in Fotos muss der Ort
+          für das Bild erlaubt sein. Die In-App-Kamera schreibt selbst kein GPS
+          — Photobuddy holt den Standort dann vom Gerät.
+        </p>
       </section>
 
       <section className="space-y-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border">

@@ -19,6 +19,12 @@ function isoOrNull(value: Date | string | null | undefined) {
   return iso(value);
 }
 
+function numOrNull(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 export type UserRow = {
   id: string;
   email: string;
@@ -78,8 +84,8 @@ export function toPhoto(row: PhotoRow): Photo {
     title: row.title,
     description: row.description,
     taken_at: isoOrNull(row.taken_at),
-    latitude: row.latitude,
-    longitude: row.longitude,
+    latitude: numOrNull(row.latitude),
+    longitude: numOrNull(row.longitude),
     location_name: row.location_name,
     width: row.width,
     height: row.height,

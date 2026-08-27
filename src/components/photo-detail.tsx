@@ -11,6 +11,7 @@ import { ReactionBar } from "@/components/reaction-bar";
 import { api, withKey } from "@/lib/api";
 import { getStoredGuestName, storeGuestName } from "@/lib/guest";
 import { appHref } from "@/lib/paths";
+import { notifyPhotosChanged } from "@/lib/photos-sync";
 import { publicPhotoUrl } from "@/lib/storage";
 import type { Photo, PhotoTag, Profile, ViewerMode } from "@/lib/types";
 
@@ -120,6 +121,8 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
     if (mode !== "teilnehmer" || !photo) return;
     if (!window.confirm("Dieses Foto wirklich löschen?")) return;
     await api(`/api/photos/${photo.id}`, { method: "DELETE" });
+    notifyPhotosChanged();
+    router.refresh();
     router.push(appHref(mode, shareKey, "gallery"));
   }
 

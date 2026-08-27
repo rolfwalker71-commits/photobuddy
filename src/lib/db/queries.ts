@@ -131,6 +131,16 @@ export async function listPhotos(): Promise<Photo[]> {
   return rows.map(toPhoto);
 }
 
+export async function getPhotosUpdatedStamp(): Promise<string> {
+  const row = await queryOne<{ n: string; latest: Date | string | null }>(
+    `select count(*)::text as n,
+            max(greatest(created_at, updated_at, coalesce(taken_at, created_at))) as latest
+     from public.photos`,
+  );
+  const latest = row?.latest ? new Date(row.latest).toISOString() : "none";
+  return `${row?.n ?? "0"}:${latest}`;
+}
+
 export async function getPhoto(id: string): Promise<Photo | null> {
   const row = await queryOne<PhotoRow>(
     `select * from public.photos where id = $1`,
