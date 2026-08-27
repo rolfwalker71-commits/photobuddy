@@ -6,18 +6,12 @@ Reise-Tagebuch als PWA für vier Personen. Teilnehmer:innen laden Fotos hoch; Fa
 
 Alles läuft lokal in Docker: Photobuddy (Port **3388**) plus PostgreSQL. Kein Cloud-Konto.
 
-1. **`.env`:** `npm run setup` — legt Secrets an. Lokal sind die URLs schon richtig.
+1. **`.env`:** `npm run setup` — legt Secrets und das Admin-Passwort an. Lokal sind die URLs schon richtig.
 2. **Stack:** `docker compose up -d` → [http://localhost:3388](http://localhost:3388)
-3. **4 Nutzer** (ohne Dashboard):
-   ```bash
-   npm run create-user -- anna@familie.de geheim Anna
-   npm run create-user -- sam@familie.de geheim Sam
-   npm run create-user -- kim@familie.de geheim Kim
-   npm run create-user -- leo@familie.de geheim Leo
-   ```
-   Auf dem Server ohne Node: `./scripts/create-teilnehmer.sh anna@familie.de geheim Anna`
+3. **Anmelden** als Admin (`ADMIN_EMAIL`, Passwort steht in `.env` als `ADMIN_PASSWORD`).
+4. **Teilnehmer** unter **Einstellungen → Teilnehmer** anlegen.
 
-Login ist E-Mail + Passwort.
+Login ist E-Mail + Passwort. Gäste nutzen nur den Share-Link.
 
 Handy im WLAN: in `.env` die App-URL auf die LAN-IP setzen, dann Compose neu starten:
 
@@ -35,9 +29,11 @@ docker compose up -d db
 npm install && npm run dev
 ```
 
+Optional, ohne UI: `npm run create-user -- anna@familie.de geheim Anna`
+
 ### Was du überspringen kannst
 
-Cloud-Dashboard, Storage-Bucket, VAPID von Hand. Schema und Gäste-Link kommen mit dem ersten Start.
+Cloud-Dashboard, Storage-Bucket, VAPID von Hand. Schema, Admin-Konto und Gäste-Link kommen mit dem ersten Start.
 
 ### Server (gleicher Compose-Stack)
 
@@ -66,3 +62,4 @@ Lokales Image bauen (nur deine Maschine, nicht der Server): `docker compose -f d
 | Raster / Karte / Timeline | ja | ja |
 | Fotos hochladen, bearbeiten, löschen | ja | nein |
 | Kommentare & Emoji | ja | ja |
+| Teilnehmer verwalten | nur Admin | nein |

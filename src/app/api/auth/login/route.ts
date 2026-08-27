@@ -17,6 +17,9 @@ export async function POST(request: Request) {
     if (!user || !(await verifyPassword(password, user.password_hash ?? ""))) {
       throw new HttpError(401, "E-Mail oder Passwort ist falsch.");
     }
+    if (user.is_active === false) {
+      throw new HttpError(403, "Dieses Konto ist deaktiviert.");
+    }
     const token = await signSession(user.id);
     const secure = new URL(request.url).protocol === "https:";
     const res = NextResponse.json({ user: toProfile(user) });

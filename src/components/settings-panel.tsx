@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Copy, Plus } from "lucide-react";
+import { Copy, Plus, Users } from "lucide-react";
 import { InstallButton } from "@/components/pwa/install-button";
 import { api } from "@/lib/api";
 import { getSiteUrl } from "@/lib/env";
@@ -81,6 +82,9 @@ export function SettingsPanel() {
     <div className="space-y-6">
       <section className="space-y-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border">
         <h2 className="font-display text-base font-semibold">Profil</h2>
+        {profile?.email ? (
+          <p className="break-all text-sm text-muted-foreground">{profile.email}</p>
+        ) : null}
         <label className="block space-y-1.5">
           <span className="text-sm font-medium">Anzeigename</span>
           <input
@@ -106,6 +110,23 @@ export function SettingsPanel() {
           Speichern
         </button>
       </section>
+
+      {profile?.role === "admin" ? (
+        <section className="space-y-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border">
+          <h2 className="font-display text-base font-semibold">Teilnehmer</h2>
+          <p className="text-sm text-muted-foreground leading-snug">
+            Reise-Teilnehmer anlegen, Passwort zurücksetzen oder Konten
+            deaktivieren. Gäste bleiben ohne Login über den Link.
+          </p>
+          <Link
+            href="/settings/users"
+            className="inline-flex h-11 items-center gap-2 rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground"
+          >
+            <Users className="size-4" aria-hidden />
+            Teilnehmer verwalten
+          </Link>
+        </section>
+      ) : null}
 
       <section className="space-y-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border">
         <div className="flex items-center justify-between gap-3">

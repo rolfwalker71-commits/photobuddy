@@ -1,22 +1,31 @@
 import { NextResponse } from "next/server";
 import { hashPassword } from "@/lib/auth/password";
-import { HttpError, jsonError } from "@/lib/auth/request";
+import {
+  HttpError,
+  bearerMatchesAuthSecret,
+  jsonError,
+  requireAdmin,
+} from "@/lib/auth/request";
 import { toProfile } from "@/lib/db/mappers";
-import { createUser, findUserByEmail } from "@/lib/db/queries";
+import { createUser, findUserByEmail, listProfiles } from "@/lib/db/queries";
 
-function adminAuthorized(request: Request) {
-  const secret = process.env.AUTH_SECRET || "";
-  if (!secret) return false;
-  const header = request.headers.get("authorization") ?? "";
-  const token = header.startsWith("Bearer ") ? header.slice(7) : "";
-  return token.length > 0 && token === secret;
+async function assertCanCreateUsers(request: Request) {
+  if (bearerMatchesAuthSecret(request)) return;
+  await requireAdmin();
+}
+
+export async function GET() {
+  try {
+    await requireAdmin();
+    return NextResponse.json({ users: await listProfiles() });
+  } catch (err) {
+    return jsonError(err);
+  }
 }
 
 export async function POST(request: Request) {
   try {
-    if (!adminAuthorized(request)) {
-      throw new HttpError(401, "Nicht berechtigt.");
-    }
+    await assertCanCreateUsers(request);
     const body = (await request.json()) as {
       email?: string;
       password?: string;
@@ -28,6 +37,9 @@ export async function POST(request: Request) {
     if (!email || !password) {
       throw new HttpError(400, "E-Mail und Passwort sind nötig.");
     }
+    if (password.length < 4) {
+      throw new HttpError(400, "Passwort muss mindestens 4 Zeichen haben.");
+    }
     if (await findUserByEmail(email)) {
       throw new HttpError(409, "Diese E-Mail existiert schon.");
     }
@@ -36,6 +48,7 @@ export async function POST(request: Request) {
       passwordHash: await hashPassword(password),
       displayName: body.display_name || email.split("@")[0],
       accentColor: body.accent_color,
+      role: "teilnehmer",
     });
     if (!user) throw new HttpError(500, "Nutzer konnte nicht angelegt werden.");
     return NextResponse.json({ user: toProfile(user), email: user.email });

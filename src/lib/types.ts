@@ -1,9 +1,13 @@
+export type UserRole = "teilnehmer" | "admin";
+
 export type Profile = {
   id: string;
+  email: string;
   display_name: string;
   avatar_url: string | null;
-  role: "teilnehmer";
+  role: UserRole;
   accent_color: string;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 };

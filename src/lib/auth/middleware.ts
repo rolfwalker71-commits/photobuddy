@@ -12,6 +12,7 @@ const AUTH_REQUIRED = [
   "/timeline",
   "/camera",
   "/settings",
+  "/admin",
   "/photos",
 ];
 

@@ -31,7 +31,8 @@ export async function getSessionUser(): Promise<Profile | null> {
   const payload = await verifySession(token);
   if (!payload) return null;
   const user = await findUserById(payload.sub);
-  return user ? toProfile(user) : null;
+  if (!user || user.is_active === false) return null;
+  return toProfile(user);
 }
 
 export async function getSessionUserRow(): Promise<UserRow | null> {
@@ -39,13 +40,31 @@ export async function getSessionUserRow(): Promise<UserRow | null> {
   const token = store.get(SESSION_COOKIE)?.value;
   const payload = await verifySession(token);
   if (!payload) return null;
-  return findUserById(payload.sub);
+  const user = await findUserById(payload.sub);
+  if (!user || user.is_active === false) return null;
+  return user;
 }
 
 export async function requireTeilnehmer() {
   const user = await getSessionUser();
   if (!user) throw new HttpError(401, "Bitte zuerst anmelden.");
   return user;
+}
+
+export async function requireAdmin() {
+  const user = await requireTeilnehmer();
+  if (user.role !== "admin") {
+    throw new HttpError(403, "Nur die Administration darf das.");
+  }
+  return user;
+}
+
+export function bearerMatchesAuthSecret(request: Request) {
+  const secret = process.env.AUTH_SECRET || "";
+  if (!secret) return false;
+  const header = request.headers.get("authorization") ?? "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : "";
+  return token.length > 0 && token === secret;
 }
 
 export function shareKeyFrom(request: Request) {

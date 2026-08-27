@@ -21,12 +21,9 @@ const [email, password, displayName, accentColor] = process.argv.slice(2);
 
 if (!email || !password) {
   console.error(`
-4 Teilnehmer anlegen (Passwort-Login):
+Optionaler Fallback. Normal: als Admin anmelden → Einstellungen → Teilnehmer.
 
   npm run create-user -- anna@familie.de geheim Anna
-  npm run create-user -- sam@familie.de geheim Sam
-  npm run create-user -- kim@familie.de geheim Kim
-  npm run create-user -- leo@familie.de geheim Leo
 
 Optional 4. Argument: Akzentfarbe, z.B. '#0f766e'
 Postgres muss laufen (docker compose up -d).

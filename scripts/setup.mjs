@@ -1,6 +1,7 @@
 import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { randomBytes } from "node:crypto";
 import {
   databaseUrl,
   generateSecretSet,
@@ -34,6 +35,9 @@ if (!existsSync(dest)) {
 }
 
 let envText = readFileSync(dest, "utf8");
+envText = envText
+  .replace(/^#.*[Ss]upabase.*\n/gm, "")
+  .replace(/^NEXT_PUBLIC_SUPABASE_.*\n/gm, "");
 const env = parseEnvFile(envText);
 
 const generated = generateSecretSet();
@@ -45,8 +49,17 @@ if (!secretsComplete(env)) {
   console.log("OK  POSTGRES_PASSWORD und AUTH_SECRET ergänzt");
 }
 
+const adminEmail = (env.ADMIN_EMAIL || "admin@photobuddy.local").trim();
+const adminPassword = env.ADMIN_PASSWORD || randomBytes(12).toString("base64url");
+if (isEmpty(env.ADMIN_PASSWORD)) {
+  console.log("OK  ADMIN_PASSWORD ergänzt (steht in .env)");
+}
+
 envText = upsertEnv(envText, "POSTGRES_PASSWORD", secrets.POSTGRES_PASSWORD);
 envText = upsertEnv(envText, "AUTH_SECRET", secrets.AUTH_SECRET);
+envText = upsertEnv(envText, "ADMIN_EMAIL", adminEmail);
+envText = upsertEnv(envText, "ADMIN_PASSWORD", adminPassword);
+envText = upsertEnv(envText, "PORT", env.PORT || "3388");
 
 const siteUrl = (env.NEXT_PUBLIC_SITE_URL || "http://localhost:3388").replace(
   /\/$/,
@@ -67,11 +80,8 @@ Photobuddy — Postgres + Dateien in Docker:
      oder nur Postgres + lokal Next:
        docker compose up -d db
        npm install && npm run dev
-  3. Vier Teilnehmer anlegen:
-       npm run create-user -- anna@familie.de geheim Anna
-       npm run create-user -- sam@familie.de geheim Sam
-       npm run create-user -- kim@familie.de geheim Kim
-       npm run create-user -- leo@familie.de geheim Leo
+  3. Anmelden als Admin (ADMIN_EMAIL / ADMIN_PASSWORD in .env)
+     → Einstellungen → Teilnehmer
   4. App:  http://localhost:3388
 
 Fotos: Docker-Volume photobuddy-photos

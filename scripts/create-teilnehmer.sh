@@ -1,5 +1,5 @@
 #!/bin/sh
-# 4 Teilnehmer anlegen. Braucht curl und laufende App (Port 3388) oder .env + Postgres.
+# Optionaler Fallback. Normal: Admin-UI unter Einstellungen → Teilnehmer.
 set -eu
 root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 

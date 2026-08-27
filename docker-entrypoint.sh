@@ -1,6 +1,9 @@
 #!/bin/sh
 set -eu
 
+EXISTING_AUTH="${AUTH_SECRET:-}"
+EXISTING_PG="${POSTGRES_PASSWORD:-}"
+
 if [ -f /secrets/keys.env ]; then
   set -a
   # shellcheck disable=SC1091
@@ -8,8 +11,9 @@ if [ -f /secrets/keys.env ]; then
   set +a
 fi
 
-export AUTH_SECRET="${AUTH_SECRET:-}"
-export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-}"
+# .env / Compose gewinnt gegenüber einem alten secrets-Volume.
+export AUTH_SECRET="${EXISTING_AUTH:-${AUTH_SECRET:-}}"
+export POSTGRES_PASSWORD="${EXISTING_PG:-${POSTGRES_PASSWORD:-}}"
 export PHOTOS_DIR="${PHOTOS_DIR:-/data/photos}"
 mkdir -p "$PHOTOS_DIR"
 

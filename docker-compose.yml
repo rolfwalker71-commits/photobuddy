@@ -1,42 +1,24 @@
-# Remote / production: pull images only. Never add `build:` for photobuddy.
+# Remote: nur Images ziehen, nie `build:` für photobuddy.
 #   docker compose pull && docker compose up -d
 #
-# Full stack:  docker compose up -d
-# Only Postgres (npm run dev): docker compose up -d db
+# Alles: docker compose up -d
+# Nur Postgres (npm run dev): docker compose up -d db
 #
-# Ports: Photobuddy 3388. Postgres is localhost-only on 5432 (for npm run dev).
-# Photos: volume photobuddy-photos · DB: photobuddy-db · keys: photobuddy-secrets
+# Ports: App 3388 · Postgres nur localhost:5432
+# Volumes: photobuddy-db, photobuddy-photos, photobuddy-secrets, photobuddy-vapid
+# Secrets: .env (npm run setup)
 
 name: photobuddy
 
 services:
-  # One-shot: POSTGRES_PASSWORD + AUTH_SECRET. Reuses the volume on restart.
-  init-secrets:
-    image: node:22-alpine
-    platform: linux/amd64
-    restart: "no"
-    volumes:
-      - photobuddy-secrets:/secrets
-      - ./scripts/generate-secrets.mjs:/generate-secrets.mjs:ro
-      - ./docker/init-secrets.mjs:/init-secrets.mjs:ro
-    environment:
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
-      AUTH_SECRET: ${AUTH_SECRET:-}
-    command: ["node", "/init-secrets.mjs"]
-
   db:
     image: postgres:16
     platform: linux/amd64
     restart: unless-stopped
-    depends_on:
-      init-secrets:
-        condition: service_completed_successfully
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
-      - photobuddy-secrets:/secrets:ro
       - photobuddy-db:/var/lib/postgresql/data
-      - ./docker/with-secrets.sh:/usr/local/bin/with-secrets.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U photobuddy -d photobuddy"]
       interval: 5s
@@ -45,8 +27,7 @@ services:
     environment:
       POSTGRES_USER: photobuddy
       POSTGRES_DB: photobuddy
-    entrypoint: ["/usr/local/bin/with-secrets.sh"]
-    command: ["docker-entrypoint.sh", "postgres"]
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt — npm run setup}
 
   # Photobuddy Next.js — GHCR only. Do not add build: here.
   photobuddy:
@@ -57,14 +38,18 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "3388:3388"
+      - "${PORT:-3388}:${PORT:-3388}"
     environment:
       NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3388}
       NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:photobuddy@localhost}
+      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET fehlt — npm run setup}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt — npm run setup}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@photobuddy.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       PHOTOS_DIR: /data/photos
-      PORT: 3388
+      PORT: ${PORT:-3388}
     volumes:
       - vapid-keys:/data/vapid
       - photobuddy-photos:/data/photos

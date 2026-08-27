@@ -37,7 +37,8 @@ function LoginForm() {
         Willkommen zurück
       </h1>
       <p className="mt-2 text-sm text-muted-foreground leading-snug">
-        Nur Teilnehmerinnen und Teilnehmer der Reise können sich anmelden.
+        Zuerst als Admin anmelden. Weitere Teilnehmer legst du unter
+        Einstellungen an. Gäste brauchen kein Konto.
       </p>
 
       <form onSubmit={(e) => void onSubmit(e)} className="mt-6 space-y-4">

@@ -2,6 +2,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Pool } from "pg";
+import { ensureAdminUser } from "@/lib/db/bootstrap";
 
 function findMigrationsDir() {
   const candidates = [join(process.cwd(), "db/migrations")];
@@ -75,6 +76,7 @@ export async function migrate() {
         throw err;
       }
     }
+    await ensureAdminUser(pool);
     applied = true;
   } finally {
     await pool.end();

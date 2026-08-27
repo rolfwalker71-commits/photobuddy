@@ -9,10 +9,10 @@ import {
   type PhotoRow,
   type UserRow,
 } from "@/lib/db/mappers";
-import type { Comment, Photo, PhotoTag, Profile, Reaction, ShareLink } from "@/lib/types";
+import type { Comment, Photo, PhotoTag, Profile, Reaction, ShareLink, UserRole } from "@/lib/types";
 
 const PROFILE_COLS =
-  "id, email, display_name, avatar_url, role, accent_color, created_at, updated_at";
+  "id, email, display_name, avatar_url, role, accent_color, is_active, created_at, updated_at";
 
 export async function findUserByEmail(email: string) {
   return queryOne<UserRow>(
@@ -33,16 +33,18 @@ export async function createUser(input: {
   passwordHash: string;
   displayName: string;
   accentColor?: string;
+  role?: UserRole;
 }) {
   return queryOne<UserRow>(
-    `insert into public.users (email, password_hash, display_name, accent_color)
-     values (lower($1), $2, $3, $4)
+    `insert into public.users (email, password_hash, display_name, accent_color, role)
+     values (lower($1), $2, $3, $4, $5)
      returning *`,
     [
       input.email.trim(),
       input.passwordHash,
       input.displayName.trim() || input.email.split("@")[0],
       input.accentColor || "#0f766e",
+      input.role || "teilnehmer",
     ],
   );
 }
@@ -65,6 +67,60 @@ export async function listProfiles(): Promise<Profile[]> {
     `select ${PROFILE_COLS} from public.users order by display_name`,
   );
   return rows.map(toProfile);
+}
+
+export async function updateUserAdmin(
+  id: string,
+  input: {
+    displayName?: string;
+    passwordHash?: string;
+    isActive?: boolean;
+  },
+) {
+  const current = await findUserById(id);
+  if (!current) return null;
+
+  const displayName = input.displayName?.trim() || current.display_name;
+  const isActive = input.isActive ?? current.is_active !== false;
+  const passwordHash = input.passwordHash ?? current.password_hash;
+
+  return queryOne<UserRow>(
+    `update public.users
+     set display_name = $2, is_active = $3, password_hash = $4
+     where id = $1
+     returning *`,
+    [id, displayName, isActive, passwordHash],
+  );
+}
+
+export async function deleteUser(id: string) {
+  await query(`delete from public.users where id = $1`, [id]);
+}
+
+export async function countOtherAdmins(id: string) {
+  const row = await queryOne<{ n: string }>(
+    `select count(*)::text as n from public.users
+     where role = 'admin' and id <> $1`,
+    [id],
+  );
+  return Number(row?.n ?? 0);
+}
+
+export async function countOtherActiveAdmins(id: string) {
+  const row = await queryOne<{ n: string }>(
+    `select count(*)::text as n from public.users
+     where role = 'admin' and is_active = true and id <> $1`,
+    [id],
+  );
+  return Number(row?.n ?? 0);
+}
+
+export async function countPhotosByUser(id: string) {
+  const row = await queryOne<{ n: string }>(
+    `select count(*)::text as n from public.photos where uploaded_by = $1`,
+    [id],
+  );
+  return Number(row?.n ?? 0);
 }
 
 export async function listPhotos(): Promise<Photo[]> {

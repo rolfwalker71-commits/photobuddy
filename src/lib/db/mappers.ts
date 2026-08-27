@@ -1,4 +1,12 @@
-import type { Comment, Photo, PhotoTag, Profile, Reaction, ShareLink } from "@/lib/types";
+import type {
+  Comment,
+  Photo,
+  PhotoTag,
+  Profile,
+  Reaction,
+  ShareLink,
+  UserRole,
+} from "@/lib/types";
 
 function iso(value: Date | string | null | undefined) {
   if (!value) return "";
@@ -17,7 +25,8 @@ export type UserRow = {
   password_hash?: string;
   display_name: string;
   avatar_url: string | null;
-  role: "teilnehmer";
+  role: UserRole;
+  is_active?: boolean;
   accent_color: string;
   created_at: Date | string;
   updated_at: Date | string;
@@ -42,13 +51,19 @@ export type PhotoRow = {
   updated_at: Date | string;
 };
 
+function asRole(value: unknown): UserRole {
+  return value === "admin" ? "admin" : "teilnehmer";
+}
+
 export function toProfile(row: UserRow): Profile {
   return {
     id: row.id,
+    email: row.email,
     display_name: row.display_name,
     avatar_url: row.avatar_url,
-    role: "teilnehmer",
+    role: asRole(row.role),
     accent_color: row.accent_color,
+    is_active: row.is_active !== false,
     created_at: iso(row.created_at),
     updated_at: iso(row.updated_at),
   };
