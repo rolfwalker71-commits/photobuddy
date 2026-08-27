@@ -1,5 +1,4 @@
--- Photobuddy: einmal im Supabase-Dashboard → SQL Editor einfügen und Run.
--- Kein supabase start, keine lokale Datenbank.
+-- Photobuddy schema. Applied automatically by the migrate container on first start.
 
 create extension if not exists "pgcrypto";
 

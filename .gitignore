@@ -17,6 +17,8 @@ dist/
 
 # Docker / local vapid override
 data/
+supabase/generated/keys.env
+supabase/generated/kong.yml
 
 # OS and editor
 .DS_Store

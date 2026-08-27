@@ -33,3 +33,16 @@ export function getSiteUrl() {
   if (typeof window !== "undefined") return window.location.origin;
   return "http://localhost:3388";
 }
+
+/** Browser: public Kong URL. Server in Docker: in-network Kong. */
+export function getSupabaseUrl() {
+  if (typeof window === "undefined") {
+    const internal = process.env["SUPABASE_INTERNAL_URL"];
+    if (internal) return internal.replace(/\/$/, "");
+  }
+  return getPublicEnv().NEXT_PUBLIC_SUPABASE_URL.replace(/\/$/, "");
+}
+
+export function getSupabaseAnonKey() {
+  return getPublicEnv().NEXT_PUBLIC_SUPABASE_ANON_KEY;
+}

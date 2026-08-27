@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { getPublicEnv } from "@/lib/env";
+import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/env";
 
 const AUTH_REQUIRED = [
   "/gallery",
@@ -20,16 +20,16 @@ function isProtected(pathname: string) {
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
-  const { NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY } =
-    getPublicEnv();
+  const supabaseUrl = getSupabaseUrl();
+  const anonKey = getSupabaseAnonKey();
 
-  if (!NEXT_PUBLIC_SUPABASE_URL || !NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+  if (!supabaseUrl || !anonKey) {
     return response;
   }
 
   const supabase = createServerClient(
-    NEXT_PUBLIC_SUPABASE_URL,
-    NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    supabaseUrl,
+    anonKey,
     {
       cookies: {
         getAll() {

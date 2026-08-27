@@ -4,44 +4,65 @@ Reise-Tagebuch als PWA für vier Personen. Teilnehmer:innen laden Fotos hoch; Fa
 
 ## Schnellstart
 
-Kein zweites Backend, keine lokale Postgres, kein `supabase start`. Nur ein [Supabase](https://supabase.com)-Projekt (Auth + DB + Storage).
+Alles läuft lokal in Docker: Photobuddy (Port **3388**) plus selbst gehostetes Supabase (Kong/API auf Port **8000**). Kein Konto auf supabase.com.
 
-1. **Projekt anlegen** auf [supabase.com](https://supabase.com).
-2. **SQL einmal einfügen:** SQL Editor → Inhalt von `supabase/migrations/00001_init.sql` → Run. (Speichert den `gast_link_key` aus dem Ergebnis, oder hol ihn später in der App unter Einstellungen.)
-3. **Auth-URLs:** Authentication → URL Configuration  
-   Site URL `http://localhost:3388` · Redirects `http://localhost:3388/**` und `http://localhost:3388/auth/callback`
-4. **4 Nutzer:** Authentication → Users → Add user (E-Mail + Passwort).
-5. **`.env`:** `npm run setup` — dann nur URL und anon key aus Project Settings → API eintragen. `NEXT_PUBLIC_SITE_URL` ist schon `http://localhost:3388`.
-6. **Start:** `npm install && npm run dev` → [http://localhost:3388](http://localhost:3388)
+1. **`.env`:** `npm run setup` — legt Secrets an. Lokal sind die URLs schon richtig.
+2. **Stack:** `docker compose up -d` → [http://localhost:3388](http://localhost:3388)
+3. **4 Nutzer** (ohne Dashboard; Profil entsteht automatisch):
+   ```bash
+   npm run create-user -- anna@familie.de geheim Anna
+   npm run create-user -- sam@familie.de geheim Sam
+   npm run create-user -- kim@familie.de geheim Kim
+   npm run create-user -- leo@familie.de geheim Leo
+   ```
+   Auf dem Server ohne Node: `./scripts/create-teilnehmer.sh anna@familie.de geheim Anna`
 
-Das war’s für Tag 1.
+Login ist E-Mail + Passwort. Magic Link braucht einen SMTP-Server (in Compose nicht eingerichtet).
+
+Handy im WLAN: in `.env` beide URLs auf die LAN-IP setzen, dann Compose neu starten:
+
+```bash
+NEXT_PUBLIC_SITE_URL=http://192.168.1.10:3388
+NEXT_PUBLIC_SUPABASE_URL=http://192.168.1.10:8000
+```
+
+### Lokal entwickeln (Next.js auf dem Rechner)
+
+Supabase muss in Docker laufen, die App nicht:
+
+```bash
+npm run setup
+npm run supabase:up
+npm install && npm run dev
+```
 
 ### Was du überspringen kannst
 
-Docker, GHCR, `supabase start`, lokale Datenbank, VAPID-Keys, `seed.sql`, Storage manuell anlegen, öffentliche Registrierung (kannst du später unter Auth abschalten), Magic-Link-Provider extra anschalten (E-Mail ist meist schon an).
+supabase.com, SQL Editor, Auth-URLs im Dashboard, Storage-Bucket anlegen, VAPID von Hand. Schema, Bucket `photos` und Gäste-Link kommen mit dem ersten Start.
 
-Was **nicht** automatisiert werden kann: Supabase-Projekt, SQL einmal einfügen, 4 Nutzer, Auth-Redirects, `.env` ausfüllen.
+### Server (gleicher Compose-Stack)
 
-### Server (gleicher Supabase)
-
-`NEXT_PUBLIC_SITE_URL` = öffentliche URL (ohne Slash). Dieselbe URL plus `/auth/callback` bei den Auth-Redirects ergänzen.
-
-Das Image `ghcr.io/rolfwalker71-commits/photobuddy` existiert **erst nach einem Commit + Push auf `main`** (GitHub Action). Dann auf dem Host:
+`NEXT_PUBLIC_SITE_URL` = öffentliche App-URL (ohne Slash).  
+`NEXT_PUBLIC_SUPABASE_URL` = dieselbe Hostadresse mit Port **8000** (Kong), oder die URL deines Reverse-Proxys zur API.
 
 ```bash
 docker compose pull && docker compose up -d
 ```
 
-Port **3388**. Nie `--build` auf dem Server — Compose zieht nur GHCR, ohne lokales Dockerfile.
+Port **3388** (App) und **8000** (Supabase-API). Nie `--build` auf dem Server — Compose zieht das GHCR-Image, ohne lokales Dockerfile.
+
+Das Image `ghcr.io/rolfwalker71-commits/photobuddy` existiert **erst nach einem Commit + Push auf `main`** (GitHub Action).
+
+Fotos liegen im Volume **`photobuddy-storage`**, die Datenbank in **`photobuddy-db`**, JWT-Keys in **`photobuddy-secrets`**, VAPID in **`photobuddy-vapid`**.
+
+Lokales Image bauen (nur deine Maschine, nicht der Server): `docker compose -f docker-compose.yml -f docker-compose.build.yml build`
 
 ---
 
-**Stack:** Next.js, Tailwind, Supabase (Auth, Postgres + RLS, Storage). Deploy: Docker-Image via GitHub Actions → GHCR (`linux/amd64`).
+**Stack:** Next.js, Tailwind, selbst gehostetes Supabase (Auth/GoTrue, Postgres + RLS, Storage, Kong). Deploy: Docker-Image via GitHub Actions → GHCR (`linux/amd64`).
 
 | | Teilnehmer | Gäste (Share-Link) |
 | --- | --- | --- |
 | Raster / Karte / Timeline | ja | ja |
 | Fotos hochladen, bearbeiten, löschen | ja | nein |
 | Kommentare & Emoji | ja | ja |
-
-Lokales Image bauen (nur deine Maschine, nicht der Server): `docker compose -f docker-compose.yml -f docker-compose.build.yml build`

@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "setup": "node scripts/setup.mjs",
+    "supabase:up": "docker compose up -d init-secrets db auth rest storage kong migrate",
+    "create-user": "node scripts/create-teilnehmer.mjs",
     "dev": "next dev -p 3388",
     "prebuild": "node scripts/generate-icons.mjs",
     "build": "next build",
