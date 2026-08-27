@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, ImagePlus, LoaderCircle } from "lucide-react";
+import { api } from "@/lib/api";
 import { guessLocationName, prepareUploadFiles, readPhotoExif } from "@/lib/image";
-import { createClient } from "@/lib/supabase/client";
 
 type Draft = {
   file: File;
@@ -20,7 +20,6 @@ type Draft = {
 
 export function UploadForm() {
   const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -49,76 +48,30 @@ export function UploadForm() {
     setError(null);
     setStatus("Bild wird komprimiert…");
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Bitte zuerst anmelden.");
+      await api("/api/auth/me");
 
       const prepared = await prepareUploadFiles(draft.file);
-      const id = crypto.randomUUID();
-      const storagePath = `${user.id}/${id}.jpg`;
-      const thumbPath = `${user.id}/thumbs/${id}.jpg`;
-
       setStatus("Upload läuft…");
-      const fullUpload = await supabase.storage
-        .from("photos")
-        .upload(storagePath, prepared.full, { contentType: "image/jpeg", upsert: false });
-      if (fullUpload.error) throw fullUpload.error;
-      const thumbUpload = await supabase.storage
-        .from("photos")
-        .upload(thumbPath, prepared.thumb, { contentType: "image/jpeg", upsert: false });
-      if (thumbUpload.error) throw thumbUpload.error;
 
-      const latitude = draft.latitude ? Number(draft.latitude) : null;
-      const longitude = draft.longitude ? Number(draft.longitude) : null;
-      const takenAt = draft.takenAt ? new Date(draft.takenAt).toISOString() : null;
+      const form = new FormData();
+      form.append("file", prepared.full, "photo.jpg");
+      form.append("thumb", prepared.thumb, "thumb.jpg");
+      form.append("title", draft.title.trim());
+      form.append("description", draft.description.trim());
+      form.append("tags", draft.tags);
+      form.append("takenAt", draft.takenAt ? new Date(draft.takenAt).toISOString() : "");
+      form.append("latitude", draft.latitude);
+      form.append("longitude", draft.longitude);
+      form.append("locationName", draft.locationName.trim());
+      form.append("width", String(prepared.width));
+      form.append("height", String(prepared.height));
 
-      const { data: photo, error: insertError } = await supabase
-        .from("photos")
-        .insert({
-          uploaded_by: user.id,
-          storage_path: storagePath,
-          thumbnail_path: thumbPath,
-          title: draft.title.trim() || null,
-          description: draft.description.trim() || null,
-          taken_at: takenAt,
-          latitude: Number.isFinite(latitude) ? latitude : null,
-          longitude: Number.isFinite(longitude) ? longitude : null,
-          location_name: draft.locationName.trim() || null,
-          width: prepared.width,
-          height: prepared.height,
-          mime_type: "image/jpeg",
-          file_size: prepared.full.size,
-        })
-        .select("id")
-        .single();
-      if (insertError) throw insertError;
+      const data = await api<{ photo: { id: string } }>("/api/photos", {
+        method: "POST",
+        body: form,
+      });
 
-      const names = draft.tags
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean);
-      for (const name of names) {
-        const { data: existing } = await supabase
-          .from("tags")
-          .select("id")
-          .ilike("name", name)
-          .maybeSingle();
-        let tagId = existing?.id as string | undefined;
-        if (!tagId) {
-          const { data: created } = await supabase
-            .from("tags")
-            .insert({ name })
-            .select("id")
-            .single();
-          tagId = created?.id;
-        }
-        if (tagId && photo?.id) {
-          await supabase.from("photo_tags").insert({ photo_id: photo.id, tag_id: tagId });
-        }
-      }
-
-      router.push(`/photos/${photo.id}`);
+      router.push(`/photos/${data.photo.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload fehlgeschlagen.");
     } finally {

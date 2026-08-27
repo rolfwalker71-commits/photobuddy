@@ -1,5 +1,5 @@
 #!/bin/sh
-# 4 Teilnehmer anlegen. Braucht curl und laufendes Kong (Port 8000).
+# 4 Teilnehmer anlegen. Braucht curl und laufende App (Port 3388) oder .env + Postgres.
 set -eu
 root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 
@@ -20,30 +20,23 @@ if [ -f "$root/.env" ]; then
   . "$root/.env"
   set +a
 fi
-if [ -f "$root/supabase/generated/keys.env" ]; then
-  # shellcheck disable=SC1091
-  set -a
-  . "$root/supabase/generated/keys.env"
-  set +a
-fi
 
-base="${NEXT_PUBLIC_SUPABASE_URL:-http://localhost:8000}"
+base="${NEXT_PUBLIC_SITE_URL:-http://localhost:3388}"
 base="${base%/}"
-if [ -z "${SERVICE_ROLE_KEY:-}" ]; then
-  echo "SERVICE_ROLE_KEY fehlt. Erst npm run setup oder einmal docker compose up -d." >&2
+if [ -z "${AUTH_SECRET:-}" ]; then
+  echo "AUTH_SECRET fehlt. Erst npm run setup oder einmal docker compose up -d." >&2
   exit 1
 fi
 
 name="${name:-${email%%@*}}"
-body="{\"email\":\"$email\",\"password\":\"$password\",\"email_confirm\":true,\"user_metadata\":{\"display_name\":\"$name\""
+body="{\"email\":\"$email\",\"password\":\"$password\",\"display_name\":\"$name\""
 if [ -n "$color" ]; then
   body="$body,\"accent_color\":\"$color\""
 fi
-body="$body}}"
+body="$body}"
 
-curl -sS -X POST "$base/auth/v1/admin/users" \
-  -H "apikey: $SERVICE_ROLE_KEY" \
-  -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
+curl -sS -X POST "$base/api/admin/users" \
+  -H "Authorization: Bearer $AUTH_SECRET" \
   -H "Content-Type: application/json" \
   -d "$body"
 echo

@@ -1,249 +1,52 @@
 # Remote / production: pull images only. Never add `build:` for photobuddy.
 #   docker compose pull && docker compose up -d
 #
-# Full stack (app + Supabase):  docker compose up -d
-# Only Supabase (npm run dev): npm run supabase:up
+# Full stack:  docker compose up -d
+# Only Postgres (npm run dev): docker compose up -d db
 #
-# Ports: Photobuddy 3388 · Kong/Supabase API 8000
-# Photos: volume photobuddy-storage · DB: photobuddy-db · keys: photobuddy-secrets
-# Skipped (not needed): Studio, Realtime, Edge Functions, Analytics, Supavisor, imgproxy.
+# Ports: Photobuddy 3388. Postgres is localhost-only on 5432 (for npm run dev).
+# Photos: volume photobuddy-photos · DB: photobuddy-db · keys: photobuddy-secrets
 
 name: photobuddy
 
 services:
-  # One-shot: JWT_SECRET, ANON_KEY, SERVICE_ROLE_KEY, POSTGRES_PASSWORD.
-  # Reuses the volume on restart so keys are not rotated.
+  # One-shot: POSTGRES_PASSWORD + AUTH_SECRET. Reuses the volume on restart.
   init-secrets:
     image: node:22-alpine
     platform: linux/amd64
     restart: "no"
     volumes:
       - photobuddy-secrets:/secrets
-      - ./supabase/generated:/generated
       - ./scripts/generate-secrets.mjs:/generate-secrets.mjs:ro
       - ./docker/init-secrets.mjs:/init-secrets.mjs:ro
-      - ./docker/kong.yml.tmpl:/kong.yml.tmpl:ro
     environment:
-      JWT_SECRET: ${JWT_SECRET:-}
-      ANON_KEY: ${ANON_KEY:-}
-      SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY:-}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+      AUTH_SECRET: ${AUTH_SECRET:-}
     command: ["node", "/init-secrets.mjs"]
 
-  # Official Supabase Postgres (roles + extensions). Data on named volume.
   db:
-    image: supabase/postgres:17.6.1.136
+    image: postgres:16
     platform: linux/amd64
     restart: unless-stopped
     depends_on:
       init-secrets:
         condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:5432:5432"
     volumes:
       - photobuddy-secrets:/secrets:ro
       - photobuddy-db:/var/lib/postgresql/data
-      - photobuddy-db-config:/etc/postgresql-custom
       - ./docker/with-secrets.sh:/usr/local/bin/with-secrets.sh:ro
-      - ./docker/db/roles.sql:/docker-entrypoint-initdb.d/init-scripts/99-roles.sql:ro
-      - ./docker/db/jwt.sql:/docker-entrypoint-initdb.d/init-scripts/99-jwt.sql:ro
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "postgres", "-h", "localhost"]
+      test: ["CMD-SHELL", "pg_isready -U photobuddy -d photobuddy"]
       interval: 5s
       timeout: 5s
       retries: 10
     environment:
-      POSTGRES_HOST: /var/run/postgresql
-      PGPORT: "5432"
-      POSTGRES_PORT: "5432"
-      POSTGRES_DB: postgres
-      PGDATABASE: postgres
-      JWT_EXP: "3600"
+      POSTGRES_USER: photobuddy
+      POSTGRES_DB: photobuddy
     entrypoint: ["/usr/local/bin/with-secrets.sh"]
-    command:
-      [
-        "docker-entrypoint.sh",
-        "postgres",
-        "-c",
-        "config_file=/etc/postgresql/postgresql.conf",
-        "-c",
-        "log_min_messages=fatal",
-      ]
-
-  # GoTrue: email/password login. Signup disabled; create users via npm run create-user.
-  auth:
-    image: supabase/gotrue:v2.189.0
-    platform: linux/amd64
-    restart: unless-stopped
-    depends_on:
-      init-secrets:
-        condition: service_completed_successfully
-      db:
-        condition: service_healthy
-    volumes:
-      - photobuddy-secrets:/secrets:ro
-      - ./docker/with-secrets.sh:/usr/local/bin/with-secrets.sh:ro
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--no-verbose",
-          "--tries=1",
-          "--spider",
-          "http://localhost:9999/health",
-        ]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    environment:
-      GOTRUE_API_HOST: 0.0.0.0
-      GOTRUE_API_PORT: 9999
-      GOTRUE_DB_DRIVER: postgres
-      GOTRUE_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3388}
-      GOTRUE_DISABLE_SIGNUP: "true"
-      GOTRUE_JWT_ADMIN_ROLES: service_role
-      GOTRUE_JWT_AUD: authenticated
-      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
-      GOTRUE_JWT_EXP: "3600"
-      GOTRUE_JWT_ISSUER: supabase-photobuddy
-      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
-      GOTRUE_MAILER_AUTOCONFIRM: "true"
-      GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED: "false"
-      GOTRUE_EXTERNAL_PHONE_ENABLED: "false"
-      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3388}
-      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
-      ADDITIONAL_REDIRECT_URLS: ${ADDITIONAL_REDIRECT_URLS:-}
-      KONG_HTTP_PORT: ${KONG_HTTP_PORT:-8000}
-    entrypoint: ["/usr/local/bin/with-secrets.sh"]
-    command: ["/usr/local/bin/auth"]
-
-  # PostgREST: /rest/v1 for supabase-js + RLS.
-  rest:
-    image: postgrest/postgrest:v14.12
-    platform: linux/amd64
-    restart: unless-stopped
-    depends_on:
-      init-secrets:
-        condition: service_completed_successfully
-      db:
-        condition: service_healthy
-    volumes:
-      - photobuddy-secrets:/secrets:ro
-      - ./docker/with-secrets.sh:/usr/local/bin/with-secrets.sh:ro
-    healthcheck:
-      test: ["CMD", "postgrest", "--ready"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    environment:
-      PGRST_DB_SCHEMAS: public
-      PGRST_DB_ANON_ROLE: anon
-      PGRST_DB_MAX_ROWS: "1000"
-      PGRST_DB_EXTRA_SEARCH_PATH: public
-      PGRST_DB_USE_LEGACY_GUCS: "false"
-    entrypoint: ["/usr/local/bin/with-secrets.sh"]
-    command: ["postgrest"]
-
-  # Storage API: bucket `photos`, files on named volume (no 1GB cloud cap).
-  storage:
-    image: supabase/storage-api:v1.60.4
-    platform: linux/amd64
-    restart: unless-stopped
-    depends_on:
-      init-secrets:
-        condition: service_completed_successfully
-      db:
-        condition: service_healthy
-      rest:
-        condition: service_started
-    volumes:
-      - photobuddy-secrets:/secrets:ro
-      - photobuddy-storage:/var/lib/storage
-      - ./docker/with-secrets.sh:/usr/local/bin/with-secrets.sh:ro
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--no-verbose",
-          "--tries=1",
-          "--spider",
-          "http://127.0.0.1:5000/status",
-        ]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 15s
-    environment:
-      POSTGREST_URL: http://rest:3000
-      FILE_SIZE_LIMIT: "15728640"
-      STORAGE_BACKEND: file
-      GLOBAL_S3_BUCKET: stub
-      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
-      TENANT_ID: photobuddy
-      REGION: stub
-      ENABLE_IMAGE_TRANSFORMATION: "false"
-      REQUEST_ALLOW_X_FORWARDED_PATH: "true"
-      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3388}
-      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
-      KONG_HTTP_PORT: ${KONG_HTTP_PORT:-8000}
-    entrypoint: ["/usr/local/bin/with-secrets.sh"]
-    command: ["docker-entrypoint.sh", "node", "dist/start/server.js"]
-
-  # Kong: public API gateway (Auth + REST + Storage) on host port 8000.
-  kong:
-    image: kong/kong:3.9.3
-    platform: linux/amd64
-    restart: unless-stopped
-    depends_on:
-      init-secrets:
-        condition: service_completed_successfully
-      auth:
-        condition: service_healthy
-      rest:
-        condition: service_healthy
-      storage:
-        condition: service_healthy
-    ports:
-      - "${KONG_HTTP_PORT:-8000}:8000"
-    volumes:
-      - photobuddy-secrets:/secrets:ro
-    healthcheck:
-      test: ["CMD", "kong", "health"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    environment:
-      KONG_DATABASE: "off"
-      KONG_DECLARATIVE_CONFIG: /secrets/kong.yml
-      KONG_ROUTER_FLAVOR: traditional_compatible
-      KONG_DNS_ORDER: LAST,A,CNAME
-      KONG_PLUGINS: cors,key-auth,acl
-      KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
-      KONG_NGINX_PROXY_PROXY_BUFFERS: 64 160k
-    entrypoint: ["/docker-entrypoint.sh"]
-    command: ["kong", "docker-start"]
-
-  # Apply 00001_init.sql once (tables, RLS, photos bucket, guest link).
-  migrate:
-    image: postgres:17-alpine
-    platform: linux/amd64
-    restart: "no"
-    depends_on:
-      init-secrets:
-        condition: service_completed_successfully
-      db:
-        condition: service_healthy
-      auth:
-        condition: service_healthy
-      storage:
-        condition: service_healthy
-    volumes:
-      - photobuddy-secrets:/secrets:ro
-      - ./docker/with-secrets.sh:/usr/local/bin/with-secrets.sh:ro
-      - ./docker/migrate.sh:/migrate.sh:ro
-      - ./supabase/migrations/00001_init.sql:/migration.sql:ro
-    entrypoint: ["/usr/local/bin/with-secrets.sh"]
-    command: ["/bin/sh", "/migrate.sh"]
+    command: ["docker-entrypoint.sh", "postgres"]
 
   # Photobuddy Next.js — GHCR only. Do not add build: here.
   photobuddy:
@@ -251,33 +54,28 @@ services:
     platform: linux/amd64
     restart: unless-stopped
     depends_on:
-      kong:
+      db:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
     ports:
       - "3388:3388"
     environment:
       NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3388}
-      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-http://localhost:8000}
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-${ANON_KEY:-}}
-      SUPABASE_INTERNAL_URL: http://kong:8000
       NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:photobuddy@localhost}
+      PHOTOS_DIR: /data/photos
       PORT: 3388
     volumes:
       - vapid-keys:/data/vapid
+      - photobuddy-photos:/data/photos
       - photobuddy-secrets:/secrets:ro
 
 volumes:
   photobuddy-db:
     name: photobuddy-db
-  photobuddy-storage:
-    name: photobuddy-storage
+  photobuddy-photos:
+    name: photobuddy-photos
   photobuddy-secrets:
     name: photobuddy-secrets
-  photobuddy-db-config:
-    name: photobuddy-db-config
   vapid-keys:
     name: photobuddy-vapid

@@ -1,7 +1,5 @@
-import { getPublicEnv } from "@/lib/env";
-
 export function publicPhotoUrl(path: string | null | undefined) {
   if (!path) return "";
-  const { NEXT_PUBLIC_SUPABASE_URL } = getPublicEnv();
-  return `${NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/photos/${path}`;
+  const parts = path.split("/").filter(Boolean).map(encodeURIComponent).join("/");
+  return `/api/photos/files/${parts}`;
 }

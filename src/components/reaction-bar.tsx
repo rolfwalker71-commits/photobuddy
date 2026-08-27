@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { useEffect, useState } from "react";
+import { api, withKey } from "@/lib/api";
 import { getGuestSessionId, getStoredGuestName } from "@/lib/guest";
 import type { Reaction, ViewerMode } from "@/lib/types";
 
@@ -22,28 +22,18 @@ export function ReactionBar({
   currentUserId,
   onNeedGuestName,
 }: ReactionBarProps) {
-  const supabase = useMemo(() => createClient(), []);
   const [reactions, setReactions] = useState<Reaction[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
-      if (mode === "guest" && shareKey) {
-        const { data } = await supabase.rpc("guest_list_reactions", {
-          p_key: shareKey,
-          p_photo_id: photoId,
-        });
-        setReactions((data ?? []) as Reaction[]);
-        return;
-      }
-      const { data } = await supabase
-        .from("reactions")
-        .select("id, photo_id, emoji, guest_name, author_id")
-        .eq("photo_id", photoId);
-      setReactions((data ?? []) as Reaction[]);
+      const data = await api<{ reactions: Reaction[] }>(
+        withKey(`/api/photos/${photoId}/reactions`, shareKey),
+      );
+      setReactions(data.reactions);
     };
     void load();
-  }, [mode, photoId, shareKey, supabase]);
+  }, [mode, photoId, shareKey]);
 
   const counts = EMOJIS.map((emoji) => ({
     emoji,
@@ -67,37 +57,19 @@ export function ReactionBar({
       if (mode === "guest") {
         if (!shareKey) return;
         if (!getStoredGuestName() && !onNeedGuestName()) return;
-        await supabase.rpc("guest_toggle_reaction", {
-          p_key: shareKey,
-          p_photo_id: photoId,
-          p_guest_name: getStoredGuestName() || "Gast",
-          p_guest_session_id: getGuestSessionId(),
-          p_emoji: emoji,
-        });
-        const { data } = await supabase.rpc("guest_list_reactions", {
-          p_key: shareKey,
-          p_photo_id: photoId,
-        });
-        setReactions((data ?? []) as Reaction[]);
-        return;
       }
-      const existing = reactions.find(
-        (r) => r.emoji === emoji && r.author_id === currentUserId,
+      const data = await api<{ reactions: Reaction[] }>(
+        withKey(`/api/photos/${photoId}/reactions`, shareKey),
+        {
+          method: "POST",
+          body: JSON.stringify({
+            emoji,
+            guest_name: mode === "guest" ? getStoredGuestName() || "Gast" : undefined,
+            guest_session_id: mode === "guest" ? getGuestSessionId() : undefined,
+          }),
+        },
       );
-      if (existing) {
-        await supabase.from("reactions").delete().eq("id", existing.id);
-      } else if (currentUserId) {
-        await supabase.from("reactions").insert({
-          photo_id: photoId,
-          author_id: currentUserId,
-          emoji,
-        });
-      }
-      const { data } = await supabase
-        .from("reactions")
-        .select("id, photo_id, emoji, guest_name, author_id")
-        .eq("photo_id", photoId);
-      setReactions((data ?? []) as Reaction[]);
+      setReactions(data.reactions);
     } finally {
       setBusy(null);
     }

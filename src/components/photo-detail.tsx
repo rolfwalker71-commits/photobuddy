@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
@@ -8,10 +8,10 @@ import { ArrowLeft, MapPin, Trash2 } from "lucide-react";
 import { CommentSection } from "@/components/comment-section";
 import { GuestNameDialog } from "@/components/guest-name-dialog";
 import { ReactionBar } from "@/components/reaction-bar";
+import { api, withKey } from "@/lib/api";
 import { getStoredGuestName, storeGuestName } from "@/lib/guest";
 import { appHref } from "@/lib/paths";
 import { publicPhotoUrl } from "@/lib/storage";
-import { createClient } from "@/lib/supabase/client";
 import type { Photo, PhotoTag, Profile, ViewerMode } from "@/lib/types";
 
 type PhotoDetailProps = {
@@ -22,7 +22,6 @@ type PhotoDetailProps = {
 
 export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
   const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
   const [photo, setPhoto] = useState<Photo | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
@@ -40,80 +39,28 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
 
   useEffect(() => {
     const load = async () => {
-      if (mode === "guest") {
-        if (!shareKey) {
-          setError("Gäste-Link fehlt.");
-          return;
+      try {
+        if (mode === "teilnehmer") {
+          const me = await api<{ user: { id: string } }>("/api/auth/me");
+          setUserId(me.user.id);
         }
-        const { data, error: photoError } = await supabase.rpc("guest_get_photo", {
-          p_key: shareKey,
-          p_photo_id: photoId,
-        });
-        if (photoError) {
-          setError("Foto nicht gefunden.");
-          return;
-        }
-        const row = data as Photo;
-        setPhoto(row);
-        setTitle(row.title ?? "");
-        setDescription(row.description ?? "");
-        setLocationName(row.location_name ?? "");
-        const { data: people } = await supabase.rpc("guest_list_profiles", {
-          p_key: shareKey,
-        });
-        const match = (people ?? []).find((p: { id: string }) => p.id === row.uploaded_by);
-        if (match) {
-          setProfile({
-            ...match,
-            role: "teilnehmer",
-            created_at: "",
-            updated_at: "",
-          } as Profile);
-        }
-        const { data: tagRows } = await supabase.rpc("guest_list_tags", {
-          p_key: shareKey,
-        });
-        setTags(((tagRows ?? []) as PhotoTag[]).filter((t) => t.photo_id === photoId));
-        return;
+        const data = await api<{
+          photo: Photo;
+          profile: Profile | null;
+          tags: PhotoTag[];
+        }>(withKey(`/api/photos/${photoId}`, shareKey));
+        setPhoto(data.photo);
+        setTitle(data.photo.title ?? "");
+        setDescription(data.photo.description ?? "");
+        setLocationName(data.photo.location_name ?? "");
+        setProfile(data.profile);
+        setTags(data.tags);
+      } catch {
+        setError(mode === "guest" && !shareKey ? "Gäste-Link fehlt." : "Foto nicht gefunden.");
       }
-
-      const { data: userData } = await supabase.auth.getUser();
-      setUserId(userData.user?.id ?? null);
-      const { data, error: photoError } = await supabase
-        .from("photos")
-        .select("*")
-        .eq("id", photoId)
-        .single();
-      if (photoError || !data) {
-        setError("Foto nicht gefunden.");
-        return;
-      }
-      setPhoto(data as Photo);
-      setTitle(data.title ?? "");
-      setDescription(data.description ?? "");
-      setLocationName(data.location_name ?? "");
-      const { data: person } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", data.uploaded_by)
-        .single();
-      setProfile(person as Profile | null);
-      const { data: tagRows } = await supabase
-        .from("photo_tags")
-        .select("photo_id, tag_id, tags(name)")
-        .eq("photo_id", photoId);
-      setTags(
-        ((tagRows ?? []) as { photo_id: string; tag_id: string; tags: { name: string } | { name: string }[] | null }[]).map(
-          (row) => ({
-            photo_id: row.photo_id,
-            tag_id: row.tag_id,
-            name: Array.isArray(row.tags) ? row.tags[0]?.name : row.tags?.name ?? "",
-          }),
-        ),
-      );
     };
     void load();
-  }, [mode, photoId, shareKey, supabase]);
+  }, [mode, photoId, shareKey]);
 
   function requestGuestName() {
     if (getStoredGuestName()) return true;
@@ -132,64 +79,47 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
     if (mode !== "teilnehmer" || !photo) return;
     setSaving(true);
     setError(null);
-    const { error: updateError } = await supabase
-      .from("photos")
-      .update({
-        title: title.trim() || null,
-        description: description.trim() || null,
-        location_name: locationName.trim() || null,
-      })
-      .eq("id", photo.id);
-    setSaving(false);
-    if (updateError) setError(updateError.message);
-    else setPhoto({ ...photo, title, description, location_name: locationName });
+    try {
+      await api(`/api/photos/${photo.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          title: title.trim() || null,
+          description: description.trim() || null,
+          location_name: locationName.trim() || null,
+        }),
+      });
+      setPhoto({ ...photo, title, description, location_name: locationName });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function addTag() {
     if (mode !== "teilnehmer" || !photo) return;
     const name = tagInput.trim();
     if (!name) return;
-    const { data: existing } = await supabase
-      .from("tags")
-      .select("id, name")
-      .ilike("name", name)
-      .maybeSingle();
-    let tagId = existing?.id as string | undefined;
-    if (!tagId) {
-      const { data: created, error: tagError } = await supabase
-        .from("tags")
-        .insert({ name })
-        .select("id, name")
-        .single();
-      if (tagError) {
-        setError(tagError.message);
-        return;
-      }
-      tagId = created.id;
+    try {
+      const data = await api<{ tag: PhotoTag }>(`/api/photos/${photo.id}/tags`, {
+        method: "POST",
+        body: JSON.stringify({ name }),
+      });
+      setTags((prev) =>
+        prev.some((t) => t.tag_id === data.tag.tag_id)
+          ? prev
+          : [...prev, data.tag],
+      );
+      setTagInput("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Tag fehlgeschlagen.");
     }
-    if (!tagId) return;
-    const { error: linkError } = await supabase
-      .from("photo_tags")
-      .upsert({ photo_id: photo.id, tag_id: tagId });
-    if (linkError) {
-      setError(linkError.message);
-      return;
-    }
-    setTags((prev) =>
-      prev.some((t) => t.tag_id === tagId)
-        ? prev
-        : [...prev, { photo_id: photo.id, tag_id: tagId, name }],
-    );
-    setTagInput("");
   }
 
   async function removePhoto() {
     if (mode !== "teilnehmer" || !photo) return;
     if (!window.confirm("Dieses Foto wirklich löschen?")) return;
-    await supabase.from("photos").delete().eq("id", photo.id);
-    await supabase.storage.from("photos").remove(
-      [photo.storage_path, photo.thumbnail_path].filter(Boolean) as string[],
-    );
+    await api(`/api/photos/${photo.id}`, { method: "DELETE" });
     router.push(appHref(mode, shareKey, "gallery"));
   }
 

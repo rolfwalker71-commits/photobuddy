@@ -1,16 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Copy, Plus } from "lucide-react";
 import { InstallButton } from "@/components/pwa/install-button";
-import { createClient } from "@/lib/supabase/client";
+import { api } from "@/lib/api";
 import { getSiteUrl } from "@/lib/env";
 import type { Profile, ShareLink } from "@/lib/types";
 
 export function SettingsPanel() {
   const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [links, setLinks] = useState<ShareLink[]>([]);
   const [displayName, setDisplayName] = useState("");
@@ -19,71 +18,59 @@ export function SettingsPanel() {
 
   useEffect(() => {
     const load = async () => {
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) return;
-      const { data } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userData.user.id)
-        .single();
-      if (data) {
-        setProfile(data as Profile);
-        setDisplayName(data.display_name);
-        setAccent(data.accent_color);
-      }
-      const { data: share } = await supabase
-        .from("share_links")
-        .select("*")
-        .order("created_at", { ascending: false });
-      setLinks((share ?? []) as ShareLink[]);
+      const data = await api<{ profile: Profile; shareLinks: ShareLink[] }>(
+        "/api/profile",
+      );
+      setProfile(data.profile);
+      setDisplayName(data.profile.display_name);
+      setAccent(data.profile.accent_color);
+      setLinks(data.shareLinks);
     };
     void load();
-  }, [supabase]);
+  }, []);
 
   async function saveProfile() {
     if (!profile) return;
-    const { error } = await supabase
-      .from("profiles")
-      .update({ display_name: displayName.trim(), accent_color: accent })
-      .eq("id", profile.id);
-    setStatus(error ? error.message : "Profil gespeichert.");
+    try {
+      const data = await api<{ profile: Profile }>("/api/profile", {
+        method: "PATCH",
+        body: JSON.stringify({
+          display_name: displayName.trim(),
+          accent_color: accent,
+        }),
+      });
+      setProfile(data.profile);
+      setStatus("Profil gespeichert.");
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "Speichern fehlgeschlagen.");
+    }
   }
 
   async function createLink() {
-    const key = crypto.randomUUID().replace(/-/g, "").slice(0, 20);
-    const { data: userData } = await supabase.auth.getUser();
-    const { data, error } = await supabase
-      .from("share_links")
-      .insert({
-        key,
-        label: "Familien-Link",
-        created_by: userData.user?.id,
-      })
-      .select("*")
-      .single();
-    if (error) {
-      setStatus(error.message);
-      return;
+    try {
+      const data = await api<{ shareLink: ShareLink }>("/api/share-links", {
+        method: "POST",
+      });
+      setLinks((prev) => [data.shareLink, ...prev]);
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "Link fehlgeschlagen.");
     }
-    setLinks((prev) => [data as ShareLink, ...prev]);
   }
 
   async function toggleLink(link: ShareLink) {
-    const { error } = await supabase
-      .from("share_links")
-      .update({ is_active: !link.is_active })
-      .eq("id", link.id);
-    if (!error) {
-      setLinks((prev) =>
-        prev.map((item) =>
-          item.id === link.id ? { ...item, is_active: !item.is_active } : item,
-        ),
-      );
-    }
+    await api(`/api/share-links/${link.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ is_active: !link.is_active }),
+    });
+    setLinks((prev) =>
+      prev.map((item) =>
+        item.id === link.id ? { ...item, is_active: !item.is_active } : item,
+      ),
+    );
   }
 
   async function signOut() {
-    await supabase.auth.signOut();
+    await api("/api/auth/logout", { method: "POST" });
     router.push("/login");
     router.refresh();
   }

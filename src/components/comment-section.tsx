@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { de } from "date-fns/locale";
-import { createClient } from "@/lib/supabase/client";
+import { api, withKey } from "@/lib/api";
 import { getGuestSessionId, getStoredGuestName } from "@/lib/guest";
 import type { Comment, ViewerMode } from "@/lib/types";
 
@@ -19,47 +19,22 @@ export function CommentSection({
   photoId,
   mode,
   shareKey,
-  currentUserId,
   onNeedGuestName,
 }: CommentSectionProps) {
-  const supabase = useMemo(() => createClient(), []);
   const [comments, setComments] = useState<Comment[]>([]);
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
-    if (mode === "guest" && shareKey) {
-      const { data, error: loadError } = await supabase.rpc(
-        "guest_list_comments",
-        { p_key: shareKey, p_photo_id: photoId },
+    try {
+      const data = await api<{ comments: Comment[] }>(
+        withKey(`/api/photos/${photoId}/comments`, shareKey),
       );
-      if (loadError) {
-        setError(loadError.message);
-        return;
-      }
-      setComments((data ?? []) as Comment[]);
-      return;
+      setComments(data.comments);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Laden fehlgeschlagen.");
     }
-    const { data, error: loadError } = await supabase
-      .from("comments")
-      .select("id, photo_id, author_id, guest_name, body, created_at, profiles(display_name)")
-      .eq("photo_id", photoId)
-      .order("created_at", { ascending: true });
-    if (loadError) {
-      setError(loadError.message);
-      return;
-    }
-    setComments(
-      ((data ?? []) as (Comment & { profiles?: { display_name: string } | { display_name: string }[] | null })[]).map(
-        (row) => ({
-          ...row,
-          author_display_name: Array.isArray(row.profiles)
-            ? row.profiles[0]?.display_name
-            : row.profiles?.display_name,
-        }),
-      ),
-    );
   }
 
   useEffect(() => {
@@ -76,26 +51,19 @@ export function CommentSection({
     setBusy(true);
     setError(null);
     try {
-      if (mode === "guest") {
-        if (!shareKey) return;
-        const { error: insertError } = await supabase.rpc("guest_add_comment", {
-          p_key: shareKey,
-          p_photo_id: photoId,
-          p_guest_name: getStoredGuestName() || "Gast",
-          p_guest_session_id: getGuestSessionId(),
-          p_body: text,
-        });
-        if (insertError) throw insertError;
-      } else if (currentUserId) {
-        const { error: insertError } = await supabase.from("comments").insert({
-          photo_id: photoId,
-          author_id: currentUserId,
-          body: text,
-        });
-        if (insertError) throw insertError;
-      }
+      const data = await api<{ comments: Comment[] }>(
+        withKey(`/api/photos/${photoId}/comments`, shareKey),
+        {
+          method: "POST",
+          body: JSON.stringify({
+            body: text,
+            guest_name: mode === "guest" ? getStoredGuestName() || "Gast" : undefined,
+            guest_session_id: mode === "guest" ? getGuestSessionId() : undefined,
+          }),
+        },
+      );
       setBody("");
-      await load();
+      setComments(data.comments);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Kommentar fehlgeschlagen.");
     } finally {
@@ -105,7 +73,7 @@ export function CommentSection({
 
   async function remove(id: string) {
     if (mode !== "teilnehmer") return;
-    await supabase.from("comments").delete().eq("id", id);
+    await api(`/api/comments/${id}`, { method: "DELETE" });
     await load();
   }
 
