@@ -73,7 +73,7 @@ async function draftFromFile(
 ): Promise<Draft> {
   const exif = await readPhotoExif(file);
   const hasExif = exif.latitude != null && exif.longitude != null;
-  let next: Draft = {
+  const next: Draft = {
     file,
     preview: URL.createObjectURL(file),
     takenAt: toDatetimeLocalValue(exif.takenAt),
