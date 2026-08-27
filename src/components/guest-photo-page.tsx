@@ -3,6 +3,7 @@
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { FloatingDock } from "@/components/floating-dock";
+import { GuestNamePrompt } from "@/components/guest-name-prompt";
 import { PhotoDetail } from "@/components/photo-detail";
 
 function GuestPhotoInner({ photoId }: { photoId: string }) {
@@ -10,6 +11,7 @@ function GuestPhotoInner({ photoId }: { photoId: string }) {
   const key = params.get("key");
   return (
     <div className="min-h-dvh px-4 py-4 pb-28">
+      <GuestNamePrompt />
       <PhotoDetail photoId={photoId} mode="guest" shareKey={key} />
       <FloatingDock mode="guest" shareKey={key} />
     </div>

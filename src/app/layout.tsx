@@ -1,20 +1,7 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Source_Sans_3 } from "next/font/google";
 import Script from "next/script";
 import { Providers } from "@/components/providers";
 import "./globals.css";
-
-const sans = Source_Sans_3({
-  subsets: ["latin"],
-  variable: "--font-sans",
-  display: "swap",
-});
-
-const display = Fraunces({
-  subsets: ["latin"],
-  variable: "--font-display",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "Photobuddy — Reise-Tagebuch",
@@ -46,7 +33,7 @@ export default function RootLayout({
       <head>
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
       </head>
-      <body className={`${sans.variable} ${display.variable} font-sans antialiased`}>
+      <body className="font-sans antialiased">
         <Script src="/runtime-config.js" strategy="beforeInteractive" />
         <Providers>{children}</Providers>
       </body>

@@ -9,9 +9,10 @@ import { CommentSection } from "@/components/comment-section";
 import { GuestNameDialog } from "@/components/guest-name-dialog";
 import { ReactionBar } from "@/components/reaction-bar";
 import { api, withKey } from "@/lib/api";
-import { getStoredGuestName, storeGuestName } from "@/lib/guest";
+import { hasGuestName, storeGuestName } from "@/lib/guest";
 import { appHref } from "@/lib/paths";
 import { notifyPhotosChanged } from "@/lib/photos-sync";
+import { humanLocationName } from "@/lib/image";
 import { publicPhotoUrl } from "@/lib/storage";
 import type { Photo, PhotoTag, Profile, ViewerMode } from "@/lib/types";
 
@@ -34,9 +35,6 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [askName, setAskName] = useState(false);
-  const [nameResolver, setNameResolver] = useState<((ok: boolean) => void) | null>(
-    null,
-  );
 
   useEffect(() => {
     const load = async () => {
@@ -64,7 +62,7 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
   }, [mode, photoId, shareKey]);
 
   function requestGuestName() {
-    if (getStoredGuestName()) return true;
+    if (hasGuestName()) return true;
     setAskName(true);
     return false;
   }
@@ -72,8 +70,6 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
   function saveGuestName(name: string) {
     storeGuestName(name);
     setAskName(false);
-    nameResolver?.(true);
-    setNameResolver(null);
   }
 
   async function saveMeta() {
@@ -210,28 +206,29 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
               {saving ? "Speichern…" : "Änderungen speichern"}
             </button>
           </div>
-        ) : (
+        ) : photo.title || photo.description ? (
           <div>
-            <h1 className="font-display text-xl font-semibold leading-snug break-words">
-              {photo.title || "Ohne Titel"}
-            </h1>
+            {photo.title ? (
+              <h1 className="text-xl font-semibold leading-snug break-words">
+                {photo.title}
+              </h1>
+            ) : null}
             {photo.description ? (
-              <p className="mt-2 text-sm leading-relaxed break-words">
+              <p className={`text-sm leading-relaxed break-words ${photo.title ? "mt-2" : ""}`}>
                 {photo.description}
               </p>
             ) : null}
           </div>
-        )}
+        ) : null}
 
         <p className="text-sm text-muted-foreground">
           {profile?.display_name ?? "Teilnehmer"} · {when}
         </p>
-        {photo.location_name || (photo.latitude != null && photo.longitude != null) ? (
+        {humanLocationName(photo.location_name) ? (
           <p className="flex items-start gap-1 text-sm text-muted-foreground">
             <MapPin className="mt-0.5 size-4 shrink-0" />
             <span className="break-words">
-              {photo.location_name ||
-                `${photo.latitude?.toFixed(4)}, ${photo.longitude?.toFixed(4)}`}
+              {humanLocationName(photo.location_name)}
             </span>
           </p>
         ) : null}
@@ -284,11 +281,7 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
       />
       <GuestNameDialog
         open={askName}
-        onClose={() => {
-          setAskName(false);
-          nameResolver?.(false);
-          setNameResolver(null);
-        }}
+        required
         onSave={saveGuestName}
       />
     </article>

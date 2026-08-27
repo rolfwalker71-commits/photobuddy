@@ -35,7 +35,7 @@ export function PhotoFiltersSheet({
         className="relative z-10 w-full max-w-lg rounded-t-2xl bg-card p-5 shadow-dock ring-1 ring-border sm:rounded-2xl"
       >
         <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 id="filter-title" className="font-display text-lg font-semibold">
+          <h2 id="filter-title" className="text-lg font-semibold">
             Filter
           </h2>
           <button

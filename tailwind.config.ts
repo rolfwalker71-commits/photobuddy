@@ -30,12 +30,15 @@ const config: Config = {
       },
       fontFamily: {
         sans: [
-          "var(--font-sans)",
-          "ui-sans-serif",
           "system-ui",
+          "-apple-system",
+          "Segoe UI",
+          "Roboto",
+          "Helvetica Neue",
+          "Arial",
+          "Noto Sans",
           "sans-serif",
         ],
-        display: ["var(--font-display)", "ui-serif", "Georgia", "serif"],
       },
     },
   },

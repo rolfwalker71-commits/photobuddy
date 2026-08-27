@@ -89,7 +89,7 @@ export function SettingsPanel() {
   return (
     <div className="space-y-6">
       <section className="space-y-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border">
-        <h2 className="font-display text-base font-semibold">Profil</h2>
+        <h2 className="text-base font-semibold">Profil</h2>
         {profile?.email ? (
           <p className="break-all text-sm text-muted-foreground">{profile.email}</p>
         ) : null}
@@ -121,7 +121,7 @@ export function SettingsPanel() {
 
       {profile?.role === "admin" ? (
         <section className="space-y-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border">
-          <h2 className="font-display text-base font-semibold">Teilnehmer</h2>
+          <h2 className="text-base font-semibold">Teilnehmer</h2>
           <p className="text-sm text-muted-foreground leading-snug">
             Reise-Teilnehmer anlegen, Passwort zurücksetzen oder Konten
             deaktivieren. Gäste bleiben ohne Login über den Link.
@@ -138,7 +138,7 @@ export function SettingsPanel() {
 
       <section className="space-y-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="font-display text-base font-semibold">Gäste-Links</h2>
+          <h2 className="text-base font-semibold">Gäste-Links</h2>
           <button
             type="button"
             onClick={() => void createLink()}
@@ -188,7 +188,7 @@ export function SettingsPanel() {
       </section>
 
       <section className="space-y-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border">
-        <h2 className="font-display text-base font-semibold">Standort</h2>
+        <h2 className="text-base font-semibold">Standort</h2>
         <button
           type="button"
           role="switch"
@@ -231,7 +231,7 @@ export function SettingsPanel() {
       </section>
 
       <section className="space-y-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border">
-        <h2 className="font-display text-base font-semibold">App</h2>
+        <h2 className="text-base font-semibold">App</h2>
         <InstallButton />
       </section>
 

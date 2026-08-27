@@ -3,7 +3,7 @@ import { jsonError, requireViewer } from "@/lib/auth/request";
 import {
   getPhotosUpdatedStamp,
   getShareLabel,
-  listPhotos,
+  listPhotosForGrid,
   listProfiles,
   listTags,
 } from "@/lib/db/queries";
@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   try {
     const viewer = await requireViewer(request);
     const [photos, profiles, tags, stamp] = await Promise.all([
-      listPhotos(),
+      listPhotosForGrid(),
       listProfiles(),
       listTags(),
       getPhotosUpdatedStamp(),

@@ -39,11 +39,13 @@ export async function POST(request: Request, ctx: Ctx) {
         emoji,
       });
     } else {
+      const name = body.guest_name?.trim() ?? "";
       const sessionId = body.guest_session_id?.trim() ?? "";
+      if (name.length < 2) throw new HttpError(400, "Bitte einen Namen angeben.");
       if (!sessionId) throw new HttpError(400, "Gäste-Sitzung fehlt.");
       await toggleGuestReaction({
         photoId: id,
-        guestName: body.guest_name?.trim() || "Gast",
+        guestName: name,
         guestSessionId: sessionId,
         emoji,
       });

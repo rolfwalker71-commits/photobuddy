@@ -2,12 +2,18 @@
 
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import { GuestNamePrompt } from "@/components/guest-name-prompt";
 import { TripView } from "@/components/trip-view";
 
 function GuestTripInner({ view }: { view: "grid" | "map" | "timeline" }) {
   const params = useSearchParams();
   const key = params.get("key");
-  return <TripView mode="guest" shareKey={key} view={view} />;
+  return (
+    <>
+      <GuestNamePrompt />
+      <TripView mode="guest" shareKey={key} view={view} />
+    </>
+  );
 }
 
 export function GuestTripPage({

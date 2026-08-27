@@ -9,7 +9,16 @@ import {
   type PhotoRow,
   type UserRow,
 } from "@/lib/db/mappers";
-import type { Comment, Photo, PhotoTag, Profile, Reaction, ShareLink, UserRole } from "@/lib/types";
+import type {
+  Comment,
+  Photo,
+  PhotoReactionSummary,
+  PhotoTag,
+  Profile,
+  Reaction,
+  ShareLink,
+  UserRole,
+} from "@/lib/types";
 
 const PROFILE_COLS =
   "id, email, display_name, avatar_url, role, accent_color, is_active, created_at, updated_at";
@@ -131,14 +140,67 @@ export async function listPhotos(): Promise<Photo[]> {
   return rows.map(toPhoto);
 }
 
+export async function listPhotosForGrid(): Promise<Photo[]> {
+  const [photos, tags, commentRows, reactionRows] = await Promise.all([
+    listPhotos(),
+    listTags(),
+    query<{ photo_id: string; n: string }>(
+      `select photo_id, count(*)::text as n from public.comments group by photo_id`,
+    ),
+    query<{ photo_id: string; emoji: string; n: string }>(
+      `select photo_id, emoji, count(*)::text as n
+       from public.reactions
+       group by photo_id, emoji
+       order by count(*) desc`,
+    ),
+  ]);
+
+  const commentsByPhoto = new Map<string, number>();
+  for (const row of commentRows) {
+    commentsByPhoto.set(row.photo_id, Number(row.n));
+  }
+
+  const reactionsByPhoto = new Map<string, PhotoReactionSummary[]>();
+  for (const row of reactionRows) {
+    const list = reactionsByPhoto.get(row.photo_id) ?? [];
+    list.push({ emoji: row.emoji, count: Number(row.n) });
+    reactionsByPhoto.set(row.photo_id, list);
+  }
+
+  const tagsByPhoto = new Map<string, PhotoTag[]>();
+  for (const tag of tags) {
+    const list = tagsByPhoto.get(tag.photo_id) ?? [];
+    list.push(tag);
+    tagsByPhoto.set(tag.photo_id, list);
+  }
+
+  return photos.map((photo) => ({
+    ...photo,
+    comment_count: commentsByPhoto.get(photo.id) ?? 0,
+    reactions: reactionsByPhoto.get(photo.id) ?? [],
+    tags: tagsByPhoto.get(photo.id) ?? [],
+  }));
+}
+
 export async function getPhotosUpdatedStamp(): Promise<string> {
-  const row = await queryOne<{ n: string; latest: Date | string | null }>(
-    `select count(*)::text as n,
-            max(greatest(created_at, updated_at, coalesce(taken_at, created_at))) as latest
-     from public.photos`,
+  const row = await queryOne<{
+    photos: string;
+    comments: string;
+    reactions: string;
+    latest: Date | string | null;
+  }>(
+    `select
+       (select count(*)::text from public.photos) as photos,
+       (select count(*)::text from public.comments) as comments,
+       (select count(*)::text from public.reactions) as reactions,
+       greatest(
+         (select max(greatest(created_at, updated_at, coalesce(taken_at, created_at))) from public.photos),
+         (select max(created_at) from public.comments),
+         (select max(created_at) from public.reactions)
+       ) as latest`,
   );
   const latest = row?.latest ? new Date(row.latest).toISOString() : "none";
-  return `${row?.n ?? "0"}:${latest}`;
+  return `${row?.photos ?? "0"}:${row?.comments ?? "0"}:${row?.reactions ?? "0"}:${latest}`;
 }
 
 export async function getPhoto(id: string): Promise<Photo | null> {
@@ -356,7 +418,7 @@ export async function toggleGuestReaction(input: {
      values ($1, $2, $3, $4)`,
     [
       input.photoId,
-      input.guestName.slice(0, 80) || "Gast",
+      input.guestName.slice(0, 80),
       input.guestSessionId,
       input.emoji.slice(0, 16),
     ],

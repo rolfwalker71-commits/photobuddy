@@ -12,6 +12,22 @@ export type Profile = {
   updated_at: string;
 };
 
+export type Tag = {
+  id: string;
+  name: string;
+};
+
+export type PhotoTag = {
+  photo_id: string;
+  tag_id: string;
+  name: string;
+};
+
+export type PhotoReactionSummary = {
+  emoji: string;
+  count: number;
+};
+
 export type Photo = {
   id: string;
   uploaded_by: string;
@@ -29,17 +45,9 @@ export type Photo = {
   file_size: number | null;
   created_at: string;
   updated_at: string;
-};
-
-export type Tag = {
-  id: string;
-  name: string;
-};
-
-export type PhotoTag = {
-  photo_id: string;
-  tag_id: string;
-  name: string;
+  comment_count?: number;
+  reactions?: PhotoReactionSummary[];
+  tags?: PhotoTag[];
 };
 
 export type Comment = {

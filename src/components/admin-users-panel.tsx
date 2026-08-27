@@ -151,7 +151,7 @@ export function AdminUsersPanel() {
       >
         <div className="flex items-center gap-2">
           <UserPlus className="size-4" aria-hidden />
-          <h2 className="font-display text-base font-semibold">
+          <h2 className="text-base font-semibold">
             Teilnehmer anlegen
           </h2>
         </div>
@@ -206,7 +206,7 @@ export function AdminUsersPanel() {
       </form>
 
       <section className="space-y-3">
-        <h2 className="font-display text-base font-semibold px-1">Konten</h2>
+        <h2 className="text-base font-semibold px-1">Konten</h2>
         <ul className="space-y-3">
           {users.map((user) => {
             const isLastAdmin = user.role === "admin" && adminCount < 2;

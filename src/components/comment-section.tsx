@@ -4,7 +4,12 @@ import { useEffect, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { de } from "date-fns/locale";
 import { api, withKey } from "@/lib/api";
-import { getGuestSessionId, getStoredGuestName } from "@/lib/guest";
+import {
+  getGuestSessionId,
+  getStoredGuestName,
+  hasGuestName,
+  subscribeGuestName,
+} from "@/lib/guest";
 import type { Comment, ViewerMode } from "@/lib/types";
 
 type CommentSectionProps = {
@@ -25,6 +30,14 @@ export function CommentSection({
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [guestName, setGuestName] = useState("");
+
+  useEffect(() => {
+    setGuestName(getStoredGuestName());
+    return subscribeGuestName(setGuestName);
+  }, []);
+
+  const guestReady = mode !== "guest" || guestName.length >= 2;
 
   async function load() {
     try {
@@ -46,7 +59,10 @@ export function CommentSection({
     event.preventDefault();
     const text = body.trim();
     if (!text) return;
-    if (mode === "guest" && !getStoredGuestName() && !onNeedGuestName()) return;
+    if (mode === "guest") {
+      if (!hasGuestName() && !onNeedGuestName()) return;
+      if (!hasGuestName()) return;
+    }
 
     setBusy(true);
     setError(null);
@@ -57,7 +73,7 @@ export function CommentSection({
           method: "POST",
           body: JSON.stringify({
             body: text,
-            guest_name: mode === "guest" ? getStoredGuestName() || "Gast" : undefined,
+            guest_name: mode === "guest" ? getStoredGuestName() : undefined,
             guest_session_id: mode === "guest" ? getGuestSessionId() : undefined,
           }),
         },
@@ -79,7 +95,7 @@ export function CommentSection({
 
   return (
     <section className="space-y-3">
-      <h2 className="font-display text-base font-semibold">Kommentare</h2>
+      <h2 className="text-base font-semibold">Kommentare</h2>
       <ul className="space-y-2">
         {comments.length === 0 ? (
           <li className="rounded-2xl bg-card px-4 py-3 text-sm text-muted-foreground shadow-card ring-1 ring-border">
@@ -124,28 +140,43 @@ export function CommentSection({
           })
         )}
       </ul>
-      <form onSubmit={(e) => void submit(e)} className="space-y-2">
-        <label className="block">
-          <span className="sr-only">Kommentar schreiben</span>
-          <textarea
-            required
-            rows={3}
-            maxLength={2000}
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            placeholder="Schreib einen Kommentar…"
-            className="w-full rounded-2xl border border-border bg-background px-3 py-2 text-sm"
-          />
-        </label>
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        <button
-          type="submit"
-          disabled={busy}
-          className="inline-flex h-11 items-center justify-center rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60"
-        >
-          {busy ? "Senden…" : "Kommentieren"}
-        </button>
-      </form>
+      {guestReady ? (
+        <form onSubmit={(e) => void submit(e)} className="space-y-2">
+          <label className="block">
+            <span className="sr-only">Kommentar schreiben</span>
+            <textarea
+              required
+              rows={3}
+              maxLength={2000}
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder="Schreib einen Kommentar…"
+              className="w-full rounded-2xl border border-border bg-background px-3 py-2 text-sm"
+            />
+          </label>
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <button
+            type="submit"
+            disabled={busy}
+            className="inline-flex h-11 items-center justify-center rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60"
+          >
+            {busy ? "Senden…" : "Kommentieren"}
+          </button>
+        </form>
+      ) : (
+        <div className="rounded-2xl bg-card px-4 py-3 shadow-card ring-1 ring-border">
+          <p className="text-sm leading-snug text-muted-foreground">
+            Bitte zuerst deinen Namen angeben, dann kannst du kommentieren.
+          </p>
+          <button
+            type="button"
+            onClick={() => onNeedGuestName()}
+            className="mt-2 inline-flex h-11 items-center justify-center rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground"
+          >
+            Namen festlegen
+          </button>
+        </div>
+      )}
     </section>
   );
 }

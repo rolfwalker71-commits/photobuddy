@@ -5,8 +5,9 @@ import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 import { MapPin } from "lucide-react";
 import { PhotoImageOverlay } from "@/components/photo-image-overlay";
+import { humanLocationName } from "@/lib/image";
 import { appHref } from "@/lib/paths";
-import { publicPhotoUrl } from "@/lib/storage";
+import { previewPhotoUrl } from "@/lib/storage";
 import type { Photo, Profile, ViewerMode } from "@/lib/types";
 
 function dayKey(photo: Photo) {
@@ -53,52 +54,57 @@ export function PhotoTimeline({
         }
         return (
           <section key={day} className="space-y-3">
-            <h2 className="px-1 font-display text-base font-semibold capitalize leading-snug">
+            <h2 className="px-1 font-sans text-base font-semibold capitalize leading-snug">
               {heading}
             </h2>
             <ul className="space-y-3">
               {groups[day].map((photo) => {
                 const author =
                   profiles[photo.uploaded_by]?.display_name ?? "Unbekannt";
-                const src = publicPhotoUrl(
-                  photo.thumbnail_path ?? photo.storage_path,
-                );
+                const src = previewPhotoUrl(photo);
+                const title = photo.title?.trim() || "";
+                const description = photo.description?.trim() || "";
+                const location = humanLocationName(photo.location_name);
+                const hasText = Boolean(title || description || location);
                 return (
                   <li key={photo.id}>
                     <Link
                       href={appHref(mode, shareKey, "photo", photo.id)}
-                      className="flex gap-3 rounded-2xl bg-card p-3 shadow-card ring-1 ring-border transition hover:ring-primary"
+                      className="block overflow-hidden rounded-2xl bg-card shadow-card ring-1 ring-border transition hover:ring-primary"
                     >
-                      <div className="relative w-24 shrink-0 overflow-hidden rounded-xl">
+                      <div className="relative">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={src}
-                          alt={photo.title || `Foto von ${author}`}
-                          className="aspect-[4/5] w-full object-cover"
+                          alt={title || `Foto von ${author}`}
+                          className="aspect-[16/10] w-full object-cover sm:aspect-[2/1]"
                           loading="lazy"
                         />
                         <PhotoImageOverlay
                           photo={photo}
                           authorName={author}
-                          compact
                         />
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium leading-snug break-words">
-                          {photo.title || "Ohne Titel"}
-                        </p>
-                        <p className="mt-0.5 text-sm text-muted-foreground">
-                          {author}
-                        </p>
-                        {photo.location_name ? (
-                          <p className="mt-1 flex items-start gap-1 text-sm text-muted-foreground">
-                            <MapPin className="mt-0.5 size-3.5 shrink-0" />
-                            <span className="break-words">
-                              {photo.location_name}
-                            </span>
-                          </p>
-                        ) : null}
-                      </div>
+                      {hasText ? (
+                        <div className="space-y-1 px-3 py-2.5">
+                          {title ? (
+                            <p className="font-medium leading-snug break-words">
+                              {title}
+                            </p>
+                          ) : null}
+                          {description ? (
+                            <p className="text-sm text-muted-foreground leading-snug break-words">
+                              {description}
+                            </p>
+                          ) : null}
+                          {location ? (
+                            <p className="flex items-start gap-1 text-sm text-muted-foreground">
+                              <MapPin className="mt-0.5 size-3.5 shrink-0" />
+                              <span className="break-words">{location}</span>
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </Link>
                   </li>
                 );

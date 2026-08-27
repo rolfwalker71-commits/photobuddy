@@ -33,7 +33,7 @@ function LoginForm() {
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-5 py-10">
-      <h1 className="font-display text-3xl font-semibold leading-tight">
+      <h1 className="text-3xl font-semibold leading-tight">
         Willkommen zurück
       </h1>
       <p className="mt-2 text-sm text-muted-foreground leading-snug">

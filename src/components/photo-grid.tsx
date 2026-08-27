@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { PhotoImageOverlay } from "@/components/photo-image-overlay";
 import { appHref } from "@/lib/paths";
-import { publicPhotoUrl } from "@/lib/storage";
+import { previewPhotoUrl } from "@/lib/storage";
 import type { Photo, Profile, ViewerMode } from "@/lib/types";
 
 type PhotoGridProps = {
@@ -30,7 +30,7 @@ export function PhotoGrid({ photos, profiles, mode, shareKey }: PhotoGridProps) 
   return (
     <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
       {photos.map((photo) => {
-        const src = publicPhotoUrl(photo.thumbnail_path ?? photo.storage_path);
+        const src = previewPhotoUrl(photo);
         const author = profiles[photo.uploaded_by]?.display_name ?? "Unbekannt";
         return (
           <li key={photo.id}>

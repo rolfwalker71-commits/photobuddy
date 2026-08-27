@@ -1,13 +1,14 @@
 "use client";
 
-import { useMemo } from "react";
-import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
+import { useEffect, useMemo } from "react";
+import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import Link from "next/link";
 import { PhotoImageOverlay } from "@/components/photo-image-overlay";
+import { humanLocationName } from "@/lib/image";
 import { appHref } from "@/lib/paths";
-import { publicPhotoUrl } from "@/lib/storage";
+import { previewPhotoUrl } from "@/lib/storage";
 import type { Photo, Profile, ViewerMode } from "@/lib/types";
 
 type PhotoMapProps = {
@@ -16,6 +17,66 @@ type PhotoMapProps = {
   mode: ViewerMode;
   shareKey: string | null;
 };
+
+type LocatedPhoto = Photo & { latitude: number; longitude: number };
+
+function isLocated(photo: Photo): photo is LocatedPhoto {
+  return photo.latitude != null && photo.longitude != null;
+}
+
+/** ~11 m — photos this close share a point and get a small spread. */
+const SAME_PLACE = 5;
+
+function markerPositions(photos: LocatedPhoto[]) {
+  const groups = new Map<string, LocatedPhoto[]>();
+  for (const photo of photos) {
+    const key = `${photo.latitude.toFixed(SAME_PLACE)},${photo.longitude.toFixed(SAME_PLACE)}`;
+    const list = groups.get(key) ?? [];
+    list.push(photo);
+    groups.set(key, list);
+  }
+
+  const positions = new Map<string, [number, number]>();
+  for (const group of groups.values()) {
+    if (group.length === 1) {
+      positions.set(group[0].id, [group[0].latitude, group[0].longitude]);
+      continue;
+    }
+    const lat0 = group.reduce((sum, photo) => sum + photo.latitude, 0) / group.length;
+    const lng0 = group.reduce((sum, photo) => sum + photo.longitude, 0) / group.length;
+    const radius = 0.00022 * Math.sqrt(group.length);
+    const cos = Math.cos((lat0 * Math.PI) / 180) || 1;
+    group.forEach((photo, index) => {
+      const angle = (2 * Math.PI * index) / group.length;
+      positions.set(photo.id, [
+        lat0 + radius * Math.cos(angle),
+        lng0 + (radius * Math.sin(angle)) / cos,
+      ]);
+    });
+  }
+  return positions;
+}
+
+function FitPhotoBounds({ points }: { points: [number, number][] }) {
+  const map = useMap();
+  const key = points.map((point) => point.join(",")).join("|");
+
+  useEffect(() => {
+    if (points.length === 0) return;
+    if (points.length === 1) {
+      map.setView(points[0], 13);
+      return;
+    }
+    map.fitBounds(L.latLngBounds(points), {
+      padding: [36, 36],
+      maxZoom: 16,
+    });
+    // key captures the coordinate set
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, key]);
+
+  return null;
+}
 
 function markerIcon(color: string) {
   const svg = encodeURIComponent(
@@ -35,14 +96,22 @@ export default function PhotoMap({
   mode,
   shareKey,
 }: PhotoMapProps) {
-  const located = photos.filter(
-    (p) => p.latitude != null && p.longitude != null,
+  const located = photos.filter(isLocated);
+
+  const positions = useMemo(() => markerPositions(located), [located]);
+  const points = useMemo<[number, number][]>(
+    () =>
+      located.map(
+        (photo) =>
+          positions.get(photo.id) ?? [photo.latitude, photo.longitude],
+      ),
+    [located, positions],
   );
 
   const center = useMemo<[number, number]>(() => {
-    if (located[0]) return [located[0].latitude as number, located[0].longitude as number];
+    if (points[0]) return points[0];
     return [48.2082, 16.3738];
-  }, [located]);
+  }, [points]);
 
   if (located.length === 0) {
     return (
@@ -59,23 +128,28 @@ export default function PhotoMap({
     <div className="overflow-hidden rounded-2xl shadow-card ring-1 ring-border">
       <MapContainer
         center={center}
-        zoom={located.length === 1 ? 12 : 5}
+        zoom={located.length === 1 ? 13 : 10}
         className="z-0 h-[min(70vh,36rem)] w-full"
         scrollWheelZoom
       >
+        <FitPhotoBounds points={points} />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         {located.map((photo) => {
           const color = profiles[photo.uploaded_by]?.accent_color ?? "#0f766e";
-          const src = publicPhotoUrl(photo.thumbnail_path ?? photo.storage_path);
+          const src = previewPhotoUrl(photo);
           const author =
             profiles[photo.uploaded_by]?.display_name ?? "Unbekannt";
+          const position = positions.get(photo.id) ?? [
+            photo.latitude,
+            photo.longitude,
+          ];
           return (
             <Marker
               key={photo.id}
-              position={[photo.latitude as number, photo.longitude as number]}
+              position={position}
               icon={markerIcon(color)}
             >
               <Popup>
@@ -96,11 +170,15 @@ export default function PhotoMap({
                       compact
                     />
                   </div>
-                  <strong className="block text-sm leading-snug">
-                    {photo.title || author}
-                  </strong>
-                  {photo.location_name ? (
-                    <span className="text-xs">{photo.location_name}</span>
+                  {photo.title?.trim() ? (
+                    <strong className="block text-sm leading-snug">
+                      {photo.title}
+                    </strong>
+                  ) : null}
+                  {humanLocationName(photo.location_name) ? (
+                    <span className="text-xs">
+                      {humanLocationName(photo.location_name)}
+                    </span>
                   ) : null}
                 </Link>
               </Popup>

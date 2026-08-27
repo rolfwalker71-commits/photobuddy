@@ -7,7 +7,7 @@ export default function HomePage() {
       <p className="text-sm font-medium uppercase tracking-[0.14em] text-primary">
         Reise-Tagebuch
       </p>
-      <h1 className="mt-2 font-display text-4xl font-semibold leading-tight break-words">
+      <h1 className="mt-2 text-4xl font-semibold leading-tight break-words">
         Photobuddy
       </h1>
       <p className="mt-3 text-base leading-relaxed text-muted-foreground">

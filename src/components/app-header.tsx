@@ -27,7 +27,7 @@ export function AppHeader({
     <header className="sticky top-0 z-30 border-b border-border/70 bg-background/90 backdrop-blur-md">
       <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3">
         <div className="min-w-0 flex-1">
-          <p className="font-display text-lg font-semibold leading-snug break-words">
+          <p className="text-lg font-semibold leading-snug break-words">
             {title}
           </p>
           {subtitle ? (
