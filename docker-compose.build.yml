@@ -1,0 +1,10 @@
+# Local image build overlay. Do not use this file on the remote host.
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml build
+
+services:
+  photobuddy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      platforms:
+        - linux/amd64

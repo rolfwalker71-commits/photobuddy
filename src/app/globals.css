@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  font-size: 112.5%;
+}
+
+:root {
+  --background: 36 40% 97%;
+  --foreground: 200 18% 12%;
+  --card: 40 45% 99%;
+  --card-foreground: 200 18% 12%;
+  --muted: 32 24% 92%;
+  --muted-foreground: 200 10% 38%;
+  --primary: 173 72% 26%;
+  --primary-foreground: 40 45% 98%;
+  --accent: 18 75% 46%;
+  --accent-foreground: 40 45% 98%;
+  --border: 30 18% 84%;
+  --ring: 173 72% 26%;
+  --destructive: 4 72% 46%;
+}
+
+.dark {
+  --background: 210 22% 8%;
+  --foreground: 36 30% 94%;
+  --card: 210 18% 12%;
+  --card-foreground: 36 30% 94%;
+  --muted: 210 14% 18%;
+  --muted-foreground: 30 12% 70%;
+  --primary: 172 55% 42%;
+  --primary-foreground: 210 22% 8%;
+  --accent: 20 80% 58%;
+  --accent-foreground: 210 22% 8%;
+  --border: 210 12% 22%;
+  --ring: 172 55% 42%;
+  --destructive: 4 78% 68%;
+}
+
+body {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+/* Safari date/time: hide chrome only when empty AND unfocused */
+.date-field[data-empty="true"]:not(:focus)::-webkit-datetime-edit {
+  color: transparent;
+}
+
+.date-field {
+  color: hsl(var(--foreground));
+}
+
+.leaflet-container {
+  background: hsl(var(--muted));
+  font-family: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

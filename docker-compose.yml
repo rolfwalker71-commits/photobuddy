@@ -1,0 +1,24 @@
+# Remote / production: pull the GHCR image only. Never add `build:` here.
+#   docker compose pull && docker compose up -d
+
+services:
+  photobuddy:
+    image: ghcr.io/rolfwalker71-commits/photobuddy:${TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "3388:3388"
+    env_file:
+      - .env
+    environment:
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-}
+      NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:photobuddy@localhost}
+      PORT: 3388
+    volumes:
+      - vapid-keys:/data/vapid
+
+volumes:
+  vapid-keys:
