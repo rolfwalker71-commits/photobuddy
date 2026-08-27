@@ -21,13 +21,19 @@ NEXT_PUBLIC_SITE_URL=http://192.168.1.10:3388
 
 ### Lokal entwickeln (Next.js auf dem Rechner)
 
-Postgres muss in Docker laufen, die App nicht:
+Postgres in Docker, Next.js auf dem Rechner. Default-Compose veröffentlicht **keinen** Host-Port für Postgres (5432 ist oft schon belegt). Der App-Container spricht `db:5432` im Compose-Netz.
+
+Volle Stack ohne Host-Postgres: `docker compose up -d`.
+
+Nur Postgres + `npm run dev` — Overlay veröffentlicht **localhost:5433**:
 
 ```bash
 npm run setup
-docker compose up -d db
+docker compose -f docker-compose.yml -f docker-compose.host-db.yml up -d db
 npm install && npm run dev
 ```
+
+`DATABASE_URL` in `.env` dann `postgres://photobuddy:…@127.0.0.1:5433/photobuddy` (`npm run setup` schreibt das so).
 
 Optional, ohne UI: `npm run create-user -- anna@familie.de geheim Anna`
 
@@ -43,7 +49,7 @@ Cloud-Dashboard, Storage-Bucket, VAPID von Hand. Schema, Admin-Konto und Gäste-
 docker compose pull && docker compose up -d
 ```
 
-Nur Port **3388**. Nie `--build` auf dem Server — Compose zieht das GHCR-Image, ohne lokales Dockerfile.
+Nur Port **3388**. Postgres bleibt im Compose-Netz (`db:5432`), nicht auf dem Host. Nie `--build` auf dem Server — Compose zieht das GHCR-Image, ohne lokales Dockerfile.
 
 Das Image `ghcr.io/rolfwalker71-commits/photobuddy` existiert **erst nach einem Commit + Push auf `main`** (GitHub Action).
 

@@ -31,6 +31,6 @@ export function formatKeysEnv(secrets) {
   ].join("\n");
 }
 
-export function databaseUrl(password, host = "127.0.0.1") {
-  return `postgres://photobuddy:${password}@${host}:5432/photobuddy`;
+export function databaseUrl(password, host = "127.0.0.1", port = 5433) {
+  return `postgres://photobuddy:${password}@${host}:${port}/photobuddy`;
 }

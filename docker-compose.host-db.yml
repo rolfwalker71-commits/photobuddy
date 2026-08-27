@@ -1,0 +1,11 @@
+# Optional. Publish Postgres on localhost:5433 for `npm run dev`.
+# Do not use this file on the remote host.
+#   docker compose -f docker-compose.yml -f docker-compose.host-db.yml up -d db
+#
+# In .env for host Next.js:
+#   DATABASE_URL=postgres://photobuddy:…@127.0.0.1:5433/photobuddy
+
+services:
+  db:
+    ports:
+      - "127.0.0.1:5433:5432"

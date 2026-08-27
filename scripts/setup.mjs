@@ -77,8 +77,8 @@ Photobuddy — Postgres + Dateien in Docker:
   1. Optional in .env: NEXT_PUBLIC_SITE_URL  (Handy im WLAN: http://192.168.x.x:3388)
   2. Stack starten:
        docker compose up -d
-     oder nur Postgres + lokal Next:
-       docker compose up -d db
+     oder nur Postgres + lokal Next (Host-Port 5433, nicht 5432):
+       docker compose -f docker-compose.yml -f docker-compose.host-db.yml up -d db
        npm install && npm run dev
   3. Anmelden als Admin (ADMIN_EMAIL / ADMIN_PASSWORD in .env)
      → Einstellungen → Teilnehmer
