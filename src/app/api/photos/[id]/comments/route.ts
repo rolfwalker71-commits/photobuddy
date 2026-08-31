@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import { HttpError, jsonError, requireViewer } from "@/lib/auth/request";
+import { HttpError, jsonError, requirePhotoAccess } from "@/lib/auth/request";
 import {
   addGuestComment,
   addTeilnehmerComment,
-  getPhoto,
   listComments,
 } from "@/lib/db/queries";
 
@@ -11,8 +10,8 @@ type Ctx = { params: Promise<{ id: string }> };
 
 export async function GET(request: Request, ctx: Ctx) {
   try {
-    await requireViewer(request);
     const { id } = await ctx.params;
+    await requirePhotoAccess(request, id);
     return NextResponse.json({ comments: await listComments(id) });
   } catch (err) {
     return jsonError(err);
@@ -21,9 +20,8 @@ export async function GET(request: Request, ctx: Ctx) {
 
 export async function POST(request: Request, ctx: Ctx) {
   try {
-    const viewer = await requireViewer(request);
     const { id } = await ctx.params;
-    if (!(await getPhoto(id))) throw new HttpError(404, "Foto nicht gefunden.");
+    const { viewer } = await requirePhotoAccess(request, id);
     const body = (await request.json()) as {
       body?: string;
       guest_name?: string;

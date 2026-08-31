@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, ImagePlus, LoaderCircle, MapPin } from "lucide-react";
+import { Camera, ImagePlus, LoaderCircle, MapPin, Upload } from "lucide-react";
+import { getStoredAlbumId, pickAlbumId, storeAlbumId } from "@/lib/album";
 import { api } from "@/lib/api";
+import type { Album } from "@/lib/types";
 import {
   clearDevicePositionCache,
   isGeotaggingEnabled,
@@ -66,24 +68,36 @@ function applyCoords(
   };
 }
 
-async function draftFromFile(
-  file: File,
-  fromCamera: boolean,
-  fallback: GeoCoords | null,
-): Promise<Draft> {
-  const exif = await readPhotoExif(file);
-  const hasExif = exif.latitude != null && exif.longitude != null;
-  const next: Draft = {
+function snapshotFiles(input: HTMLInputElement): File[] {
+  const files = input.files?.length ? Array.from(input.files) : [];
+  input.value = "";
+  return files;
+}
+
+function draftPlaceholder(file: File, fromCamera: boolean): Draft {
+  return {
     file,
     preview: URL.createObjectURL(file),
-    takenAt: toDatetimeLocalValue(exif.takenAt),
-    latitude: hasExif ? String(exif.latitude) : "",
-    longitude: hasExif ? String(exif.longitude) : "",
+    takenAt: "",
+    latitude: "",
+    longitude: "",
     locationName: "",
     title: "",
     description: "",
     tags: "",
     fromCamera,
+    geoSource: "none",
+  };
+}
+
+async function enrichDraft(draft: Draft, fallback: GeoCoords | null): Promise<Draft> {
+  const exif = await readPhotoExif(draft.file);
+  const hasExif = exif.latitude != null && exif.longitude != null;
+  const next: Draft = {
+    ...draft,
+    takenAt: toDatetimeLocalValue(exif.takenAt),
+    latitude: hasExif ? String(exif.latitude) : "",
+    longitude: hasExif ? String(exif.longitude) : "",
     geoSource: hasExif ? "exif" : "none",
   };
   if (!isGeotaggingEnabled()) {
@@ -102,9 +116,22 @@ async function draftFromFile(
   return next;
 }
 
-async function postPhoto(draft: Draft, shared: { title: string; description: string }) {
+async function draftFromFile(
+  file: File,
+  fromCamera: boolean,
+  fallback: GeoCoords | null,
+): Promise<Draft> {
+  return enrichDraft(draftPlaceholder(file, fromCamera), fallback);
+}
+
+async function postPhoto(
+  draft: Draft,
+  shared: { title: string; description: string },
+  albumId: string,
+) {
   const prepared = await prepareUploadFiles(draft.file);
   const form = new FormData();
+  form.append("albumId", albumId);
   form.append("file", prepared.full, "photo.jpg");
   form.append("thumb", prepared.thumb, "thumb.jpg");
   form.append("title", shared.title);
@@ -124,6 +151,9 @@ async function postPhoto(draft: Draft, shared: { title: string; description: str
 
 export function UploadForm() {
   const router = useRouter();
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const reviewRef = useRef<HTMLDivElement>(null);
+  const pickGen = useRef(0);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [batch, setBatch] = useState<Draft[]>([]);
   const [sharedTitle, setSharedTitle] = useState("");
@@ -136,10 +166,31 @@ export function UploadForm() {
   const [error, setError] = useState<string | null>(null);
   const [geotag, setGeotag] = useState(true);
   const [locating, setLocating] = useState(false);
+  const [albumId, setAlbumId] = useState<string | null>(null);
+  const [albumName, setAlbumName] = useState<string | null>(null);
 
   useEffect(() => {
     setGeotag(isGeotaggingEnabled());
     return subscribeGeotagging(setGeotag);
+  }, []);
+
+  useEffect(() => {
+    void api<{ albums: Album[] }>("/api/albums")
+      .then((data) => {
+        const id = pickAlbumId(data.albums, getStoredAlbumId());
+        if (!id) {
+          setAlbumId(null);
+          setAlbumName(null);
+          return;
+        }
+        setAlbumId(id);
+        storeAlbumId(id);
+        setAlbumName(data.albums.find((album) => album.id === id)?.name ?? null);
+      })
+      .catch(() => {
+        setAlbumId(null);
+        setAlbumName(null);
+      });
   }, []);
 
   useEffect(() => {
@@ -199,6 +250,7 @@ export function UploadForm() {
 
   async function onPickCamera(file: File | undefined) {
     if (!file) return;
+    pickGen.current += 1;
     clearDevicePositionCache();
     setError(null);
     revokeDrafts(batch);
@@ -214,31 +266,40 @@ export function UploadForm() {
     setDraft(next);
   }
 
-  async function onPickGallery(fileList: FileList | null) {
-    const files = Array.from(fileList ?? []);
+  async function onPickGallery(files: File[]) {
     if (!files.length) return;
+    const gen = ++pickGen.current;
     clearDevicePositionCache();
     setError(null);
     if (draft) revokeDrafts([draft]);
     setDraft(null);
     revokeDrafts(batch);
-    setBatch([]);
+    const placeholders = files.map((file) => draftPlaceholder(file, false));
+    setBatch(placeholders);
     setStatus("Fotos werden vorbereitet…");
     setLocating(true);
+    requestAnimationFrame(() => {
+      reviewRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
     try {
       const fallback = isGeotaggingEnabled()
         ? await readDevicePosition(true)
         : null;
+      if (pickGen.current !== gen) return;
       const next: Draft[] = [];
-      for (const file of files) {
-        next.push(await draftFromFile(file, false, fallback));
+      for (const item of placeholders) {
+        next.push(await enrichDraft(item, fallback));
       }
+      if (pickGen.current !== gen) return;
       setBatch(next);
     } catch (err) {
+      if (pickGen.current !== gen) return;
       setError(err instanceof Error ? err.message : "Auswahl fehlgeschlagen.");
     } finally {
-      setLocating(false);
-      setStatus(null);
+      if (pickGen.current === gen) {
+        setLocating(false);
+        setStatus(null);
+      }
     }
   }
 
@@ -259,6 +320,10 @@ export function UploadForm() {
 
   async function uploadSingle() {
     if (!draft) return;
+    if (!albumId) {
+      setError("Du bist keinem Album zugeordnet.");
+      return;
+    }
     setBusy(true);
     setError(null);
     setStatus("Bild wird komprimiert…");
@@ -270,10 +335,14 @@ export function UploadForm() {
         setDraft(ready);
       }
       setStatus("Upload läuft…");
-      const data = await postPhoto(ready, {
-        title: ready.title.trim(),
-        description: ready.description.trim(),
-      });
+      const data = await postPhoto(
+        ready,
+        {
+          title: ready.title.trim(),
+          description: ready.description.trim(),
+        },
+        albumId,
+      );
       notifyPhotosChanged();
       router.refresh();
       router.push(`/photos/${data.photo.id}`);
@@ -287,6 +356,10 @@ export function UploadForm() {
 
   async function uploadBatch() {
     if (!batch.length) return;
+    if (!albumId) {
+      setError("Du bist keinem Album zugeordnet.");
+      return;
+    }
     setBusy(true);
     setError(null);
     const title = sharedTitle.trim();
@@ -297,7 +370,7 @@ export function UploadForm() {
       for (let i = 0; i < batch.length; i += 1) {
         setProgress({ done: i, total: batch.length });
         setStatus(`Foto ${i + 1} von ${batch.length} wird komprimiert…`);
-        await postPhoto(batch[i], { title, description });
+        await postPhoto(batch[i], { title, description }, albumId);
         uploaded = i + 1;
       }
       setProgress({ done: batch.length, total: batch.length });
@@ -350,8 +423,40 @@ export function UploadForm() {
     </div>
   );
 
+  function saveLabel() {
+    if (busy) {
+      if (progress) return `${progress.done}/${progress.total} gespeichert…`;
+      return "Bitte warten…";
+    }
+    if (batch.length === 1) return "Foto speichern";
+    return `${batch.length} Fotos speichern`;
+  }
+
+  function SaveButton() {
+    return (
+      <button
+        type="button"
+        disabled={busy || batch.length === 0}
+        onClick={() => void uploadBatch()}
+        className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-base font-medium text-primary-foreground shadow-card disabled:opacity-60"
+      >
+        {busy ? (
+          <LoaderCircle className="size-5 animate-spin" aria-hidden />
+        ) : (
+          <Upload className="size-5" aria-hidden />
+        )}
+        {saveLabel()}
+      </button>
+    );
+  }
+
   return (
-    <div className="space-y-5">
+    <div className={`space-y-5 ${batch.length > 0 ? "pb-24" : ""}`}>
+      <p className="rounded-2xl bg-card px-4 py-3 text-sm leading-snug shadow-card ring-1 ring-border">
+        {albumName
+          ? `Upload ins Album „${albumName}“. Wechsel oben in der Galerie.`
+          : "Noch keinem Album zugeordnet — ein Admin kann dich unter Einstellungen → Alben hinzufügen."}
+      </p>
       {shared}
 
       <div className="grid grid-cols-2 gap-3">
@@ -368,8 +473,8 @@ export function UploadForm() {
             className="sr-only"
             disabled={busy}
             onChange={(e) => {
-              const file = e.target.files?.[0];
-              e.target.value = "";
+              const input = e.currentTarget;
+              const file = snapshotFiles(input)[0];
               void onPickCamera(file);
             }}
           />
@@ -381,14 +486,14 @@ export function UploadForm() {
             Mehrere möglich
           </span>
           <input
+            ref={galleryInputRef}
             type="file"
-            accept="image/*"
+            accept="image/*,image/heic,image/heif,.heic,.heif"
             multiple
             className="sr-only"
             disabled={busy}
             onChange={(e) => {
-              const files = e.target.files;
-              e.target.value = "";
+              const files = snapshotFiles(e.currentTarget);
               void onPickGallery(files);
             }}
           />
@@ -427,18 +532,21 @@ export function UploadForm() {
       </button>
 
       {batch.length > 0 ? (
-        <div className="space-y-4 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border">
+        <div
+          ref={reviewRef}
+          className="space-y-4 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border"
+        >
           <p className="text-sm font-medium leading-snug">
             {batch.length} Foto{batch.length === 1 ? "" : "s"} ausgewählt
           </p>
-          <ul className="flex gap-2 overflow-x-auto pb-1">
+          <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4">
             {batch.map((item, index) => (
-              <li key={`${item.file.name}-${index}`} className="shrink-0">
+              <li key={`${item.file.name}-${index}`}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={item.preview}
                   alt=""
-                  className="size-20 rounded-xl object-cover ring-1 ring-border"
+                  className="aspect-square w-full rounded-xl object-cover ring-1 ring-border"
                 />
               </li>
             ))}
@@ -459,18 +567,27 @@ export function UploadForm() {
             </p>
           ) : null}
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void uploadBatch()}
-            className="inline-flex h-11 w-full items-center justify-center rounded-2xl bg-primary text-sm font-medium text-primary-foreground disabled:opacity-60"
-          >
-            {busy
-              ? progress
-                ? `${progress.done}/${progress.total}…`
-                : "Bitte warten…"
-              : `${batch.length} Foto${batch.length === 1 ? "" : "s"} hochladen`}
-          </button>
+          <div className="hidden md:block">
+            <SaveButton />
+          </div>
+          <p className="text-sm text-muted-foreground leading-snug">
+            Titel oben ist optional. Ohne Text werden die Fotos trotzdem
+            gespeichert.
+          </p>
+        </div>
+      ) : null}
+
+      {batch.length > 0 ? (
+        <div
+          className="pointer-events-none fixed inset-x-0 z-[35] px-4 md:hidden"
+          style={{
+            bottom:
+              "calc(4.75rem + max(0.75rem, env(safe-area-inset-bottom)))",
+          }}
+        >
+          <div className="pointer-events-auto mx-auto max-w-lg">
+            <SaveButton />
+          </div>
         </div>
       ) : null}
 

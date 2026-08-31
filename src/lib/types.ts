@@ -30,6 +30,7 @@ export type PhotoReactionSummary = {
 
 export type Photo = {
   id: string;
+  album_id: string;
   uploaded_by: string;
   storage_path: string;
   thumbnail_path: string | null;
@@ -70,11 +71,22 @@ export type Reaction = {
 
 export type ShareLink = {
   id: string;
+  album_id: string;
   key: string;
   label: string;
   is_active: boolean;
   created_at: string;
   expires_at: string | null;
+};
+
+export type Album = {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  member_ids: string[];
+  photo_count: number;
+  share_link: ShareLink | null;
 };
 
 export type ViewerMode = "teilnehmer" | "guest";

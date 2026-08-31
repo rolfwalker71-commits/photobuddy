@@ -1,4 +1,5 @@
 import type {
+  Album,
   Comment,
   Photo,
   PhotoTag,
@@ -40,6 +41,7 @@ export type UserRow = {
 
 export type PhotoRow = {
   id: string;
+  album_id: string;
   uploaded_by: string;
   storage_path: string;
   thumbnail_path: string | null;
@@ -55,6 +57,23 @@ export type PhotoRow = {
   file_size: number | null;
   created_at: Date | string;
   updated_at: Date | string;
+};
+
+export type AlbumRow = {
+  id: string;
+  name: string;
+  created_at: Date | string;
+  updated_at: Date | string;
+};
+
+export type ShareLinkRow = {
+  id: string;
+  album_id: string;
+  key: string;
+  label: string;
+  is_active: boolean;
+  created_at: Date | string;
+  expires_at: Date | string | null;
 };
 
 function asRole(value: unknown): UserRole {
@@ -78,6 +97,7 @@ export function toProfile(row: UserRow): Profile {
 export function toPhoto(row: PhotoRow): Photo {
   return {
     id: row.id,
+    album_id: row.album_id,
     uploaded_by: row.uploaded_by,
     storage_path: row.storage_path,
     thumbnail_path: row.thumbnail_path,
@@ -140,20 +160,31 @@ export function toReaction(row: {
   };
 }
 
-export function toShareLink(row: {
-  id: string;
-  key: string;
-  label: string;
-  is_active: boolean;
-  created_at: Date | string;
-  expires_at: Date | string | null;
-}): ShareLink {
+export function toShareLink(row: ShareLinkRow): ShareLink {
   return {
     id: row.id,
+    album_id: row.album_id,
     key: row.key,
     label: row.label,
     is_active: row.is_active,
     created_at: iso(row.created_at),
     expires_at: isoOrNull(row.expires_at),
+  };
+}
+
+export function toAlbum(
+  row: AlbumRow,
+  memberIds: string[] = [],
+  photoCount = 0,
+  shareLink: ShareLink | null = null,
+): Album {
+  return {
+    id: row.id,
+    name: row.name,
+    created_at: iso(row.created_at),
+    updated_at: iso(row.updated_at),
+    member_ids: memberIds,
+    photo_count: photoCount,
+    share_link: shareLink,
   };
 }

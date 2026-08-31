@@ -11,8 +11,8 @@ export default function HomePage() {
         Photobuddy
       </h1>
       <p className="mt-3 text-base leading-relaxed text-muted-foreground">
-        Vier Leute, eine Reise, ein gemeinsames Album — mit Karte, Timeline und
-        einem Link für Familie und Freunde.
+        Gemeinsame Alben mit Karte, Timeline und einem Gäste-Link pro Album
+        für Familie und Freunde.
       </p>
 
       <ul className="mt-8 space-y-3">

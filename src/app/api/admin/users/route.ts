@@ -7,7 +7,13 @@ import {
   requireAdmin,
 } from "@/lib/auth/request";
 import { toProfile } from "@/lib/db/mappers";
-import { createUser, findUserByEmail, listProfiles } from "@/lib/db/queries";
+import {
+  createUser,
+  findUserByEmail,
+  listAlbumIdsForUser,
+  listProfiles,
+  setUserAlbums,
+} from "@/lib/db/queries";
 
 async function assertCanCreateUsers(request: Request) {
   if (bearerMatchesAuthSecret(request)) return;
@@ -17,7 +23,14 @@ async function assertCanCreateUsers(request: Request) {
 export async function GET() {
   try {
     await requireAdmin();
-    return NextResponse.json({ users: await listProfiles() });
+    const users = await listProfiles();
+    const withAlbums = await Promise.all(
+      users.map(async (user) => ({
+        ...user,
+        album_ids: await listAlbumIdsForUser(user.id),
+      })),
+    );
+    return NextResponse.json({ users: withAlbums });
   } catch (err) {
     return jsonError(err);
   }
@@ -31,6 +44,7 @@ export async function POST(request: Request) {
       password?: string;
       display_name?: string;
       accent_color?: string;
+      album_ids?: string[];
     };
     const email = body.email?.trim() ?? "";
     const password = body.password ?? "";
@@ -51,7 +65,16 @@ export async function POST(request: Request) {
       role: "teilnehmer",
     });
     if (!user) throw new HttpError(500, "Nutzer konnte nicht angelegt werden.");
-    return NextResponse.json({ user: toProfile(user), email: user.email });
+    if (Array.isArray(body.album_ids)) {
+      await setUserAlbums(user.id, body.album_ids);
+    }
+    return NextResponse.json({
+      user: {
+        ...toProfile(user),
+        album_ids: await listAlbumIdsForUser(user.id),
+      },
+      email: user.email,
+    });
   } catch (err) {
     return jsonError(err);
   }

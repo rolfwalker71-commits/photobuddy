@@ -6,14 +6,20 @@ import {
   consumePhotosDirty,
   subscribePhotosChanged,
 } from "@/lib/photos-sync";
-import type { Photo, PhotoTag, Profile, ViewerMode } from "@/lib/types";
+import type { Album, Photo, PhotoTag, Profile, ViewerMode } from "@/lib/types";
 
 const POLL_MS = 10_000;
 
-export function useTripData(mode: ViewerMode, shareKey: string | null) {
+export function useTripData(
+  mode: ViewerMode,
+  shareKey: string | null,
+  albumId: string | null,
+) {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [tags, setTags] = useState<PhotoTag[]>([]);
+  const [albums, setAlbums] = useState<Album[]>([]);
+  const [currentAlbum, setCurrentAlbum] = useState<Album | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [shareLabel, setShareLabel] = useState<string | null>(null);
@@ -39,11 +45,17 @@ export function useTripData(mode: ViewerMode, shareKey: string | null) {
           tags: PhotoTag[];
           shareLabel: string | null;
           stamp?: string;
-        }>(withKey("/api/trip", shareKey), { cache: "no-store" });
+          albums?: Album[];
+          currentAlbum?: Album | null;
+        }>(withKey("/api/trip", shareKey, mode === "guest" ? null : albumId), {
+          cache: "no-store",
+        });
         setPhotos(data.photos);
         setProfiles(data.profiles);
         setTags(data.tags);
         setShareLabel(data.shareLabel);
+        setAlbums(data.albums ?? []);
+        setCurrentAlbum(data.currentAlbum ?? null);
         stampRef.current = data.stamp ?? `${data.photos.length}`;
       } catch (err) {
         setError(err instanceof Error ? err.message : "Laden fehlgeschlagen.");
@@ -52,7 +64,7 @@ export function useTripData(mode: ViewerMode, shareKey: string | null) {
         setLoading(false);
       }
     },
-    [mode, shareKey],
+    [mode, shareKey, albumId],
   );
 
   const checkStamp = useCallback(async () => {
@@ -62,7 +74,7 @@ export function useTripData(mode: ViewerMode, shareKey: string | null) {
     if (mode === "guest" && !shareKey) return;
     try {
       const data = await api<{ stamp: string }>(
-        withKey("/api/photos/updated", shareKey),
+        withKey("/api/photos/updated", shareKey, mode === "guest" ? null : albumId),
         { cache: "no-store" },
       );
       if (stampRef.current == null) {
@@ -76,7 +88,7 @@ export function useTripData(mode: ViewerMode, shareKey: string | null) {
     } catch {
       /* keep the current list; next poll retries */
     }
-  }, [load, mode, shareKey]);
+  }, [load, mode, shareKey, albumId]);
 
   useEffect(() => {
     void load();
@@ -126,6 +138,8 @@ export function useTripData(mode: ViewerMode, shareKey: string | null) {
     photos,
     profiles,
     tags,
+    albums,
+    currentAlbum,
     profileById,
     loading,
     error,

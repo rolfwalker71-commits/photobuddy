@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { HttpError, jsonError, requireTeilnehmer } from "@/lib/auth/request";
+import {
+  HttpError,
+  assertCanAccessAlbum,
+  jsonError,
+  requireTeilnehmer,
+} from "@/lib/auth/request";
 import { addTagToPhoto, insertPhoto } from "@/lib/db/queries";
 import { joinPhotoPath, savePhotoFile } from "@/lib/files";
 
@@ -15,6 +20,13 @@ export async function POST(request: Request) {
   try {
     const user = await requireTeilnehmer();
     const form = await request.formData();
+    const albumId = String(form.get("albumId") ?? "").trim();
+    if (!albumId) throw new HttpError(400, "Album fehlt.");
+    await assertCanAccessAlbum(
+      { mode: "teilnehmer", user, shareKey: null, albumId: null },
+      albumId,
+      { upload: true },
+    );
     const full = form.get("file");
     const thumb = form.get("thumb");
     if (!(full instanceof File) || !(thumb instanceof File)) {
@@ -34,6 +46,7 @@ export async function POST(request: Request) {
     const takenAt = takenRaw ? new Date(takenRaw).toISOString() : null;
 
     const photo = await insertPhoto({
+      albumId,
       uploadedBy: user.id,
       storagePath,
       thumbnailPath,

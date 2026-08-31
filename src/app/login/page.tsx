@@ -37,8 +37,9 @@ function LoginForm() {
         Willkommen zurück
       </h1>
       <p className="mt-2 text-sm text-muted-foreground leading-snug">
-        Zuerst als Admin anmelden. Weitere Teilnehmer legst du unter
-        Einstellungen an. Gäste brauchen kein Konto.
+        Erster Login: Admin (ADMIN_EMAIL in der .env, Standard{" "}
+        <span className="break-all">admin@photobuddy.local</span>). Weitere
+        Benutzer unter Einstellungen → Teilnehmer. Gäste brauchen kein Konto.
       </p>
 
       <form onSubmit={(e) => void onSubmit(e)} className="mt-6 space-y-4">

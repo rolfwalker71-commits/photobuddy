@@ -30,10 +30,22 @@ export async function ensureAdminUser(pool: Pool) {
   }
 
   const hash = await hashPassword(password);
-  await pool.query(
+  const created = await pool.query<{ id: string }>(
     `insert into public.users (email, password_hash, display_name, role)
-     values ($1, $2, $3, 'admin')`,
+     values ($1, $2, $3, 'admin')
+     returning id`,
     [email, hash, "Admin"],
   );
+  const adminId = created.rows[0]?.id;
+  if (adminId) {
+    await pool.query(
+      `insert into public.album_members (album_id, user_id)
+       select id, $1 from public.albums
+       order by created_at asc
+       limit 1
+       on conflict do nothing`,
+      [adminId],
+    );
+  }
   console.log(`Photobuddy: Admin angelegt (${email}).`);
 }

@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { HttpError, jsonError, requireTeilnehmer, requireViewer } from "@/lib/auth/request";
+import { HttpError, jsonError, requirePhotoAccess, requirePhotoEditor } from "@/lib/auth/request";
 import {
   deletePhoto,
-  getPhoto,
   listProfiles,
   listTagsForPhoto,
   updatePhoto,
@@ -13,10 +12,8 @@ type Ctx = { params: Promise<{ id: string }> };
 
 export async function GET(request: Request, ctx: Ctx) {
   try {
-    await requireViewer(request);
     const { id } = await ctx.params;
-    const photo = await getPhoto(id);
-    if (!photo) throw new HttpError(404, "Foto nicht gefunden.");
+    const { photo } = await requirePhotoAccess(request, id);
     const [profiles, tags] = await Promise.all([
       listProfiles(),
       listTagsForPhoto(id),
@@ -28,10 +25,10 @@ export async function GET(request: Request, ctx: Ctx) {
   }
 }
 
-export async function PATCH(request: Request, ctx: Ctx) {
+async function updatePhotoMeta(request: Request, ctx: Ctx) {
   try {
-    await requireTeilnehmer();
     const { id } = await ctx.params;
+    await requirePhotoEditor(request, id);
     const body = (await request.json()) as {
       title?: string;
       description?: string;
@@ -49,12 +46,13 @@ export async function PATCH(request: Request, ctx: Ctx) {
   }
 }
 
-export async function DELETE(_request: Request, ctx: Ctx) {
+export const PATCH = updatePhotoMeta;
+export const PUT = updatePhotoMeta;
+
+export async function DELETE(request: Request, ctx: Ctx) {
   try {
-    await requireTeilnehmer();
     const { id } = await ctx.params;
-    const photo = await getPhoto(id);
-    if (!photo) throw new HttpError(404, "Foto nicht gefunden.");
+    const { photo } = await requirePhotoEditor(request, id);
     await deletePhoto(id);
     await removePhotoFiles([photo.storage_path, photo.thumbnail_path]);
     return NextResponse.json({ ok: true });

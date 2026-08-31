@@ -5,7 +5,13 @@ import {
   SHARE_COOKIE,
   verifySession,
 } from "@/lib/auth/session";
-import { findUserById, isValidShareKey } from "@/lib/db/queries";
+import {
+  findUserById,
+  getAlbumIdForShareKey,
+  getPhoto,
+  isAlbumMember,
+} from "@/lib/db/queries";
+import type { Photo } from "@/lib/types";
 import { toProfile, type UserRow } from "@/lib/db/mappers";
 import type { Profile } from "@/lib/types";
 
@@ -51,6 +57,15 @@ export async function requireTeilnehmer() {
   return user;
 }
 
+/** Teilnehmer/admin only. Share-link guests may view, comment, and react — not edit. */
+export async function requireEditor(request: Request) {
+  const viewer = await requireViewer(request);
+  if (viewer.mode === "guest" || !viewer.user) {
+    throw new HttpError(403, "Gäste dürfen Fotodaten nicht ändern.");
+  }
+  return viewer.user;
+}
+
 export async function requireAdmin() {
   const user = await requireTeilnehmer();
   if (user.role !== "admin") {
@@ -76,12 +91,62 @@ export function shareKeyFrom(request: Request) {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-export async function requireViewer(request: Request) {
+export type Viewer =
+  | { mode: "teilnehmer"; user: Profile; shareKey: null; albumId: string | null }
+  | { mode: "guest"; user: null; shareKey: string; albumId: string };
+
+export function albumIdFrom(request: Request) {
+  return new URL(request.url).searchParams.get("albumId");
+}
+
+export async function requireViewer(request: Request): Promise<Viewer> {
   const user = await getSessionUser();
-  if (user) return { mode: "teilnehmer" as const, user, shareKey: null };
+  if (user) return { mode: "teilnehmer", user, shareKey: null, albumId: null };
   const key = shareKeyFrom(request);
-  if (key && (await isValidShareKey(key))) {
-    return { mode: "guest" as const, user: null, shareKey: key };
+  if (key) {
+    const albumId = await getAlbumIdForShareKey(key);
+    if (albumId) {
+      return { mode: "guest", user: null, shareKey: key, albumId };
+    }
   }
   throw new HttpError(401, "Nicht berechtigt.");
+}
+
+export async function assertCanAccessAlbum(
+  viewer: Viewer,
+  albumId: string,
+  opts?: { upload?: boolean },
+) {
+  if (viewer.mode === "guest") {
+    if (opts?.upload) {
+      throw new HttpError(403, "Gäste dürfen keine Fotos hochladen.");
+    }
+    if (viewer.albumId !== albumId) {
+      throw new HttpError(403, "Kein Zugriff auf dieses Album.");
+    }
+    return;
+  }
+  if (viewer.user.role === "admin") return;
+  if (!(await isAlbumMember(albumId, viewer.user.id))) {
+    throw new HttpError(403, "Kein Zugriff auf dieses Album.");
+  }
+}
+
+export async function requirePhotoAccess(request: Request, photoId: string) {
+  const photo = await getPhoto(photoId);
+  if (!photo) throw new HttpError(404, "Foto nicht gefunden.");
+  const viewer = await requireViewer(request);
+  await assertCanAccessAlbum(viewer, photo.album_id);
+  return { viewer, photo };
+}
+
+export async function requirePhotoEditor(
+  request: Request,
+  photoId: string,
+): Promise<{ user: Profile; photo: Photo }> {
+  const { viewer, photo } = await requirePhotoAccess(request, photoId);
+  if (viewer.mode === "guest" || !viewer.user) {
+    throw new HttpError(403, "Gäste dürfen Fotodaten nicht ändern.");
+  }
+  return { user: viewer.user, photo };
 }

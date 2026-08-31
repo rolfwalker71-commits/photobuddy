@@ -8,6 +8,8 @@ import {
   countPhotosByUser,
   deleteUser,
   findUserById,
+  listAlbumIdsForUser,
+  setUserAlbums,
   updateUserAdmin,
 } from "@/lib/db/queries";
 
@@ -24,6 +26,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       display_name?: string;
       password?: string;
       is_active?: boolean;
+      album_ids?: string[];
     };
 
     if (user.role === "admin" && body.is_active === false) {
@@ -46,7 +49,15 @@ export async function PATCH(request: Request, context: RouteContext) {
       isActive: body.is_active,
     });
     if (!row) throw new HttpError(404, "Nutzer nicht gefunden.");
-    return NextResponse.json({ user: toProfile(row) });
+    if (Array.isArray(body.album_ids)) {
+      await setUserAlbums(id, body.album_ids);
+    }
+    return NextResponse.json({
+      user: {
+        ...toProfile(row),
+        album_ids: await listAlbumIdsForUser(id),
+      },
+    });
   } catch (err) {
     return jsonError(err);
   }

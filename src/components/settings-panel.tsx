@@ -3,21 +3,19 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Copy, MapPin, Plus, Users } from "lucide-react";
+import { BookImage, MapPin, Users } from "lucide-react";
 import { InstallButton } from "@/components/pwa/install-button";
 import { api } from "@/lib/api";
-import { getSiteUrl } from "@/lib/env";
 import {
   isGeotaggingEnabled,
   setGeotaggingEnabled,
   subscribeGeotagging,
 } from "@/lib/geotag";
-import type { Profile, ShareLink } from "@/lib/types";
+import type { Profile } from "@/lib/types";
 
 export function SettingsPanel() {
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [links, setLinks] = useState<ShareLink[]>([]);
   const [displayName, setDisplayName] = useState("");
   const [accent, setAccent] = useState("#0f766e");
   const [status, setStatus] = useState<string | null>(null);
@@ -25,13 +23,10 @@ export function SettingsPanel() {
 
   useEffect(() => {
     const load = async () => {
-      const data = await api<{ profile: Profile; shareLinks: ShareLink[] }>(
-        "/api/profile",
-      );
+      const data = await api<{ profile: Profile }>("/api/profile");
       setProfile(data.profile);
       setDisplayName(data.profile.display_name);
       setAccent(data.profile.accent_color);
-      setLinks(data.shareLinks);
     };
     void load();
     setGeotag(isGeotaggingEnabled());
@@ -55,39 +50,46 @@ export function SettingsPanel() {
     }
   }
 
-  async function createLink() {
-    try {
-      const data = await api<{ shareLink: ShareLink }>("/api/share-links", {
-        method: "POST",
-      });
-      setLinks((prev) => [data.shareLink, ...prev]);
-    } catch (err) {
-      setStatus(err instanceof Error ? err.message : "Link fehlgeschlagen.");
-    }
-  }
-
-  async function toggleLink(link: ShareLink) {
-    await api(`/api/share-links/${link.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ is_active: !link.is_active }),
-    });
-    setLinks((prev) =>
-      prev.map((item) =>
-        item.id === link.id ? { ...item, is_active: !item.is_active } : item,
-      ),
-    );
-  }
-
   async function signOut() {
     await api("/api/auth/logout", { method: "POST" });
     router.push("/login");
     router.refresh();
   }
 
-  const site = getSiteUrl();
-
   return (
     <div className="space-y-6">
+      {profile?.role === "admin" ? (
+        <section className="space-y-3">
+          <h2 className="px-1 text-base font-semibold">Verwaltung</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Link
+              href="/settings/users"
+              className="flex min-h-11 flex-col justify-center gap-1 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border"
+            >
+              <span className="inline-flex items-center gap-2 text-base font-semibold">
+                <Users className="size-4" aria-hidden />
+                Teilnehmer
+              </span>
+              <span className="text-sm text-muted-foreground leading-snug">
+                Benutzer anlegen, Passwort setzen, Konten bearbeiten.
+              </span>
+            </Link>
+            <Link
+              href="/settings/albums"
+              className="flex min-h-11 flex-col justify-center gap-1 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border"
+            >
+              <span className="inline-flex items-center gap-2 text-base font-semibold">
+                <BookImage className="size-4" aria-hidden />
+                Alben
+              </span>
+              <span className="text-sm text-muted-foreground leading-snug">
+                Alben anlegen, Teilnehmer zuordnen, Gäste-Links teilen.
+              </span>
+            </Link>
+          </div>
+        </section>
+      ) : null}
+
       <section className="space-y-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border">
         <h2 className="text-base font-semibold">Profil</h2>
         {profile?.email ? (
@@ -117,74 +119,6 @@ export function SettingsPanel() {
         >
           Speichern
         </button>
-      </section>
-
-      {profile?.role === "admin" ? (
-        <section className="space-y-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border">
-          <h2 className="text-base font-semibold">Teilnehmer</h2>
-          <p className="text-sm text-muted-foreground leading-snug">
-            Reise-Teilnehmer anlegen, Passwort zurücksetzen oder Konten
-            deaktivieren. Gäste bleiben ohne Login über den Link.
-          </p>
-          <Link
-            href="/settings/users"
-            className="inline-flex h-11 items-center gap-2 rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground"
-          >
-            <Users className="size-4" aria-hidden />
-            Teilnehmer verwalten
-          </Link>
-        </section>
-      ) : null}
-
-      <section className="space-y-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-base font-semibold">Gäste-Links</h2>
-          <button
-            type="button"
-            onClick={() => void createLink()}
-            className="inline-flex h-11 items-center gap-2 rounded-2xl bg-muted px-3 text-sm font-medium"
-          >
-            <Plus className="size-4" />
-            Neu
-          </button>
-        </div>
-        <p className="text-sm text-muted-foreground leading-snug">
-          Freunde und Familie sehen Galerie, Karte und Timeline — ohne Login.
-          Kommentare und Emojis sind erlaubt, Uploads nicht.
-        </p>
-        <ul className="space-y-2">
-          {links.map((link) => {
-            const href = `${site}/gallery/share?key=${encodeURIComponent(link.key)}`;
-            return (
-              <li
-                key={link.id}
-                className="rounded-2xl bg-background p-3 ring-1 ring-border"
-              >
-                <p className="text-sm font-medium break-words">{link.label}</p>
-                <p className="mt-1 break-all text-xs text-muted-foreground">
-                  {href}
-                </p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    className="inline-flex h-11 items-center gap-2 rounded-2xl bg-muted px-3 text-sm"
-                    onClick={() => void navigator.clipboard.writeText(href)}
-                  >
-                    <Copy className="size-4" />
-                    Kopieren
-                  </button>
-                  <button
-                    type="button"
-                    className="inline-flex h-11 items-center rounded-2xl bg-muted px-3 text-sm"
-                    onClick={() => void toggleLink(link)}
-                  >
-                    {link.is_active ? "Deaktivieren" : "Aktivieren"}
-                  </button>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
       </section>
 
       <section className="space-y-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border">

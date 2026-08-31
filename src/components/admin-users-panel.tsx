@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { UserPlus } from "lucide-react";
 import { api } from "@/lib/api";
-import type { Profile } from "@/lib/types";
+import type { Album, Profile } from "@/lib/types";
+
+type AdminUser = Profile & { album_ids?: string[] };
 
 type FormState = {
   display_name: string;
@@ -17,8 +19,11 @@ const emptyForm: FormState = { display_name: "", email: "", password: "" };
 export function AdminUsersPanel() {
   const router = useRouter();
   const [me, setMe] = useState<Profile | null>(null);
-  const [users, setUsers] = useState<Profile[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [albums, setAlbums] = useState<Album[]>([]);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [formAlbums, setFormAlbums] = useState<string[]>([]);
+  const [editAlbums, setEditAlbums] = useState<string[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editPassword, setEditPassword] = useState("");
@@ -35,8 +40,12 @@ export function AdminUsersPanel() {
           return;
         }
         setMe(session.user);
-        const data = await api<{ users: Profile[] }>("/api/admin/users");
+        const [data, albumData] = await Promise.all([
+          api<{ users: AdminUser[] }>("/api/admin/users"),
+          api<{ albums: Album[] }>("/api/albums"),
+        ]);
         setUsers(data.users);
+        setAlbums(albumData.albums);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Laden fehlgeschlagen.");
       }
@@ -54,12 +63,13 @@ export function AdminUsersPanel() {
     setBusy(true);
     setError(null);
     try {
-      const data = await api<{ user: Profile }>("/api/admin/users", {
+      const data = await api<{ user: AdminUser }>("/api/admin/users", {
         method: "POST",
         body: JSON.stringify({
           display_name: form.display_name.trim(),
           email: form.email.trim(),
           password: form.password,
+          album_ids: formAlbums,
         }),
       });
       setUsers((prev) =>
@@ -68,6 +78,7 @@ export function AdminUsersPanel() {
         ),
       );
       setForm(emptyForm);
+      setFormAlbums([]);
       flash("Teilnehmer angelegt.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Anlegen fehlgeschlagen.");
@@ -80,11 +91,12 @@ export function AdminUsersPanel() {
     setBusy(true);
     setError(null);
     try {
-      const data = await api<{ user: Profile }>(`/api/admin/users/${id}`, {
+      const data = await api<{ user: AdminUser }>(`/api/admin/users/${id}`, {
         method: "PATCH",
         body: JSON.stringify({
           display_name: editName.trim(),
           ...(editPassword ? { password: editPassword } : {}),
+          album_ids: editAlbums,
         }),
       });
       setUsers((prev) => prev.map((item) => (item.id === id ? data.user : item)));
@@ -102,7 +114,7 @@ export function AdminUsersPanel() {
     setBusy(true);
     setError(null);
     try {
-      const data = await api<{ user: Profile }>(`/api/admin/users/${user.id}`, {
+      const data = await api<{ user: AdminUser }>(`/api/admin/users/${user.id}`, {
         method: "PATCH",
         body: JSON.stringify({ is_active: isActive }),
       });
@@ -156,7 +168,8 @@ export function AdminUsersPanel() {
           </h2>
         </div>
         <p className="text-sm text-muted-foreground leading-snug">
-          Gäste brauchen kein Konto — die teilst du über einen Link.
+          Login-Konto mit E-Mail und Passwort. Danach Alben zuordnen — oder
+          gleich hier anhaken. Gäste brauchen kein Konto.
         </p>
         <label className="block space-y-1.5">
           <span className="text-sm font-medium">Anzeigename</span>
@@ -196,6 +209,33 @@ export function AdminUsersPanel() {
             autoComplete="new-password"
           />
         </label>
+        {albums.length > 0 ? (
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium">Alben</legend>
+            <ul className="space-y-1">
+              {albums.map((album) => (
+                <li key={album.id}>
+                  <label className="flex min-h-11 items-center gap-3 rounded-2xl bg-background px-3 ring-1 ring-border">
+                    <input
+                      type="checkbox"
+                      checked={formAlbums.includes(album.id)}
+                      onChange={() =>
+                        setFormAlbums((prev) =>
+                          prev.includes(album.id)
+                            ? prev.filter((id) => id !== album.id)
+                            : [...prev, album.id],
+                        )
+                      }
+                    />
+                    <span className="text-sm leading-snug break-words">
+                      {album.name}
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </fieldset>
+        ) : null}
         <button
           type="submit"
           disabled={busy}
@@ -248,6 +288,33 @@ export function AdminUsersPanel() {
                         onChange={(event) => setEditName(event.target.value)}
                       />
                     </label>
+                    {albums.length > 0 ? (
+                      <fieldset className="space-y-2">
+                        <legend className="text-sm font-medium">Alben</legend>
+                        <ul className="space-y-1">
+                          {albums.map((album) => (
+                            <li key={album.id}>
+                              <label className="flex min-h-11 items-center gap-3 rounded-2xl bg-background px-3 ring-1 ring-border">
+                                <input
+                                  type="checkbox"
+                                  checked={editAlbums.includes(album.id)}
+                                  onChange={() =>
+                                    setEditAlbums((prev) =>
+                                      prev.includes(album.id)
+                                        ? prev.filter((id) => id !== album.id)
+                                        : [...prev, album.id],
+                                    )
+                                  }
+                                />
+                                <span className="text-sm leading-snug break-words">
+                                  {album.name}
+                                </span>
+                              </label>
+                            </li>
+                          ))}
+                        </ul>
+                      </fieldset>
+                    ) : null}
                     <label className="block space-y-1.5">
                       <span className="text-sm font-medium">
                         Neues Passwort (optional)
@@ -290,6 +357,7 @@ export function AdminUsersPanel() {
                         setEditingId(user.id);
                         setEditName(user.display_name);
                         setEditPassword("");
+                        setEditAlbums(user.album_ids ?? []);
                       }}
                       className="inline-flex h-11 items-center rounded-2xl bg-muted px-3 text-sm font-medium"
                     >

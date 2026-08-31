@@ -1,16 +1,23 @@
 import { NextResponse } from "next/server";
 import { HttpError, jsonError, requireTeilnehmer } from "@/lib/auth/request";
 import { toProfile } from "@/lib/db/mappers";
-import { findUserById, listShareLinks, updateUserProfile } from "@/lib/db/queries";
+import {
+  findUserById,
+  listAlbums,
+  listAlbumsForUser,
+  updateUserProfile,
+} from "@/lib/db/queries";
 
 export async function GET() {
   try {
     const user = await requireTeilnehmer();
     const row = await findUserById(user.id);
     if (!row) throw new HttpError(401, "Bitte zuerst anmelden.");
+    const albums =
+      user.role === "admin" ? await listAlbums() : await listAlbumsForUser(user.id);
     return NextResponse.json({
       profile: toProfile(row),
-      shareLinks: await listShareLinks(),
+      albums,
     });
   } catch (err) {
     return jsonError(err);

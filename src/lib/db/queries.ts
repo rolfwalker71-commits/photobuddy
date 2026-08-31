@@ -1,15 +1,19 @@
 import { query, queryOne } from "@/lib/db/pool";
 import {
+  toAlbum,
   toComment,
   toPhoto,
   toProfile,
   toReaction,
   toShareLink,
   toTag,
+  type AlbumRow,
   type PhotoRow,
+  type ShareLinkRow,
   type UserRow,
 } from "@/lib/db/mappers";
 import type {
+  Album,
   Comment,
   Photo,
   PhotoReactionSummary,
@@ -132,17 +136,19 @@ export async function countPhotosByUser(id: string) {
   return Number(row?.n ?? 0);
 }
 
-export async function listPhotos(): Promise<Photo[]> {
+export async function listPhotos(albumId: string): Promise<Photo[]> {
   const rows = await query<PhotoRow>(
     `select * from public.photos
+     where album_id = $1
      order by coalesce(taken_at, created_at) desc`,
+    [albumId],
   );
   return rows.map(toPhoto);
 }
 
-export async function listPhotosForGrid(): Promise<Photo[]> {
+export async function listPhotosForGrid(albumId: string): Promise<Photo[]> {
   const [photos, tags, commentRows, reactionRows] = await Promise.all([
-    listPhotos(),
+    listPhotos(albumId),
     listTags(),
     query<{ photo_id: string; n: string }>(
       `select photo_id, count(*)::text as n from public.comments group by photo_id`,
@@ -182,7 +188,7 @@ export async function listPhotosForGrid(): Promise<Photo[]> {
   }));
 }
 
-export async function getPhotosUpdatedStamp(): Promise<string> {
+export async function getPhotosUpdatedStamp(albumId: string): Promise<string> {
   const row = await queryOne<{
     photos: string;
     comments: string;
@@ -190,14 +196,20 @@ export async function getPhotosUpdatedStamp(): Promise<string> {
     latest: Date | string | null;
   }>(
     `select
-       (select count(*)::text from public.photos) as photos,
-       (select count(*)::text from public.comments) as comments,
-       (select count(*)::text from public.reactions) as reactions,
+       (select count(*)::text from public.photos where album_id = $1) as photos,
+       (select count(*)::text from public.comments c
+         join public.photos p on p.id = c.photo_id where p.album_id = $1) as comments,
+       (select count(*)::text from public.reactions r
+         join public.photos p on p.id = r.photo_id where p.album_id = $1) as reactions,
        greatest(
-         (select max(greatest(created_at, updated_at, coalesce(taken_at, created_at))) from public.photos),
-         (select max(created_at) from public.comments),
-         (select max(created_at) from public.reactions)
+         (select max(greatest(created_at, updated_at, coalesce(taken_at, created_at)))
+           from public.photos where album_id = $1),
+         (select max(c.created_at) from public.comments c
+           join public.photos p on p.id = c.photo_id where p.album_id = $1),
+         (select max(r.created_at) from public.reactions r
+           join public.photos p on p.id = r.photo_id where p.album_id = $1)
        ) as latest`,
+    [albumId],
   );
   const latest = row?.latest ? new Date(row.latest).toISOString() : "none";
   return `${row?.photos ?? "0"}:${row?.comments ?? "0"}:${row?.reactions ?? "0"}:${latest}`;
@@ -212,6 +224,7 @@ export async function getPhoto(id: string): Promise<Photo | null> {
 }
 
 export async function insertPhoto(input: {
+  albumId: string;
   uploadedBy: string;
   storagePath: string;
   thumbnailPath: string;
@@ -228,12 +241,13 @@ export async function insertPhoto(input: {
 }): Promise<Photo> {
   const row = await queryOne<PhotoRow>(
     `insert into public.photos (
-       uploaded_by, storage_path, thumbnail_path, title, description,
+       album_id, uploaded_by, storage_path, thumbnail_path, title, description,
        taken_at, latitude, longitude, location_name, width, height,
        mime_type, file_size
-     ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+     ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
      returning *`,
     [
+      input.albumId,
       input.uploadedBy,
       input.storagePath,
       input.thumbnailPath,
@@ -425,57 +439,105 @@ export async function toggleGuestReaction(input: {
   );
 }
 
-export async function isValidShareKey(key: string) {
-  const row = await queryOne<{ key: string }>(
-    `select key from public.share_links
+export async function resolveShareKey(key: string) {
+  return queryOne<ShareLinkRow>(
+    `select id, album_id, key, label, is_active, created_at, expires_at
+     from public.share_links
      where key = $1 and is_active = true
        and (expires_at is null or expires_at > now())
      limit 1`,
     [key],
   );
-  return Boolean(row);
+}
+
+export async function isValidShareKey(key: string) {
+  return Boolean(await resolveShareKey(key));
+}
+
+export async function getAlbumIdForShareKey(key: string) {
+  const row = await resolveShareKey(key);
+  return row?.album_id ?? null;
 }
 
 export async function getShareLabel(key: string) {
-  const row = await queryOne<{ label: string }>(
-    `select label from public.share_links where key = $1 limit 1`,
+  const row = await queryOne<{ label: string; album_name: string | null }>(
+    `select sl.label, a.name as album_name
+     from public.share_links sl
+     left join public.albums a on a.id = sl.album_id
+     where sl.key = $1
+     limit 1`,
     [key],
   );
-  return row?.label ?? null;
+  return row?.album_name || row?.label || null;
+}
+
+export async function getShareLinkForAlbum(albumId: string): Promise<ShareLink | null> {
+  const row = await queryOne<ShareLinkRow>(
+    `select id, album_id, key, label, is_active, created_at, expires_at
+     from public.share_links
+     where album_id = $1
+     limit 1`,
+    [albumId],
+  );
+  return row ? toShareLink(row) : null;
 }
 
 export async function listShareLinks(): Promise<ShareLink[]> {
-  const rows = await query<{
-    id: string;
-    key: string;
-    label: string;
-    is_active: boolean;
-    created_at: Date | string;
-    expires_at: Date | string | null;
-  }>(
-    `select id, key, label, is_active, created_at, expires_at
+  const rows = await query<ShareLinkRow>(
+    `select id, album_id, key, label, is_active, created_at, expires_at
      from public.share_links
      order by created_at desc`,
   );
   return rows.map(toShareLink);
 }
 
-export async function createShareLink(input: { key: string; createdBy: string }) {
-  const row = await queryOne<{
-    id: string;
-    key: string;
-    label: string;
-    is_active: boolean;
-    created_at: Date | string;
-    expires_at: Date | string | null;
-  }>(
-    `insert into public.share_links (key, label, created_by)
-     values ($1, 'Familien-Link', $2)
-     returning id, key, label, is_active, created_at, expires_at`,
-    [input.key, input.createdBy],
+function newShareKey() {
+  return crypto.randomUUID().replaceAll("-", "").slice(0, 20);
+}
+
+export async function createShareLink(input: {
+  key?: string;
+  createdBy: string;
+  albumId: string;
+  label?: string;
+}) {
+  const row = await queryOne<ShareLinkRow>(
+    `insert into public.share_links (key, label, created_by, album_id)
+     values ($1, $2, $3, $4)
+     returning id, album_id, key, label, is_active, created_at, expires_at`,
+    [
+      input.key ?? newShareKey(),
+      input.label ?? "Gäste-Link",
+      input.createdBy,
+      input.albumId,
+    ],
   );
   if (!row) throw new Error("Link konnte nicht angelegt werden.");
   return toShareLink(row);
+}
+
+export async function ensureShareLink(albumId: string, createdBy: string) {
+  return (
+    (await getShareLinkForAlbum(albumId)) ??
+    (await createShareLink({ albumId, createdBy }))
+  );
+}
+
+export async function rotateShareLink(albumId: string, createdBy: string) {
+  const existing = await getShareLinkForAlbum(albumId);
+  const key = newShareKey();
+  if (existing) {
+    const row = await queryOne<ShareLinkRow>(
+      `update public.share_links
+       set key = $2, is_active = true, created_by = $3, label = 'Gäste-Link'
+       where id = $1
+       returning id, album_id, key, label, is_active, created_at, expires_at`,
+      [existing.id, key, createdBy],
+    );
+    if (!row) throw new Error("Link konnte nicht erneuert werden.");
+    return toShareLink(row);
+  }
+  return createShareLink({ key, createdBy, albumId });
 }
 
 export async function setShareLinkActive(id: string, isActive: boolean) {
@@ -483,4 +545,168 @@ export async function setShareLinkActive(id: string, isActive: boolean) {
     id,
     isActive,
   ]);
+}
+
+export async function setAlbumShareLinkActive(albumId: string, isActive: boolean) {
+  await query(`update public.share_links set is_active = $2 where album_id = $1`, [
+    albumId,
+    isActive,
+  ]);
+  return getShareLinkForAlbum(albumId);
+}
+
+async function albumMemberMap() {
+  const rows = await query<{ album_id: string; user_id: string }>(
+    `select album_id, user_id from public.album_members`,
+  );
+  const map = new Map<string, string[]>();
+  for (const row of rows) {
+    const list = map.get(row.album_id) ?? [];
+    list.push(row.user_id);
+    map.set(row.album_id, list);
+  }
+  return map;
+}
+
+async function albumPhotoCounts() {
+  const rows = await query<{ album_id: string; n: string }>(
+    `select album_id, count(*)::text as n from public.photos group by album_id`,
+  );
+  return new Map(rows.map((row) => [row.album_id, Number(row.n)]));
+}
+
+async function hydrateAlbums(rows: AlbumRow[]): Promise<Album[]> {
+  const [members, counts, links] = await Promise.all([
+    albumMemberMap(),
+    albumPhotoCounts(),
+    listShareLinks(),
+  ]);
+  const linkByAlbum = new Map(links.map((link) => [link.album_id, link]));
+  return rows.map((row) =>
+    toAlbum(
+      row,
+      members.get(row.id) ?? [],
+      counts.get(row.id) ?? 0,
+      linkByAlbum.get(row.id) ?? null,
+    ),
+  );
+}
+
+export async function listAlbums(): Promise<Album[]> {
+  const rows = await query<AlbumRow>(
+    `select id, name, created_at, updated_at from public.albums order by created_at asc`,
+  );
+  return hydrateAlbums(rows);
+}
+
+export async function listAlbumsForUser(userId: string): Promise<Album[]> {
+  const rows = await query<AlbumRow>(
+    `select a.id, a.name, a.created_at, a.updated_at
+     from public.albums a
+     join public.album_members m on m.album_id = a.id
+     where m.user_id = $1
+     order by a.created_at asc`,
+    [userId],
+  );
+  return hydrateAlbums(rows);
+}
+
+export async function getAlbum(id: string): Promise<Album | null> {
+  const row = await queryOne<AlbumRow>(
+    `select id, name, created_at, updated_at from public.albums where id = $1`,
+    [id],
+  );
+  if (!row) return null;
+  const [hydrated] = await hydrateAlbums([row]);
+  return hydrated ?? null;
+}
+
+export async function createAlbum(input: {
+  name: string;
+  createdBy: string;
+  memberIds: string[];
+}) {
+  const row = await queryOne<AlbumRow>(
+    `insert into public.albums (name) values ($1)
+     returning id, name, created_at, updated_at`,
+    [input.name.trim()],
+  );
+  if (!row) throw new Error("Album konnte nicht angelegt werden.");
+  const members = new Set(input.memberIds);
+  members.add(input.createdBy);
+  await setAlbumMembers(row.id, [...members]);
+  await ensureShareLink(row.id, input.createdBy);
+  return getAlbum(row.id);
+}
+
+export async function renameAlbum(id: string, name: string) {
+  const row = await queryOne<AlbumRow>(
+    `update public.albums set name = $2 where id = $1
+     returning id, name, created_at, updated_at`,
+    [id, name.trim()],
+  );
+  if (!row) return null;
+  const [hydrated] = await hydrateAlbums([row]);
+  return hydrated ?? null;
+}
+
+export async function countAlbums() {
+  const row = await queryOne<{ n: string }>(
+    `select count(*)::text as n from public.albums`,
+  );
+  return Number(row?.n ?? 0);
+}
+
+export async function countPhotosInAlbum(albumId: string) {
+  const row = await queryOne<{ n: string }>(
+    `select count(*)::text as n from public.photos where album_id = $1`,
+    [albumId],
+  );
+  return Number(row?.n ?? 0);
+}
+
+export async function deleteAlbum(id: string) {
+  await query(`delete from public.albums where id = $1`, [id]);
+}
+
+export async function isAlbumMember(albumId: string, userId: string) {
+  const row = await queryOne<{ user_id: string }>(
+    `select user_id from public.album_members
+     where album_id = $1 and user_id = $2
+     limit 1`,
+    [albumId, userId],
+  );
+  return Boolean(row);
+}
+
+export async function setAlbumMembers(albumId: string, userIds: string[]) {
+  await query(`delete from public.album_members where album_id = $1`, [albumId]);
+  const unique = [...new Set(userIds.filter(Boolean))];
+  for (const userId of unique) {
+    await query(
+      `insert into public.album_members (album_id, user_id) values ($1, $2)
+       on conflict do nothing`,
+      [albumId, userId],
+    );
+  }
+}
+
+export async function setUserAlbums(userId: string, albumIds: string[]) {
+  await query(`delete from public.album_members where user_id = $1`, [userId]);
+  const unique = [...new Set(albumIds.filter(Boolean))];
+  for (const albumId of unique) {
+    await query(
+      `insert into public.album_members (album_id, user_id) values ($1, $2)
+       on conflict do nothing`,
+      [albumId, userId],
+    );
+  }
+}
+
+export async function listAlbumIdsForUser(userId: string) {
+  const rows = await query<{ album_id: string }>(
+    `select album_id from public.album_members where user_id = $1`,
+    [userId],
+  );
+  return rows.map((row) => row.album_id);
 }

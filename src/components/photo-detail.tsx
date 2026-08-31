@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 import { ArrowLeft, MapPin, Trash2 } from "lucide-react";
 import { CommentSection } from "@/components/comment-section";
 import { GuestNameDialog } from "@/components/guest-name-dialog";
+import { PhotoLocationMapDynamic } from "@/components/photo-location-map-dynamic";
 import { ReactionBar } from "@/components/reaction-bar";
 import { api, withKey } from "@/lib/api";
 import { hasGuestName, storeGuestName } from "@/lib/guest";
@@ -35,6 +36,9 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [askName, setAskName] = useState(false);
+  const photoRef = useRef<HTMLImageElement>(null);
+  const [photoHeight, setPhotoHeight] = useState(0);
+  const canEdit = mode === "teilnehmer";
 
   useEffect(() => {
     const load = async () => {
@@ -61,6 +65,20 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
     void load();
   }, [mode, photoId, shareKey]);
 
+  useEffect(() => {
+    const img = photoRef.current;
+    if (!img) return;
+    const sync = () => setPhotoHeight(img.getBoundingClientRect().height);
+    sync();
+    img.addEventListener("load", sync);
+    const ro = new ResizeObserver(sync);
+    ro.observe(img);
+    return () => {
+      img.removeEventListener("load", sync);
+      ro.disconnect();
+    };
+  }, [photo]);
+
   function requestGuestName() {
     if (hasGuestName()) return true;
     setAskName(true);
@@ -73,7 +91,7 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
   }
 
   async function saveMeta() {
-    if (mode !== "teilnehmer" || !photo) return;
+    if (!canEdit || !photo) return;
     setSaving(true);
     setError(null);
     try {
@@ -94,7 +112,7 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
   }
 
   async function addTag() {
-    if (mode !== "teilnehmer" || !photo) return;
+    if (!canEdit || !photo) return;
     const name = tagInput.trim();
     if (!name) return;
     try {
@@ -114,7 +132,7 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
   }
 
   async function removePhoto() {
-    if (mode !== "teilnehmer" || !photo) return;
+    if (!canEdit || !photo) return;
     if (!window.confirm("Dieses Foto wirklich löschen?")) return;
     await api(`/api/photos/${photo.id}`, { method: "DELETE" });
     notifyPhotosChanged();
@@ -148,7 +166,7 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
           <ArrowLeft className="size-4" />
           Zurück
         </button>
-        {mode === "teilnehmer" ? (
+        {canEdit ? (
           <button
             type="button"
             onClick={() => void removePhoto()}
@@ -160,17 +178,39 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
         ) : null}
       </div>
 
-      <div className="overflow-hidden rounded-2xl bg-card shadow-card ring-1 ring-border">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={publicPhotoUrl(photo.storage_path)}
-          alt={photo.title || photo.description || "Reise-Foto"}
-          className="max-h-[80vh] w-full object-contain"
-        />
+      <div className="space-y-3">
+        <div className="overflow-hidden rounded-2xl bg-card shadow-card ring-1 ring-border">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            ref={photoRef}
+            src={publicPhotoUrl(photo.storage_path)}
+            alt={photo.title || photo.description || "Reise-Foto"}
+            className="max-h-[80vh] w-full object-contain"
+          />
+        </div>
+        {photo.latitude != null && photo.longitude != null ? (
+          <div
+            className="h-[var(--photo-h)] overflow-hidden rounded-2xl bg-card shadow-card ring-1 ring-border md:min-h-80"
+            style={
+              {
+                "--photo-h": photoHeight > 0 ? `${photoHeight}px` : "16rem",
+              } as CSSProperties
+            }
+            role="region"
+            aria-label="Kartenausschnitt des Foto-Standorts"
+          >
+            <PhotoLocationMapDynamic
+              latitude={photo.latitude}
+              longitude={photo.longitude}
+              locationName={photo.location_name}
+              accentColor={profile?.accent_color}
+            />
+          </div>
+        ) : null}
       </div>
 
       <div className="space-y-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border">
-        {mode === "teilnehmer" ? (
+        {canEdit ? (
           <div className="space-y-3">
             <label className="block space-y-1.5">
               <span className="text-sm font-medium">Titel</span>
@@ -244,7 +284,7 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
           ))}
         </div>
 
-        {mode === "teilnehmer" ? (
+        {canEdit ? (
           <div className="flex gap-2">
             <input
               className="h-11 min-w-0 flex-1 rounded-2xl border border-border bg-background px-3 text-sm"
