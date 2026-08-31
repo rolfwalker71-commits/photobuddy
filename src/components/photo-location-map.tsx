@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
-import { MapContainer, Marker, TileLayer, useMap } from "react-leaflet";
+import { MapContainer, Marker, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { MapPin } from "lucide-react";
+import { BasemapLayer } from "@/components/basemap-layer";
 import { humanLocationName } from "@/lib/image";
 
 type PhotoLocationMapProps = {
@@ -66,10 +67,7 @@ export default function PhotoLocationMap({
       >
         <Recenter lat={latitude} lng={longitude} />
         <InvalidateOnResize />
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+        <BasemapLayer />
         <Marker
           position={[latitude, longitude]}
           icon={markerIcon(accentColor)}

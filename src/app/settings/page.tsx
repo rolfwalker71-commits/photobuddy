@@ -8,7 +8,7 @@ export default function SettingsPage() {
     <div className="min-h-dvh pb-28">
       <AppHeader
         title="Einstellungen"
-        subtitle="Profil, Teilnehmer, Alben"
+        subtitle="Profil, Darstellung, Alben"
         trailing={<AdminNavLinks compact />}
       />
       <main className="mx-auto max-w-lg px-4 py-4">

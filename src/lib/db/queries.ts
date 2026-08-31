@@ -710,3 +710,41 @@ export async function listAlbumIdsForUser(userId: string) {
   );
   return rows.map((row) => row.album_id);
 }
+
+export async function getAppSetting(key: string) {
+  const row = await queryOne<{ value: string }>(
+    `select value from public.app_settings where key = $1`,
+    [key],
+  );
+  return row?.value ?? null;
+}
+
+export async function setAppSetting(key: string, value: string) {
+  await query(
+    `insert into public.app_settings (key, value)
+     values ($1, $2)
+     on conflict (key) do update
+       set value = excluded.value, updated_at = now()`,
+    [key, value],
+  );
+}
+
+export type PhotoNeighbor = { id: string; storage_path: string };
+
+export async function getAlbumPhotoNeighbors(
+  albumId: string,
+  photoId: string,
+): Promise<{ prev: PhotoNeighbor | null; next: PhotoNeighbor | null }> {
+  const rows = await query<PhotoNeighbor>(
+    `select id, storage_path from public.photos
+     where album_id = $1
+     order by coalesce(taken_at, created_at) desc, id desc`,
+    [albumId],
+  );
+  const index = rows.findIndex((row) => row.id === photoId);
+  if (index < 0) return { prev: null, next: null };
+  return {
+    prev: rows[index - 1] ?? null,
+    next: rows[index + 1] ?? null,
+  };
+}

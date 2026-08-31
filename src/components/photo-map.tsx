@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
+import { MapContainer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import Link from "next/link";
+import { BasemapLayer } from "@/components/basemap-layer";
 import { PhotoImageOverlay } from "@/components/photo-image-overlay";
 import { humanLocationName } from "@/lib/image";
 import { appHref } from "@/lib/paths";
@@ -133,10 +134,7 @@ export default function PhotoMap({
         scrollWheelZoom
       >
         <FitPhotoBounds points={points} />
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+        <BasemapLayer />
         {located.map((photo) => {
           const color = profiles[photo.uploaded_by]?.accent_color ?? "#0f766e";
           const src = previewPhotoUrl(photo);

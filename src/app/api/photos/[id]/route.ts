@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { HttpError, jsonError, requirePhotoAccess, requirePhotoEditor } from "@/lib/auth/request";
 import {
   deletePhoto,
+  getAlbumPhotoNeighbors,
   listProfiles,
   listTagsForPhoto,
   updatePhoto,
@@ -14,12 +15,13 @@ export async function GET(request: Request, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
     const { photo } = await requirePhotoAccess(request, id);
-    const [profiles, tags] = await Promise.all([
+    const [profiles, tags, neighbors] = await Promise.all([
       listProfiles(),
       listTagsForPhoto(id),
+      getAlbumPhotoNeighbors(photo.album_id, photo.id),
     ]);
     const profile = profiles.find((p) => p.id === photo.uploaded_by) ?? null;
-    return NextResponse.json({ photo, profile, tags });
+    return NextResponse.json({ photo, profile, tags, neighbors });
   } catch (err) {
     return jsonError(err);
   }

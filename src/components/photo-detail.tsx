@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
@@ -8,13 +8,16 @@ import { ArrowLeft, MapPin, Trash2 } from "lucide-react";
 import { CommentSection } from "@/components/comment-section";
 import { GuestNameDialog } from "@/components/guest-name-dialog";
 import { PhotoLocationMapDynamic } from "@/components/photo-location-map-dynamic";
+import {
+  PhotoStage,
+  type PhotoNeighbor,
+} from "@/components/photo-stage";
 import { ReactionBar } from "@/components/reaction-bar";
 import { api, withKey } from "@/lib/api";
 import { hasGuestName, storeGuestName } from "@/lib/guest";
 import { appHref } from "@/lib/paths";
 import { notifyPhotosChanged } from "@/lib/photos-sync";
 import { humanLocationName } from "@/lib/image";
-import { publicPhotoUrl } from "@/lib/storage";
 import type { Photo, PhotoTag, Profile, ViewerMode } from "@/lib/types";
 
 type PhotoDetailProps = {
@@ -36,6 +39,10 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [askName, setAskName] = useState(false);
+  const [neighbors, setNeighbors] = useState<{
+    prev: PhotoNeighbor | null;
+    next: PhotoNeighbor | null;
+  }>({ prev: null, next: null });
   const photoRef = useRef<HTMLImageElement>(null);
   const [photoHeight, setPhotoHeight] = useState(0);
   const canEdit = mode === "teilnehmer";
@@ -51,6 +58,10 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
           photo: Photo;
           profile: Profile | null;
           tags: PhotoTag[];
+          neighbors?: {
+            prev: PhotoNeighbor | null;
+            next: PhotoNeighbor | null;
+          };
         }>(withKey(`/api/photos/${photoId}`, shareKey));
         setPhoto(data.photo);
         setTitle(data.photo.title ?? "");
@@ -58,12 +69,38 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
         setLocationName(data.photo.location_name ?? "");
         setProfile(data.profile);
         setTags(data.tags);
+        setNeighbors(data.neighbors ?? { prev: null, next: null });
       } catch {
         setError(mode === "guest" && !shareKey ? "Gäste-Link fehlt." : "Foto nicht gefunden.");
       }
     };
     void load();
   }, [mode, photoId, shareKey]);
+
+  const goToPhoto = useCallback(
+    (id: string | undefined) => {
+      if (!id) return;
+      router.replace(appHref(mode, shareKey, "photo", id));
+    },
+    [mode, router, shareKey],
+  );
+
+  const goPrev = useCallback(() => {
+    goToPhoto(neighbors.prev?.id);
+  }, [goToPhoto, neighbors.prev?.id]);
+
+  const goNext = useCallback(() => {
+    goToPhoto(neighbors.next?.id);
+  }, [goToPhoto, neighbors.next?.id]);
+
+  useEffect(() => {
+    if (neighbors.prev) {
+      router.prefetch(appHref(mode, shareKey, "photo", neighbors.prev.id));
+    }
+    if (neighbors.next) {
+      router.prefetch(appHref(mode, shareKey, "photo", neighbors.next.id));
+    }
+  }, [mode, neighbors.next, neighbors.prev, router, shareKey]);
 
   useEffect(() => {
     const img = photoRef.current;
@@ -179,15 +216,14 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
       </div>
 
       <div className="space-y-3">
-        <div className="overflow-hidden rounded-2xl bg-card shadow-card ring-1 ring-border">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            ref={photoRef}
-            src={publicPhotoUrl(photo.storage_path)}
-            alt={photo.title || photo.description || "Reise-Foto"}
-            className="max-h-[80vh] w-full object-contain"
-          />
-        </div>
+        <PhotoStage
+          photo={photo}
+          prev={neighbors.prev}
+          next={neighbors.next}
+          onPrev={goPrev}
+          onNext={goNext}
+          imageRef={photoRef}
+        />
         {photo.latitude != null && photo.longitude != null ? (
           <div
             className="h-[var(--photo-h)] overflow-hidden rounded-2xl bg-card shadow-card ring-1 ring-border md:min-h-80"
