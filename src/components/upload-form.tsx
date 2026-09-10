@@ -457,9 +457,13 @@ export function UploadForm({ albumId, albums, onAlbumChange }: UploadFormProps) 
     setGeocoding(true);
     setError(null);
     try {
-      const data = await api<{ place_name: string | null }>(
+      const data = await api<{ place_name: string | null; nominatim_error?: string | null }>(
         `/api/geocode/reverse?lat=${encodeURIComponent(String(lat))}&lng=${encodeURIComponent(String(lng))}`,
       );
+      if (data.nominatim_error) {
+        setError(`Ortsvorschlag fehlgeschlagen: ${data.nominatim_error}`);
+        return;
+      }
       if (!data.place_name) {
         setError("Kein Ortsname gefunden.");
         return;

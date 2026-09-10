@@ -11,8 +11,8 @@ export async function GET(request: Request) {
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
       throw new HttpError(400, "Koordinaten fehlen.");
     }
-    const place = await reverseGeocode(latitude, longitude);
-    return NextResponse.json({ place_name: place });
+    const { place, nominatimError } = await reverseGeocode(latitude, longitude);
+    return NextResponse.json({ place_name: place, nominatim_error: nominatimError });
   } catch (err) {
     return jsonError(err);
   }

@@ -63,6 +63,16 @@ export type GeocodeHit = {
   label: string;
 };
 
+export type ForwardGeocodeResult = {
+  results: GeocodeHit[];
+  nominatimError: string | null;
+};
+
+export type ReverseGeocodeResult = {
+  place: string | null;
+  nominatimError: string | null;
+};
+
 async function throttle() {
   const wait = MIN_INTERVAL_MS - (Date.now() - lastRequestAt);
   if (wait > 0) {
@@ -80,21 +90,45 @@ function formatFromAddress(address: Record<string, string> | undefined): string 
     address.municipality ??
     address.hamlet ??
     address.suburb;
-  if (!locality?.trim()) return null;
-  const place = locality.trim();
-  const code = cantonNameToCode(address.state);
-  if (code) return `${place} ${code}`;
-  const region = address.state ?? address.county;
-  if (region?.trim()) return `${place}, ${region.trim()}`;
+  if (locality?.trim()) {
+    const place = locality.trim();
+    const code = cantonNameToCode(address.state);
+    if (code) return `${place} ${code}`;
+    const region = address.state ?? address.county;
+    if (region?.trim()) return `${place}, ${region.trim()}`;
+    const country = address.country?.trim();
+    if (country) return `${place}, ${country}`;
+    return place;
+  }
+  const region = address.state ?? address.county ?? address.region;
+  if (region?.trim()) {
+    const country = address.country?.trim();
+    if (country && country.toLowerCase() !== region.trim().toLowerCase()) {
+      return `${region.trim()}, ${country}`;
+    }
+    return region.trim();
+  }
   const country = address.country?.trim();
-  if (country) return `${place}, ${country}`;
-  return place;
+  if (country) return country;
+  return null;
 }
 
-/** Build Nominatim `q` strings for Swiss place names (e.g. "Altdorf UR"). */
+function pushQuery(queries: string[], seen: Set<string>, q: string) {
+  const trimmed = q.trim();
+  if (!trimmed) return;
+  const key = trimmed.toLowerCase();
+  if (seen.has(key)) return;
+  seen.add(key);
+  queries.push(trimmed);
+}
+
+/** Build Nominatim `q` strings — Swiss canton hints plus worldwide fallbacks. */
 export function buildForwardGeocodeQueries(raw: string): string[] {
   const trimmed = raw.trim();
   if (!trimmed) return [];
+
+  const queries: string[] = [];
+  const seen = new Set<string>();
 
   const tokens = trimmed.split(/\s+/);
   const lastToken = tokens[tokens.length - 1]?.toUpperCase() ?? "";
@@ -102,14 +136,26 @@ export function buildForwardGeocodeQueries(raw: string): string[] {
 
   if (tokens.length >= 2 && cantonName) {
     const locality = tokens.slice(0, -1).join(" ");
-    return [
-      `${locality}, ${cantonName}, Switzerland`,
-      `${locality}, ${cantonName}, Schweiz`,
-      `${locality}, ${cantonName}`,
-    ];
+    pushQuery(queries, seen, `${locality}, ${cantonName}, Switzerland`);
+    pushQuery(queries, seen, `${locality}, ${cantonName}, Schweiz`);
+    pushQuery(queries, seen, `${locality}, ${cantonName}`);
+    pushQuery(queries, seen, `${locality} ${lastToken}, Switzerland`);
   }
 
-  return [trimmed];
+  pushQuery(queries, seen, trimmed);
+
+  if (tokens.length >= 2 && cantonName) {
+    pushQuery(queries, seen, tokens.slice(0, -1).join(" "));
+  }
+
+  const looksSwiss =
+    (tokens.length >= 2 && cantonName != null) ||
+    /,\s*(schweiz|switzerland|suisse|svizzera)\b/i.test(trimmed);
+  if (!trimmed.includes(",") && (looksSwiss || tokens.length === 1)) {
+    pushQuery(queries, seen, `${trimmed}, Switzerland`);
+  }
+
+  return queries;
 }
 
 type NominatimSearchRow = {
@@ -120,45 +166,76 @@ type NominatimSearchRow = {
   address?: Record<string, string>;
 };
 
-async function nominatimSearch(query: string, limit = 5): Promise<NominatimSearchRow[]> {
+type NominatimSearchResponse = {
+  rows: NominatimSearchRow[];
+  nominatimError: string | null;
+};
+
+async function readNominatimError(res: Response): Promise<string> {
+  const text = (await res.text()).trim();
+  if (!text) return `HTTP ${res.status}`;
+  return text.length > 240 ? `${text.slice(0, 240)}…` : text;
+}
+
+async function nominatimSearch(query: string, limit = 5): Promise<NominatimSearchResponse> {
   await throttle();
   const url = new URL("https://nominatim.openstreetmap.org/search");
   url.searchParams.set("format", "jsonv2");
   url.searchParams.set("q", query);
   url.searchParams.set("limit", String(limit));
   url.searchParams.set("accept-language", "de");
+  url.searchParams.set("addressdetails", "1");
 
   const res = await fetch(url.toString(), {
     headers: { "User-Agent": USER_AGENT },
     cache: "no-store",
   });
-  if (!res.ok) return [];
-  const data = (await res.json()) as NominatimSearchRow[];
-  return Array.isArray(data) ? data : [];
+  if (!res.ok) {
+    return { rows: [], nominatimError: await readNominatimError(res) };
+  }
+  let data: unknown;
+  try {
+    data = await res.json();
+  } catch {
+    return { rows: [], nominatimError: "Nominatim-Antwort ungültig (JSON)." };
+  }
+  const rows = Array.isArray(data) ? (data as NominatimSearchRow[]) : [];
+  return { rows, nominatimError: null };
+}
+
+function shortDisplayName(displayName: string): string {
+  const parts = displayName
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length <= 2) return displayName.trim();
+  return parts.slice(0, 2).join(", ");
 }
 
 function rowToHit(row: NominatimSearchRow): GeocodeHit | null {
   const latitude = Number(row.lat);
   const longitude = Number(row.lon);
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  const displayName = row.display_name?.trim();
   const label =
     formatFromAddress(row.address) ??
     row.name?.trim() ??
-    row.display_name?.trim() ??
-    null;
+    (displayName ? shortDisplayName(displayName) : null);
   if (!label) return null;
   return { latitude, longitude, label };
 }
 
-export async function forwardGeocode(rawQuery: string): Promise<GeocodeHit[]> {
+export async function forwardGeocode(rawQuery: string): Promise<ForwardGeocodeResult> {
   const queries = buildForwardGeocodeQueries(rawQuery);
-  if (!queries.length) return [];
+  if (!queries.length) return { results: [], nominatimError: null };
 
   const seen = new Set<string>();
   const hits: GeocodeHit[] = [];
+  let lastError: string | null = null;
 
   for (const query of queries) {
-    const rows = await nominatimSearch(query, 8);
+    const { rows, nominatimError } = await nominatimSearch(query, 8);
+    if (nominatimError) lastError = nominatimError;
     for (const row of rows) {
       const hit = rowToHit(row);
       if (!hit) continue;
@@ -170,14 +247,19 @@ export async function forwardGeocode(rawQuery: string): Promise<GeocodeHit[]> {
     if (hits.length > 0) break;
   }
 
-  return hits.slice(0, 8);
+  return {
+    results: hits.slice(0, 8),
+    nominatimError: hits.length > 0 ? null : lastError,
+  };
 }
 
 export async function reverseGeocode(
   latitude: number,
   longitude: number,
-): Promise<string | null> {
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+): Promise<ReverseGeocodeResult> {
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return { place: null, nominatimError: null };
+  }
   await throttle();
   const url = new URL("https://nominatim.openstreetmap.org/reverse");
   url.searchParams.set("format", "jsonv2");
@@ -185,21 +267,29 @@ export async function reverseGeocode(
   url.searchParams.set("lon", String(longitude));
   url.searchParams.set("zoom", "14");
   url.searchParams.set("accept-language", "de");
+  url.searchParams.set("addressdetails", "1");
 
   const res = await fetch(url.toString(), {
     headers: { "User-Agent": USER_AGENT },
     cache: "no-store",
   });
-  if (!res.ok) return null;
-  const data = (await res.json()) as {
+  if (!res.ok) {
+    return { place: null, nominatimError: await readNominatimError(res) };
+  }
+  let data: {
     display_name?: string;
     name?: string;
     address?: Record<string, string>;
   };
-  return (
+  try {
+    data = (await res.json()) as typeof data;
+  } catch {
+    return { place: null, nominatimError: "Nominatim-Antwort ungültig (JSON)." };
+  }
+  const place =
     formatFromAddress(data.address) ??
     data.name?.trim() ??
     data.display_name?.trim() ??
-    null
-  );
+    null;
+  return { place, nominatimError: null };
 }

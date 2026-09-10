@@ -14,7 +14,11 @@ import {
 } from "@/components/photo-stage";
 import { ReactionBar } from "@/components/reaction-bar";
 import { api, withKey } from "@/lib/api";
-import { formatCoordPair, parseCoordPair } from "@/lib/coords";
+import {
+  formatCoordPair,
+  parseCoordPair,
+  toValidCoordPair,
+} from "@/lib/coords";
 import { hasGuestName, storeGuestName } from "@/lib/guest";
 import { humanLocationName } from "@/lib/image";
 import { appHref } from "@/lib/paths";
@@ -148,6 +152,19 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
     return pair;
   }
 
+  function validInputCoords(): { latitude: number; longitude: number } | null {
+    const coords = parsedCoords();
+    if (!coords) return null;
+    return toValidCoordPair(coords.latitude, coords.longitude);
+  }
+
+  function mapCoords(): { latitude: number; longitude: number } | null {
+    const fromInput = validInputCoords();
+    if (fromInput) return fromInput;
+    if (parsedCoords() === null) return null;
+    return toValidCoordPair(photo?.latitude, photo?.longitude);
+  }
+
   async function saveMeta() {
     if (!canEdit || !photo) return;
     const coords = parsedCoords();
@@ -185,6 +202,26 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
     setError(null);
   }
 
+  async function reverseSuggestFromCoords(
+    latitude: number,
+    longitude: number,
+  ): Promise<boolean> {
+    const data = await api<{ place_name: string | null; nominatim_error?: string | null }>(
+      `/api/geocode/reverse?lat=${encodeURIComponent(String(latitude))}&lng=${encodeURIComponent(String(longitude))}`,
+    );
+    if (data.nominatim_error) {
+      setError(`Ortsvorschlag fehlgeschlagen: ${data.nominatim_error}`);
+      return false;
+    }
+    if (!data.place_name) {
+      setError("Kein Ortsname zu diesen Koordinaten gefunden.");
+      return false;
+    }
+    setLocationName(data.place_name);
+    setError(null);
+    return true;
+  }
+
   async function searchPlace() {
     const query = locationName.trim();
     if (!query) {
@@ -192,16 +229,19 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
       return;
     }
     setPlaceSearching(true);
-    setGeocoding(true);
     setError(null);
     setPlaceSearchResults([]);
     try {
-      const data = await api<{ results: GeocodeHit[] }>(
+      const data = await api<{ results: GeocodeHit[]; nominatim_error?: string | null }>(
         `/api/geocode/search?q=${encodeURIComponent(query)}`,
       );
+      if (data.nominatim_error) {
+        setError(`Ortssuche fehlgeschlagen: ${data.nominatim_error}`);
+        return;
+      }
       if (!data.results.length) {
         setError(
-          "Kein Ort gefunden. Tipp: bei mehreren gleichnamigen Orten in der Schweiz Kanton anhängen, z. B. «Seedorf UR».",
+          "Kein Ort gefunden. Tipp: Land oder Region ergänzen, z. B. «Paris, Frankreich» — in der Schweiz oft Kanton, z. B. «Seedorf UR».",
         );
         return;
       }
@@ -210,33 +250,22 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
         return;
       }
       setPlaceSearchResults(data.results);
-    } catch {
-      setError("Ortssuche fehlgeschlagen.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ortssuche fehlgeschlagen.");
     } finally {
       setPlaceSearching(false);
-      setGeocoding(false);
     }
   }
 
   async function suggestPlace() {
-    const coords = parsedCoords();
-    if (!coords || coords.latitude == null || coords.longitude == null) {
-      setError("Zuerst gültige Koordinaten eintragen.");
-      return;
-    }
+    const coords = validInputCoords();
+    if (!coords) return;
     setGeocoding(true);
     setError(null);
     try {
-      const data = await api<{ place_name: string | null }>(
-        `/api/geocode/reverse?lat=${encodeURIComponent(String(coords.latitude))}&lng=${encodeURIComponent(String(coords.longitude))}`,
-      );
-      if (!data.place_name) {
-        setError("Kein Ortsname gefunden.");
-        return;
-      }
-      setLocationName(data.place_name);
-    } catch {
-      setError("Ortsvorschlag fehlgeschlagen.");
+      await reverseSuggestFromCoords(coords.latitude, coords.longitude);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ortsvorschlag fehlgeschlagen.");
     } finally {
       setGeocoding(false);
     }
@@ -286,24 +315,16 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
     when = taken;
   }
 
-  const coordsForMap = parsedCoords();
-  const mapLat =
-    coordsForMap === null
-      ? photo.latitude
-      : (coordsForMap.latitude ?? photo.latitude);
-  const mapLng =
-    coordsForMap === null
-      ? photo.longitude
-      : (coordsForMap.longitude ?? photo.longitude);
-  const showMap = mapLat != null && mapLng != null;
+  const resolvedMapCoords = mapCoords();
+  const canSuggestPlace = validInputCoords() != null;
   const mapLocationLabel = canEdit
     ? locationName.trim() || photo.location_name
     : photo.location_name;
   const displayPlace = humanLocationName(photo.location_name);
   const locationLine =
     displayPlace ||
-    (mapLat != null && mapLng != null
-      ? formatCoordPair(mapLat, mapLng)
+    (resolvedMapCoords
+      ? formatCoordPair(resolvedMapCoords.latitude, resolvedMapCoords.longitude)
       : null);
 
   return (
@@ -338,7 +359,7 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
           onNext={goNext}
           imageRef={photoRef}
         />
-        {showMap ? (
+        {resolvedMapCoords ? (
           <div
             className="w-full overflow-hidden rounded-2xl bg-card shadow-card ring-1 ring-border max-md:h-[var(--photo-h)] md:h-48 md:max-h-48"
             style={
@@ -350,9 +371,9 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
             aria-label="Kartenausschnitt des Foto-Standorts"
           >
             <PhotoLocationMapDynamic
-              key={`${mapLat}-${mapLng}`}
-              latitude={mapLat}
-              longitude={mapLng}
+              key={`${resolvedMapCoords.latitude}-${resolvedMapCoords.longitude}`}
+              latitude={resolvedMapCoords.latitude}
+              longitude={resolvedMapCoords.longitude}
               locationName={mapLocationLabel}
               accentColor={profile?.accent_color}
             />
@@ -389,6 +410,7 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
                   onChange={(e) => {
                     setLocationName(e.target.value);
                     setPlaceSearchResults([]);
+                    setError(null);
                   }}
                   placeholder="z. B. Paris, München oder Altdorf UR"
                   onKeyDown={(e) => {
@@ -403,7 +425,7 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
                   disabled={placeSearching || saving}
                   onClick={() => void searchPlace()}
                   className="inline-flex h-9 shrink-0 items-center gap-1 rounded-xl bg-muted px-2.5 text-xs font-medium sm:px-3"
-                  title="Ort suchen"
+                  title="Weltweit nach Ortsname suchen und Koordinaten übernehmen"
                 >
                   <Search className="size-3.5 shrink-0" aria-hidden />
                   <span className="hidden sm:inline">
@@ -438,19 +460,35 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
               <input
                 className={compactField}
                 value={coordInput}
-                onChange={(e) => setCoordInput(e.target.value)}
+                onChange={(e) => {
+                  setCoordInput(e.target.value);
+                  setError(null);
+                }}
                 placeholder="Breite, Länge — z. B. 47.05, 8.31"
                 inputMode="decimal"
               />
             </label>
-            <button
-              type="button"
-              disabled={geocoding || saving || placeSearching}
-              onClick={() => void suggestPlace()}
-              className="inline-flex h-9 items-center rounded-xl bg-muted px-3 text-xs font-medium"
-            >
-              {geocoding && !placeSearching ? "Vorschlag…" : "Ort vorschlagen"}
-            </button>
+            <div className="space-y-1">
+              <button
+                type="button"
+                disabled={!canSuggestPlace || geocoding || saving || placeSearching}
+                onClick={() => void suggestPlace()}
+                className="inline-flex h-9 items-center rounded-xl bg-muted px-3 text-xs font-medium disabled:opacity-50"
+                title="Ortsname aus den Koordinaten im Feld darüber vorschlagen"
+              >
+                {geocoding ? "Vorschlag…" : "Ort vorschlagen"}
+              </button>
+              <p className="text-[11px] leading-snug text-muted-foreground">
+                Ort suchen: Ortsname eingeben (Koordinaten optional) — weltweit, z. B.
+                «Tokyo, Japan». Ort vorschlagen: Ortsname aus den Koordinaten im Feld
+                darüber.
+              </p>
+              {!canSuggestPlace ? (
+                <p className="text-[11px] leading-snug text-muted-foreground">
+                  «Ort vorschlagen» ist aktiv, sobald gültige Koordinaten eingetragen sind.
+                </p>
+              ) : null}
+            </div>
             <button
               type="button"
               disabled={saving}

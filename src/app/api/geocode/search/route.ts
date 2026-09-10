@@ -10,8 +10,8 @@ export async function GET(request: Request) {
     if (!q) {
       throw new HttpError(400, "Suchbegriff fehlt.");
     }
-    const results = await forwardGeocode(q);
-    return NextResponse.json({ results });
+    const { results, nominatimError } = await forwardGeocode(q);
+    return NextResponse.json({ results, nominatim_error: nominatimError });
   } catch (err) {
     return jsonError(err);
   }
