@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { HttpError, jsonError, requireViewer } from "@/lib/auth/request";
-import { reverseGeocode } from "@/lib/nominatim";
+import { reverseGeocode } from "@/lib/geocode";
 
 export async function GET(request: Request) {
   try {

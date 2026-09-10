@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { HttpError, jsonError, requireViewer } from "@/lib/auth/request";
-import { forwardGeocode } from "@/lib/nominatim";
+import { forwardGeocode } from "@/lib/geocode";
 
 export async function GET(request: Request) {
   try {

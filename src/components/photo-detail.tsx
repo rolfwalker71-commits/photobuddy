@@ -23,7 +23,7 @@ import { hasGuestName, storeGuestName } from "@/lib/guest";
 import { humanLocationName } from "@/lib/image";
 import { appHref } from "@/lib/paths";
 import { notifyPhotosChanged } from "@/lib/photos-sync";
-import type { GeocodeHit } from "@/lib/nominatim";
+import type { GeocodeHit } from "@/lib/geocode";
 import type { Photo, PhotoTag, Profile, UserRole, ViewerMode } from "@/lib/types";
 
 const compactField =
