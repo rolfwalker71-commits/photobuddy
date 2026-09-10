@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from "re
 import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
-import { ArrowLeft, MapPin, Trash2 } from "lucide-react";
+import { ArrowLeft, MapPin, Search, Trash2 } from "lucide-react";
 import { CommentSection } from "@/components/comment-section";
 import { GuestNameDialog } from "@/components/guest-name-dialog";
 import { PhotoLocationMapDynamic } from "@/components/photo-location-map-dynamic";
@@ -19,6 +19,7 @@ import { hasGuestName, storeGuestName } from "@/lib/guest";
 import { humanLocationName } from "@/lib/image";
 import { appHref } from "@/lib/paths";
 import { notifyPhotosChanged } from "@/lib/photos-sync";
+import type { GeocodeHit } from "@/lib/nominatim";
 import type { Photo, PhotoTag, Profile, UserRole, ViewerMode } from "@/lib/types";
 
 const compactField =
@@ -45,6 +46,8 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
   const [coordInput, setCoordInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
+  const [placeSearching, setPlaceSearching] = useState(false);
+  const [placeSearchResults, setPlaceSearchResults] = useState<GeocodeHit[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [askName, setAskName] = useState(false);
   const [neighbors, setNeighbors] = useState<{
@@ -175,6 +178,46 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
     }
   }
 
+  function applyGeocodeHit(hit: GeocodeHit) {
+    setLocationName(hit.label);
+    setCoordInput(formatCoordPair(hit.latitude, hit.longitude));
+    setPlaceSearchResults([]);
+    setError(null);
+  }
+
+  async function searchPlace() {
+    const query = locationName.trim();
+    if (!query) {
+      setError("Zuerst einen Ort zum Suchen eintragen.");
+      return;
+    }
+    setPlaceSearching(true);
+    setGeocoding(true);
+    setError(null);
+    setPlaceSearchResults([]);
+    try {
+      const data = await api<{ results: GeocodeHit[] }>(
+        `/api/geocode/search?q=${encodeURIComponent(query)}`,
+      );
+      if (!data.results.length) {
+        setError(
+          "Kein Ort gefunden. Tipp: bei mehreren gleichnamigen Orten in der Schweiz Kanton anhängen, z. B. «Seedorf UR».",
+        );
+        return;
+      }
+      if (data.results.length === 1) {
+        applyGeocodeHit(data.results[0]);
+        return;
+      }
+      setPlaceSearchResults(data.results);
+    } catch {
+      setError("Ortssuche fehlgeschlagen.");
+    } finally {
+      setPlaceSearching(false);
+      setGeocoding(false);
+    }
+  }
+
   async function suggestPlace() {
     const coords = parsedCoords();
     if (!coords || coords.latitude == null || coords.longitude == null) {
@@ -243,9 +286,19 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
     when = taken;
   }
 
-  const mapLat = photo.latitude;
-  const mapLng = photo.longitude;
+  const coordsForMap = parsedCoords();
+  const mapLat =
+    coordsForMap === null
+      ? photo.latitude
+      : (coordsForMap.latitude ?? photo.latitude);
+  const mapLng =
+    coordsForMap === null
+      ? photo.longitude
+      : (coordsForMap.longitude ?? photo.longitude);
   const showMap = mapLat != null && mapLng != null;
+  const mapLocationLabel = canEdit
+    ? locationName.trim() || photo.location_name
+    : photo.location_name;
   const displayPlace = humanLocationName(photo.location_name);
   const locationLine =
     displayPlace ||
@@ -276,7 +329,7 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
         ) : null}
       </div>
 
-      <div className="space-y-2">
+      <div className="w-full space-y-2">
         <PhotoStage
           photo={photo}
           prev={neighbors.prev}
@@ -287,7 +340,7 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
         />
         {showMap ? (
           <div
-            className="overflow-hidden rounded-2xl bg-card shadow-card ring-1 ring-border max-md:h-[var(--photo-h)] md:aspect-[5/2] md:max-h-48 md:h-auto"
+            className="w-full overflow-hidden rounded-2xl bg-card shadow-card ring-1 ring-border max-md:h-[var(--photo-h)] md:h-48 md:max-h-48"
             style={
               {
                 "--photo-h": photoHeight > 0 ? `${photoHeight}px` : "16rem",
@@ -300,7 +353,7 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
               key={`${mapLat}-${mapLng}`}
               latitude={mapLat}
               longitude={mapLng}
-              locationName={photo.location_name}
+              locationName={mapLocationLabel}
               accentColor={profile?.accent_color}
             />
           </div>
@@ -329,12 +382,56 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
             </label>
             <label className="block space-y-1">
               <span className={compactLabel}>Ort</span>
-              <input
-                className={compactField}
-                value={locationName}
-                onChange={(e) => setLocationName(e.target.value)}
-                placeholder="Anzeigename in Timeline"
-              />
+              <div className="flex gap-1.5">
+                <input
+                  className={`${compactField} min-w-0 flex-1`}
+                  value={locationName}
+                  onChange={(e) => {
+                    setLocationName(e.target.value);
+                    setPlaceSearchResults([]);
+                  }}
+                  placeholder="z. B. Paris, München oder Altdorf UR"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      void searchPlace();
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  disabled={placeSearching || saving}
+                  onClick={() => void searchPlace()}
+                  className="inline-flex h-9 shrink-0 items-center gap-1 rounded-xl bg-muted px-2.5 text-xs font-medium sm:px-3"
+                  title="Ort suchen"
+                >
+                  <Search className="size-3.5 shrink-0" aria-hidden />
+                  <span className="hidden sm:inline">
+                    {placeSearching ? "Suche…" : "Ort suchen"}
+                  </span>
+                </button>
+              </div>
+              {placeSearchResults.length > 0 ? (
+                <ul
+                  className="max-h-40 overflow-y-auto rounded-xl border border-border bg-background text-xs shadow-card"
+                  aria-label="Gefundene Orte"
+                >
+                  {placeSearchResults.map((hit) => (
+                    <li key={`${hit.latitude}-${hit.longitude}-${hit.label}`}>
+                      <button
+                        type="button"
+                        className="flex w-full flex-col gap-0.5 px-2.5 py-2 text-left hover:bg-muted"
+                        onClick={() => applyGeocodeHit(hit)}
+                      >
+                        <span className="font-medium">{hit.label}</span>
+                        <span className="text-muted-foreground">
+                          {formatCoordPair(hit.latitude, hit.longitude)}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
             </label>
             <label className="block space-y-1">
               <span className={compactLabel}>Koordinaten</span>
@@ -348,11 +445,11 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
             </label>
             <button
               type="button"
-              disabled={geocoding || saving}
+              disabled={geocoding || saving || placeSearching}
               onClick={() => void suggestPlace()}
               className="inline-flex h-9 items-center rounded-xl bg-muted px-3 text-xs font-medium"
             >
-              {geocoding ? "Suche Ort…" : "Ort vorschlagen"}
+              {geocoding && !placeSearching ? "Vorschlag…" : "Ort vorschlagen"}
             </button>
             <button
               type="button"
