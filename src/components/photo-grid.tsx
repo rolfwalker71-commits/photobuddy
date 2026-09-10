@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Star } from "lucide-react";
 import { PhotoImageOverlay } from "@/components/photo-image-overlay";
 import { appHref } from "@/lib/paths";
 import { previewPhotoUrl } from "@/lib/storage";
@@ -11,9 +12,18 @@ type PhotoGridProps = {
   profiles: Record<string, Profile>;
   mode: ViewerMode;
   shareKey: string | null;
+  lastSeenAt?: string | null;
+  onToggleHighlight?: (photo: Photo) => void;
 };
 
-export function PhotoGrid({ photos, profiles, mode, shareKey }: PhotoGridProps) {
+export function PhotoGrid({
+  photos,
+  profiles,
+  mode,
+  shareKey,
+  lastSeenAt = null,
+  onToggleHighlight,
+}: PhotoGridProps) {
   if (photos.length === 0) {
     return (
       <div className="rounded-2xl bg-card p-8 text-center shadow-card ring-1 ring-border">
@@ -34,19 +44,42 @@ export function PhotoGrid({ photos, profiles, mode, shareKey }: PhotoGridProps) 
         const author = profiles[photo.uploaded_by]?.display_name ?? "Unbekannt";
         return (
           <li key={photo.id}>
-            <Link
-              href={appHref(mode, shareKey, "photo", photo.id)}
-              className="group relative block overflow-hidden rounded-2xl bg-muted shadow-card ring-1 ring-border"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={src}
-                alt={photo.title || photo.description || `Foto von ${author}`}
-                className="aspect-[4/5] w-full object-cover transition duration-300 group-hover:scale-[1.03]"
-                loading="lazy"
-              />
-              <PhotoImageOverlay photo={photo} authorName={author} />
-            </Link>
+            <div className="relative">
+              <Link
+                href={appHref(mode, shareKey, "photo", photo.id)}
+                className="group relative block overflow-hidden rounded-2xl bg-muted shadow-card ring-1 ring-border"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={src}
+                  alt={photo.title || photo.description || `Foto von ${author}`}
+                  className="aspect-[4/5] w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                  loading="lazy"
+                />
+                <PhotoImageOverlay
+                  photo={photo}
+                  authorName={author}
+                  lastSeenAt={lastSeenAt}
+                />
+              </Link>
+              {mode === "teilnehmer" && onToggleHighlight ? (
+                <button
+                  type="button"
+                  onClick={() => onToggleHighlight(photo)}
+                  className="absolute right-2 top-8 z-10 inline-flex size-11 items-center justify-center rounded-2xl bg-neutral-900/65 text-white backdrop-blur-sm"
+                  aria-label={
+                    photo.is_highlight
+                      ? "Highlight entfernen"
+                      : "Als Highlight markieren"
+                  }
+                  aria-pressed={photo.is_highlight}
+                >
+                  <Star
+                    className={`size-5 ${photo.is_highlight ? "fill-amber-300 text-amber-300" : ""}`}
+                  />
+                </button>
+              ) : null}
+            </div>
           </li>
         );
       })}

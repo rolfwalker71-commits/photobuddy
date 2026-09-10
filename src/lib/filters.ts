@@ -6,9 +6,15 @@ export const emptyFilters: PhotoFilters = {
   dateTo: "",
   location: "",
   tagNames: [],
+  onlyNew: false,
+  onlyHighlights: false,
 };
 
-export function filterPhotos(photos: Photo[], filters: PhotoFilters) {
+export function filterPhotos(
+  photos: Photo[],
+  filters: PhotoFilters,
+  opts?: { lastSeenAt?: string | null },
+) {
   return photos.filter((photo) => {
     if (filters.uploaderId && photo.uploaded_by !== filters.uploaderId) {
       return false;
@@ -28,6 +34,11 @@ export function filterPhotos(photos: Photo[], filters: PhotoFilters) {
       const need = filters.tagNames.map((t) => t.toLowerCase());
       if (!need.every((tag) => names.has(tag))) return false;
     }
+    if (filters.onlyHighlights && !photo.is_highlight) return false;
+    if (filters.onlyNew) {
+      const lastSeen = opts?.lastSeenAt;
+      if (!lastSeen || photo.created_at <= lastSeen) return false;
+    }
     return true;
   });
 }
@@ -38,6 +49,8 @@ export function isFiltered(filters: PhotoFilters) {
       filters.dateFrom ||
       filters.dateTo ||
       filters.location ||
-      filters.tagNames.length > 0,
+      filters.tagNames.length > 0 ||
+      filters.onlyNew ||
+      filters.onlyHighlights,
   );
 }

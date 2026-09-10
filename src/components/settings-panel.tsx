@@ -7,6 +7,7 @@ import { BookImage, MapPin, Users } from "lucide-react";
 import { AlbumGuestLinkPanel } from "@/components/album-guest-link-panel";
 import { MapStylePicker } from "@/components/map-style-picker";
 import { InstallButton } from "@/components/pwa/install-button";
+import { PushEnable } from "@/components/push-enable";
 import { api } from "@/lib/api";
 import {
   isGeotaggingEnabled,
@@ -168,6 +169,15 @@ export function SettingsPanel() {
           für das Bild erlaubt sein. Die In-App-Kamera schreibt selbst kein GPS
           — Photobuddy holt den Standort dann vom Gerät.
         </p>
+      </section>
+
+      <section className="space-y-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border">
+        <h2 className="text-base font-semibold">Benachrichtigungen</h2>
+        <p className="text-sm text-muted-foreground leading-snug">
+          Ein Tipp — neue Fotos und Kommentare kommen als Hinweis. Kein extra
+          Konto, nur diese Erlaubnis.
+        </p>
+        <PushEnable mode="teilnehmer" shareKey={null} />
       </section>
 
       <section className="space-y-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border">

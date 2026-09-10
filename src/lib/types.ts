@@ -26,6 +26,7 @@ export type PhotoTag = {
 export type PhotoReactionSummary = {
   emoji: string;
   count: number;
+  names: string[];
 };
 
 export type Photo = {
@@ -44,6 +45,7 @@ export type Photo = {
   height: number | null;
   mime_type: string | null;
   file_size: number | null;
+  is_highlight: boolean;
   created_at: string;
   updated_at: string;
   comment_count?: number;
@@ -68,6 +70,18 @@ export type Reaction = {
   emoji: string;
   guest_name: string | null;
   author_id: string | null;
+  author_display_name?: string | null;
+};
+
+export type DayNote = {
+  id: string;
+  album_id: string;
+  note_date: string;
+  body: string;
+  author_id: string;
+  author_display_name: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type ShareLink = {
@@ -83,6 +97,12 @@ export type ShareLink = {
 export type Album = {
   id: string;
   name: string;
+  cover_photo_id: string | null;
+  starts_on: string | null;
+  ends_on: string | null;
+  derived_starts_on: string | null;
+  derived_ends_on: string | null;
+  cover_path: string | null;
   created_at: string;
   updated_at: string;
   member_ids: string[];
@@ -98,4 +118,6 @@ export type PhotoFilters = {
   dateTo: string;
   location: string;
   tagNames: string[];
+  onlyNew: boolean;
+  onlyHighlights: boolean;
 };

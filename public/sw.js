@@ -1,4 +1,4 @@
-const CACHE_NAME = "photobuddy-v1";
+const CACHE_NAME = "photobuddy-v2";
 const SHELL = ["/", "/offline", "/manifest.webmanifest", "/icons/icon-192.png"];
 
 self.addEventListener("install", (event) => {
@@ -50,5 +50,44 @@ self.addEventListener("fetch", (event) => {
         .catch(() => cached);
       return cached || fetched;
     }),
+  );
+});
+
+self.addEventListener("push", (event) => {
+  let data = { title: "Photobuddy", body: "", url: "/" };
+  try {
+    if (event.data) data = { ...data, ...event.data.json() };
+  } catch {
+    try {
+      data.body = event.data ? event.data.text() : "";
+    } catch {
+      /* empty payload */
+    }
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || "Photobuddy", {
+      body: data.body || "",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      data: { url: data.url || "/" },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = event.notification.data?.url || "/";
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((clients) => {
+        for (const client of clients) {
+          if ("focus" in client) {
+            if (client.url.includes(target)) return client.focus();
+          }
+        }
+        if (self.clients.openWindow) return self.clients.openWindow(target);
+        return undefined;
+      }),
   );
 });

@@ -7,10 +7,12 @@ import {
 } from "@/lib/auth/request";
 import {
   getAlbum,
+  getAlbumVisit,
   getPhotosUpdatedStamp,
   getShareLabel,
   listAlbums,
   listAlbumsForUser,
+  listDayNotes,
   listPhotosForGrid,
   listProfiles,
   listTags,
@@ -38,14 +40,23 @@ export async function GET(request: Request) {
       await assertCanAccessAlbum(viewer, current.id);
     }
 
-    const [photos, profiles, tags, stamp] = current
+    const url = new URL(request.url);
+    const guestSessionId = url.searchParams.get("guestSessionId");
+
+    const [photos, profiles, tags, stamp, dayNotes, visit] = current
       ? await Promise.all([
           listPhotosForGrid(current.id),
           listProfiles(),
           listTags(),
           getPhotosUpdatedStamp(current.id),
+          listDayNotes(current.id),
+          getAlbumVisit({
+            albumId: current.id,
+            userId: viewer.mode === "teilnehmer" ? viewer.user.id : null,
+            guestSessionId: viewer.mode === "guest" ? guestSessionId : null,
+          }),
         ])
-      : [[], [], [], "empty"];
+      : [[], [], [], "empty", [], null];
 
     const shareLabel =
       viewer.mode === "guest" && viewer.shareKey
@@ -61,6 +72,10 @@ export async function GET(request: Request) {
         stamp,
         albums: visible,
         currentAlbum: current,
+        dayNotes,
+        lastSeenAt: visit?.last_seen_at
+          ? new Date(visit.last_seen_at).toISOString()
+          : null,
       },
       { headers: { "Cache-Control": "no-store" } },
     );

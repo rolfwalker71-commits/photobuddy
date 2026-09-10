@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
-import { MapContainer, Marker, Popup, useMap } from "react-leaflet";
+import { useEffect, useMemo, useState } from "react";
+import { MapContainer, Marker, Polyline, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import Link from "next/link";
+import { Route } from "lucide-react";
 import { BasemapLayer } from "@/components/basemap-layer";
 import { PhotoImageOverlay } from "@/components/photo-image-overlay";
+import { groupPhotosByDay, photoDayKey } from "@/lib/chapters";
 import { humanLocationName } from "@/lib/image";
 import { appHref } from "@/lib/paths";
 import { previewPhotoUrl } from "@/lib/storage";
@@ -17,6 +19,8 @@ type PhotoMapProps = {
   profiles: Record<string, Profile>;
   mode: ViewerMode;
   shareKey: string | null;
+  lastSeenAt?: string | null;
+  focusDay?: string | null;
 };
 
 type LocatedPhoto = Photo & { latitude: number; longitude: number };
@@ -96,8 +100,23 @@ export default function PhotoMap({
   profiles,
   mode,
   shareKey,
+  lastSeenAt = null,
+  focusDay = null,
 }: PhotoMapProps) {
   const located = photos.filter(isLocated);
+  const chapters = useMemo(() => groupPhotosByDay(located), [located]);
+  const [selectedDay, setSelectedDay] = useState<string | null>(
+    focusDay && chapters.some((chapter) => chapter.day === focusDay)
+      ? focusDay
+      : (chapters[0]?.day ?? null),
+  );
+  const [showRoute, setShowRoute] = useState(false);
+
+  useEffect(() => {
+    if (focusDay && chapters.some((chapter) => chapter.day === focusDay)) {
+      setSelectedDay(focusDay);
+    }
+  }, [chapters, focusDay]);
 
   const positions = useMemo(() => markerPositions(located), [located]);
   const points = useMemo<[number, number][]>(
@@ -114,6 +133,17 @@ export default function PhotoMap({
     return [48.2082, 16.3738];
   }, [points]);
 
+  const routePoints = useMemo<[number, number][]>(() => {
+    if (!showRoute || !selectedDay) return [];
+    return located
+      .filter((photo) => photoDayKey(photo) === selectedDay)
+      .slice()
+      .sort((a, b) =>
+        (a.taken_at ?? a.created_at).localeCompare(b.taken_at ?? b.created_at),
+      )
+      .map((photo) => [photo.latitude, photo.longitude]);
+  }, [located, selectedDay, showRoute]);
+
   if (located.length === 0) {
     return (
       <div className="rounded-2xl bg-card p-8 text-center shadow-card ring-1 ring-border">
@@ -126,6 +156,50 @@ export default function PhotoMap({
   }
 
   return (
+    <div className="space-y-3">
+      {chapters.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <div
+            className="flex h-10 min-h-10 min-w-0 flex-1 overflow-x-auto rounded-full bg-muted p-0.5"
+            role="tablist"
+            aria-label="Tag wählen"
+          >
+            {chapters.map((chapter) => {
+              const active = selectedDay === chapter.day;
+              return (
+                <button
+                  key={chapter.day}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setSelectedDay(chapter.day)}
+                  className={`h-full min-h-0 shrink-0 self-stretch rounded-full px-3 text-xs font-medium leading-none ${
+                    active
+                      ? "bg-card text-foreground shadow-sm"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  {chapter.heading}
+                </button>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={showRoute}
+            onClick={() => setShowRoute((value) => !value)}
+            className={`inline-flex h-10 items-center gap-1.5 rounded-full px-3 text-xs font-medium ${
+              showRoute
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-foreground"
+            }`}
+          >
+            <Route className="size-4" aria-hidden />
+            Route
+          </button>
+        </div>
+      ) : null}
     <div className="overflow-hidden rounded-2xl shadow-card ring-1 ring-border">
       <MapContainer
         center={center}
@@ -135,6 +209,12 @@ export default function PhotoMap({
       >
         <FitPhotoBounds points={points} />
         <BasemapLayer />
+        {routePoints.length >= 2 ? (
+          <Polyline
+            positions={routePoints}
+            pathOptions={{ color: "#0f766e", weight: 4, opacity: 0.75 }}
+          />
+        ) : null}
         {located.map((photo) => {
           const color = profiles[photo.uploaded_by]?.accent_color ?? "#0f766e";
           const src = previewPhotoUrl(photo);
@@ -166,6 +246,7 @@ export default function PhotoMap({
                       photo={photo}
                       authorName={author}
                       compact
+                      lastSeenAt={lastSeenAt}
                     />
                   </div>
                   {photo.title?.trim() ? (
@@ -184,6 +265,7 @@ export default function PhotoMap({
           );
         })}
       </MapContainer>
+    </div>
     </div>
   );
 }

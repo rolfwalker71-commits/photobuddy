@@ -7,6 +7,7 @@ import {
 } from "@/lib/auth/request";
 import { addTagToPhoto, insertPhoto } from "@/lib/db/queries";
 import { joinPhotoPath, savePhotoFile } from "@/lib/files";
+import { notifyNewPhoto } from "@/lib/push";
 
 const MAX_BYTES = 15 * 1024 * 1024;
 
@@ -69,6 +70,13 @@ export async function POST(request: Request) {
     for (const name of tags) {
       await addTagToPhoto(photo.id, name);
     }
+
+    void notifyNewPhoto({
+      photoId: photo.id,
+      albumId: photo.album_id,
+      uploaderId: user.id,
+      uploaderName: user.display_name,
+    });
 
     return NextResponse.json({ photo });
   } catch (err) {

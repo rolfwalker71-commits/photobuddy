@@ -1,6 +1,7 @@
 import type {
   Album,
   Comment,
+  DayNote,
   Photo,
   PhotoTag,
   Profile,
@@ -55,6 +56,7 @@ export type PhotoRow = {
   height: number | null;
   mime_type: string | null;
   file_size: number | null;
+  is_highlight?: boolean;
   created_at: Date | string;
   updated_at: Date | string;
 };
@@ -62,6 +64,9 @@ export type PhotoRow = {
 export type AlbumRow = {
   id: string;
   name: string;
+  cover_photo_id?: string | null;
+  starts_on?: Date | string | null;
+  ends_on?: Date | string | null;
   created_at: Date | string;
   updated_at: Date | string;
 };
@@ -111,6 +116,7 @@ export function toPhoto(row: PhotoRow): Photo {
     height: row.height,
     mime_type: row.mime_type,
     file_size: row.file_size,
+    is_highlight: Boolean(row.is_highlight),
     created_at: iso(row.created_at),
     updated_at: iso(row.updated_at),
   };
@@ -152,6 +158,7 @@ export function toReaction(row: {
   emoji: string;
   guest_name: string | null;
   author_id: string | null;
+  author_display_name?: string | null;
 }): Reaction {
   return {
     id: row.id,
@@ -159,6 +166,36 @@ export function toReaction(row: {
     emoji: row.emoji,
     guest_name: row.guest_name,
     author_id: row.author_id,
+    author_display_name: row.author_display_name ?? null,
+  };
+}
+
+function dateOnly(value: Date | string | null | undefined) {
+  if (value == null) return null;
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  const text = String(value);
+  return text.slice(0, 10) || null;
+}
+
+export function toDayNote(row: {
+  id: string;
+  album_id: string;
+  note_date: Date | string;
+  body: string;
+  author_id: string;
+  author_display_name?: string | null;
+  created_at: Date | string;
+  updated_at: Date | string;
+}): DayNote {
+  return {
+    id: row.id,
+    album_id: row.album_id,
+    note_date: dateOnly(row.note_date) ?? iso(row.note_date).slice(0, 10),
+    body: row.body,
+    author_id: row.author_id,
+    author_display_name: row.author_display_name ?? null,
+    created_at: iso(row.created_at),
+    updated_at: iso(row.updated_at),
   };
 }
 
@@ -179,10 +216,21 @@ export function toAlbum(
   memberIds: string[] = [],
   photoCount = 0,
   shareLink: ShareLink | null = null,
+  extras?: {
+    derived_starts_on?: string | null;
+    derived_ends_on?: string | null;
+    cover_path?: string | null;
+  },
 ): Album {
   return {
     id: row.id,
     name: row.name,
+    cover_photo_id: row.cover_photo_id ?? null,
+    starts_on: dateOnly(row.starts_on),
+    ends_on: dateOnly(row.ends_on),
+    derived_starts_on: extras?.derived_starts_on ?? null,
+    derived_ends_on: extras?.derived_ends_on ?? null,
+    cover_path: extras?.cover_path ?? null,
     created_at: iso(row.created_at),
     updated_at: iso(row.updated_at),
     member_ids: memberIds,

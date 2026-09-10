@@ -2,6 +2,7 @@ import { query, queryOne } from "@/lib/db/pool";
 import {
   toAlbum,
   toComment,
+  toDayNote,
   toPhoto,
   toProfile,
   toReaction,
@@ -15,6 +16,7 @@ import {
 import type {
   Album,
   Comment,
+  DayNote,
   Photo,
   PhotoReactionSummary,
   PhotoTag,
@@ -23,6 +25,9 @@ import type {
   ShareLink,
   UserRole,
 } from "@/lib/types";
+
+const ALBUM_COLS =
+  "id, name, cover_photo_id, starts_on, ends_on, created_at, updated_at";
 
 const PROFILE_COLS =
   "id, email, display_name, avatar_url, role, accent_color, is_active, created_at, updated_at";
@@ -153,10 +158,18 @@ export async function listPhotosForGrid(albumId: string): Promise<Photo[]> {
     query<{ photo_id: string; n: string }>(
       `select photo_id, count(*)::text as n from public.comments group by photo_id`,
     ),
-    query<{ photo_id: string; emoji: string; n: string }>(
-      `select photo_id, emoji, count(*)::text as n
-       from public.reactions
-       group by photo_id, emoji
+    query<{
+      photo_id: string;
+      emoji: string;
+      n: string;
+      names: string | null;
+    }>(
+      `select r.photo_id, r.emoji, count(*)::text as n,
+              string_agg(coalesce(u.display_name, r.guest_name), E'\n' order by r.created_at)
+                as names
+       from public.reactions r
+       left join public.users u on u.id = r.author_id
+       group by r.photo_id, r.emoji
        order by count(*) desc`,
     ),
   ]);
@@ -169,7 +182,14 @@ export async function listPhotosForGrid(albumId: string): Promise<Photo[]> {
   const reactionsByPhoto = new Map<string, PhotoReactionSummary[]>();
   for (const row of reactionRows) {
     const list = reactionsByPhoto.get(row.photo_id) ?? [];
-    list.push({ emoji: row.emoji, count: Number(row.n) });
+    list.push({
+      emoji: row.emoji,
+      count: Number(row.n),
+      names: (row.names ?? "")
+        .split("\n")
+        .map((name) => name.trim())
+        .filter(Boolean),
+    });
     reactionsByPhoto.set(row.photo_id, list);
   }
 
@@ -207,7 +227,9 @@ export async function getPhotosUpdatedStamp(albumId: string): Promise<string> {
          (select max(c.created_at) from public.comments c
            join public.photos p on p.id = c.photo_id where p.album_id = $1),
          (select max(r.created_at) from public.reactions r
-           join public.photos p on p.id = r.photo_id where p.album_id = $1)
+           join public.photos p on p.id = r.photo_id where p.album_id = $1),
+         (select max(greatest(created_at, updated_at)) from public.day_notes
+           where album_id = $1)
        ) as latest`,
     [albumId],
   );
@@ -425,10 +447,13 @@ export async function listReactions(photoId: string): Promise<Reaction[]> {
     emoji: string;
     guest_name: string | null;
     author_id: string | null;
+    author_display_name: string | null;
   }>(
-    `select id, photo_id, emoji, guest_name, author_id
-     from public.reactions
-     where photo_id = $1`,
+    `select r.id, r.photo_id, r.emoji, r.guest_name, r.author_id,
+            coalesce(u.display_name, r.guest_name) as author_display_name
+     from public.reactions r
+     left join public.users u on u.id = r.author_id
+     where r.photo_id = $1`,
     [photoId],
   );
   return rows.map(toReaction);
@@ -618,10 +643,12 @@ async function albumPhotoCounts() {
 }
 
 async function hydrateAlbums(rows: AlbumRow[]): Promise<Album[]> {
-  const [members, counts, links] = await Promise.all([
+  const [members, counts, links, ranges, covers] = await Promise.all([
     albumMemberMap(),
     albumPhotoCounts(),
     listShareLinks(),
+    albumDateRanges(),
+    albumCoverPaths(),
   ]);
   const linkByAlbum = new Map(links.map((link) => [link.album_id, link]));
   return rows.map((row) =>
@@ -630,20 +657,83 @@ async function hydrateAlbums(rows: AlbumRow[]): Promise<Album[]> {
       members.get(row.id) ?? [],
       counts.get(row.id) ?? 0,
       linkByAlbum.get(row.id) ?? null,
+      {
+        derived_starts_on: ranges.get(row.id)?.start ?? null,
+        derived_ends_on: ranges.get(row.id)?.end ?? null,
+        cover_path: covers.get(row.id) ?? null,
+      },
     ),
   );
 }
 
+async function albumDateRanges() {
+  const rows = await query<{
+    album_id: string;
+    first_at: Date | string | null;
+    last_at: Date | string | null;
+  }>(
+    `select album_id,
+            min(coalesce(taken_at, created_at)) as first_at,
+            max(coalesce(taken_at, created_at)) as last_at
+     from public.photos
+     group by album_id`,
+  );
+  return new Map(
+    rows.map((row) => [
+      row.album_id,
+      {
+        start: row.first_at ? new Date(row.first_at).toISOString().slice(0, 10) : null,
+        end: row.last_at ? new Date(row.last_at).toISOString().slice(0, 10) : null,
+      },
+    ]),
+  );
+}
+
+async function albumCoverPaths() {
+  const configured = await query<{
+    album_id: string;
+    path: string | null;
+  }>(
+    `select a.id as album_id, coalesce(p.thumbnail_path, p.storage_path) as path
+     from public.albums a
+     join public.photos p on p.id = a.cover_photo_id`,
+  );
+  const highlights = await query<{
+    album_id: string;
+    path: string | null;
+  }>(
+    `select distinct on (album_id) album_id,
+            coalesce(thumbnail_path, storage_path) as path
+     from public.photos
+     where is_highlight = true
+     order by album_id, coalesce(taken_at, created_at) desc`,
+  );
+  const latest = await query<{
+    album_id: string;
+    path: string | null;
+  }>(
+    `select distinct on (album_id) album_id,
+            coalesce(thumbnail_path, storage_path) as path
+     from public.photos
+     order by album_id, coalesce(taken_at, created_at) desc`,
+  );
+  const map = new Map<string, string | null>();
+  for (const row of latest) map.set(row.album_id, row.path);
+  for (const row of highlights) map.set(row.album_id, row.path);
+  for (const row of configured) map.set(row.album_id, row.path);
+  return map;
+}
+
 export async function listAlbums(): Promise<Album[]> {
   const rows = await query<AlbumRow>(
-    `select id, name, created_at, updated_at from public.albums order by created_at asc`,
+    `select ${ALBUM_COLS} from public.albums order by created_at asc`,
   );
   return hydrateAlbums(rows);
 }
 
 export async function listAlbumsForUser(userId: string): Promise<Album[]> {
   const rows = await query<AlbumRow>(
-    `select a.id, a.name, a.created_at, a.updated_at
+    `select a.id, a.name, a.cover_photo_id, a.starts_on, a.ends_on, a.created_at, a.updated_at
      from public.albums a
      join public.album_members m on m.album_id = a.id
      where m.user_id = $1
@@ -655,7 +745,7 @@ export async function listAlbumsForUser(userId: string): Promise<Album[]> {
 
 export async function getAlbum(id: string): Promise<Album | null> {
   const row = await queryOne<AlbumRow>(
-    `select id, name, created_at, updated_at from public.albums where id = $1`,
+    `select ${ALBUM_COLS} from public.albums where id = $1`,
     [id],
   );
   if (!row) return null;
@@ -670,7 +760,7 @@ export async function createAlbum(input: {
 }) {
   const row = await queryOne<AlbumRow>(
     `insert into public.albums (name) values ($1)
-     returning id, name, created_at, updated_at`,
+     returning ${ALBUM_COLS}`,
     [input.name.trim()],
   );
   if (!row) throw new Error("Album konnte nicht angelegt werden.");
@@ -682,14 +772,46 @@ export async function createAlbum(input: {
 }
 
 export async function renameAlbum(id: string, name: string) {
+  return updateAlbum(id, { name });
+}
+
+export async function updateAlbum(
+  id: string,
+  input: {
+    name?: string;
+    coverPhotoId?: string | null;
+    startsOn?: string | null;
+    endsOn?: string | null;
+  },
+) {
+  const current = await queryOne<AlbumRow>(
+    `select ${ALBUM_COLS} from public.albums where id = $1`,
+    [id],
+  );
+  if (!current) return null;
+  const name = input.name?.trim() || current.name;
+  const coverPhotoId =
+    input.coverPhotoId !== undefined ? input.coverPhotoId : current.cover_photo_id;
+  const startsOn =
+    input.startsOn !== undefined ? input.startsOn : dateOnlyOrNull(current.starts_on);
+  const endsOn =
+    input.endsOn !== undefined ? input.endsOn : dateOnlyOrNull(current.ends_on);
   const row = await queryOne<AlbumRow>(
-    `update public.albums set name = $2 where id = $1
-     returning id, name, created_at, updated_at`,
-    [id, name.trim()],
+    `update public.albums
+     set name = $2, cover_photo_id = $3, starts_on = $4, ends_on = $5
+     where id = $1
+     returning ${ALBUM_COLS}`,
+    [id, name, coverPhotoId, startsOn, endsOn],
   );
   if (!row) return null;
   const [hydrated] = await hydrateAlbums([row]);
   return hydrated ?? null;
+}
+
+function dateOnlyOrNull(value: Date | string | null | undefined) {
+  if (value == null) return null;
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return String(value).slice(0, 10) || null;
 }
 
 export async function countAlbums() {
@@ -789,4 +911,323 @@ export async function getAlbumPhotoNeighbors(
     prev: rows[index - 1] ?? null,
     next: rows[index + 1] ?? null,
   };
+}
+
+export async function setPhotoHighlight(id: string, isHighlight: boolean) {
+  const row = await queryOne<PhotoRow>(
+    `update public.photos set is_highlight = $2 where id = $1 returning *`,
+    [id, isHighlight],
+  );
+  return row ? toPhoto(row) : null;
+}
+
+export async function listPhotosByIds(albumId: string, ids: string[]) {
+  if (ids.length === 0) return [];
+  const rows = await query<PhotoRow>(
+    `select * from public.photos
+     where album_id = $1 and id = any($2::uuid[])
+     order by coalesce(taken_at, created_at) asc`,
+    [albumId, ids],
+  );
+  return rows.map(toPhoto);
+}
+
+export async function listHighlightPhotos(albumId: string) {
+  const rows = await query<PhotoRow>(
+    `select * from public.photos
+     where album_id = $1 and is_highlight = true
+     order by coalesce(taken_at, created_at) asc`,
+    [albumId],
+  );
+  return rows.map(toPhoto);
+}
+
+export async function listAlbumMemberIds(albumId: string) {
+  const rows = await query<{ user_id: string }>(
+    `select user_id from public.album_members where album_id = $1`,
+    [albumId],
+  );
+  return rows.map((row) => row.user_id);
+}
+
+export async function getAlbumVisit(input: {
+  albumId: string;
+  userId?: string | null;
+  guestSessionId?: string | null;
+}) {
+  if (input.userId) {
+    return queryOne<{ last_seen_at: Date | string }>(
+      `select last_seen_at from public.album_visits
+       where album_id = $1 and user_id = $2
+       limit 1`,
+      [input.albumId, input.userId],
+    );
+  }
+  if (input.guestSessionId) {
+    return queryOne<{ last_seen_at: Date | string }>(
+      `select last_seen_at from public.album_visits
+       where album_id = $1 and guest_session_id = $2
+       limit 1`,
+      [input.albumId, input.guestSessionId],
+    );
+  }
+  return null;
+}
+
+export async function touchAlbumVisit(input: {
+  albumId: string;
+  userId?: string | null;
+  guestSessionId?: string | null;
+}) {
+  if (input.userId) {
+    await query(
+      `update public.users set last_seen_at = now() where id = $1`,
+      [input.userId],
+    );
+    const existing = await getAlbumVisit(input);
+    if (existing) {
+      const row = await queryOne<{ last_seen_at: Date | string }>(
+        `update public.album_visits
+         set last_seen_at = now()
+         where album_id = $1 and user_id = $2
+         returning last_seen_at`,
+        [input.albumId, input.userId],
+      );
+      return row?.last_seen_at ?? null;
+    }
+    const row = await queryOne<{ last_seen_at: Date | string }>(
+      `insert into public.album_visits (album_id, user_id, last_seen_at)
+       values ($1, $2, now())
+       returning last_seen_at`,
+      [input.albumId, input.userId],
+    );
+    return row?.last_seen_at ?? null;
+  }
+  if (input.guestSessionId) {
+    const existing = await getAlbumVisit(input);
+    if (existing) {
+      const row = await queryOne<{ last_seen_at: Date | string }>(
+        `update public.album_visits
+         set last_seen_at = now()
+         where album_id = $1 and guest_session_id = $2
+         returning last_seen_at`,
+        [input.albumId, input.guestSessionId],
+      );
+      return row?.last_seen_at ?? null;
+    }
+    const row = await queryOne<{ last_seen_at: Date | string }>(
+      `insert into public.album_visits (album_id, guest_session_id, last_seen_at)
+       values ($1, $2, now())
+       returning last_seen_at`,
+      [input.albumId, input.guestSessionId],
+    );
+    return row?.last_seen_at ?? null;
+  }
+  return null;
+}
+
+export async function listDayNotes(albumId: string): Promise<DayNote[]> {
+  const rows = await query<{
+    id: string;
+    album_id: string;
+    note_date: Date | string;
+    body: string;
+    author_id: string;
+    author_display_name: string | null;
+    created_at: Date | string;
+    updated_at: Date | string;
+  }>(
+    `select n.id, n.album_id, n.note_date, n.body, n.author_id,
+            u.display_name as author_display_name, n.created_at, n.updated_at
+     from public.day_notes n
+     left join public.users u on u.id = n.author_id
+     where n.album_id = $1
+     order by n.note_date desc`,
+    [albumId],
+  );
+  return rows.map(toDayNote);
+}
+
+export async function getDayNote(id: string) {
+  const row = await queryOne<{
+    id: string;
+    album_id: string;
+    note_date: Date | string;
+    body: string;
+    author_id: string;
+    author_display_name: string | null;
+    created_at: Date | string;
+    updated_at: Date | string;
+  }>(
+    `select n.id, n.album_id, n.note_date, n.body, n.author_id,
+            u.display_name as author_display_name, n.created_at, n.updated_at
+     from public.day_notes n
+     left join public.users u on u.id = n.author_id
+     where n.id = $1`,
+    [id],
+  );
+  return row ? toDayNote(row) : null;
+}
+
+export async function upsertDayNote(input: {
+  albumId: string;
+  noteDate: string;
+  body: string;
+  authorId: string;
+  isAdmin: boolean;
+}) {
+  const existing = await queryOne<{ id: string; author_id: string }>(
+    `select id, author_id from public.day_notes
+     where album_id = $1 and note_date = $2
+     limit 1`,
+    [input.albumId, input.noteDate],
+  );
+  if (existing && existing.author_id !== input.authorId && !input.isAdmin) {
+    return { error: "forbidden" as const, note: null };
+  }
+  if (existing) {
+    const row = await queryOne<{
+      id: string;
+      album_id: string;
+      note_date: Date | string;
+      body: string;
+      author_id: string;
+      author_display_name: string | null;
+      created_at: Date | string;
+      updated_at: Date | string;
+    }>(
+      `update public.day_notes
+       set body = $2, author_id = $3
+       where id = $1
+       returning id, album_id, note_date, body, author_id,
+                 (select display_name from public.users where id = $3) as author_display_name,
+                 created_at, updated_at`,
+      [existing.id, input.body, input.authorId],
+    );
+    return { error: null, note: row ? toDayNote(row) : null };
+  }
+  const row = await queryOne<{
+    id: string;
+    album_id: string;
+    note_date: Date | string;
+    body: string;
+    author_id: string;
+    author_display_name: string | null;
+    created_at: Date | string;
+    updated_at: Date | string;
+  }>(
+    `insert into public.day_notes (album_id, note_date, body, author_id)
+     values ($1, $2, $3, $4)
+     returning id, album_id, note_date, body, author_id,
+               (select display_name from public.users where id = $4) as author_display_name,
+               created_at, updated_at`,
+    [input.albumId, input.noteDate, input.body, input.authorId],
+  );
+  return { error: null, note: row ? toDayNote(row) : null };
+}
+
+export async function deleteDayNote(id: string) {
+  await query(`delete from public.day_notes where id = $1`, [id]);
+}
+
+export type PushSubscriptionRow = {
+  id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  user_id: string | null;
+  guest_session_id: string | null;
+  album_id: string | null;
+};
+
+export async function upsertPushSubscription(input: {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  userId?: string | null;
+  guestSessionId?: string | null;
+  albumId?: string | null;
+}) {
+  await query(
+    `insert into public.push_subscriptions
+       (endpoint, p256dh, auth, user_id, guest_session_id, album_id)
+     values ($1, $2, $3, $4, $5, $6)
+     on conflict (endpoint) do update
+       set p256dh = excluded.p256dh,
+           auth = excluded.auth,
+           user_id = excluded.user_id,
+           guest_session_id = excluded.guest_session_id,
+           album_id = excluded.album_id,
+           updated_at = now()`,
+    [
+      input.endpoint,
+      input.p256dh,
+      input.auth,
+      input.userId ?? null,
+      input.guestSessionId ?? null,
+      input.albumId ?? null,
+    ],
+  );
+}
+
+export async function deletePushSubscriptionByEndpoint(endpoint: string) {
+  await query(`delete from public.push_subscriptions where endpoint = $1`, [
+    endpoint,
+  ]);
+}
+
+export async function listPushSubscriptionsForUser(userId: string) {
+  return query<PushSubscriptionRow>(
+    `select id, endpoint, p256dh, auth, user_id, guest_session_id, album_id
+     from public.push_subscriptions
+     where user_id = $1`,
+    [userId],
+  );
+}
+
+export async function listPushSubscriptionsForAlbumNotify(albumId: string) {
+  return query<PushSubscriptionRow>(
+    `select s.id, s.endpoint, s.p256dh, s.auth, s.user_id, s.guest_session_id, s.album_id
+     from public.push_subscriptions s
+     where s.album_id = $1
+        or s.user_id in (
+          select user_id from public.album_members where album_id = $1
+        )
+        or s.user_id in (
+          select id from public.users where role = 'admin'
+        )`,
+    [albumId],
+  );
+}
+
+export async function hasPushSubscription(input: {
+  endpoint?: string;
+  userId?: string | null;
+  guestSessionId?: string | null;
+  albumId?: string | null;
+}) {
+  if (input.endpoint) {
+    const row = await queryOne<{ id: string }>(
+      `select id from public.push_subscriptions where endpoint = $1`,
+      [input.endpoint],
+    );
+    return Boolean(row);
+  }
+  if (input.userId) {
+    const row = await queryOne<{ id: string }>(
+      `select id from public.push_subscriptions where user_id = $1 limit 1`,
+      [input.userId],
+    );
+    return Boolean(row);
+  }
+  if (input.guestSessionId && input.albumId) {
+    const row = await queryOne<{ id: string }>(
+      `select id from public.push_subscriptions
+       where guest_session_id = $1 and album_id = $2
+       limit 1`,
+      [input.guestSessionId, input.albumId],
+    );
+    return Boolean(row);
+  }
+  return false;
 }

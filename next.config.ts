@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  serverExternalPackages: ["pg"],
+  serverExternalPackages: ["pg", "web-push", "yazl"],
 };
 
 export default nextConfig;

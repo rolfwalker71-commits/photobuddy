@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from "re
 import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
-import { ArrowLeft, MapPin, Search, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, ImagePlus, MapPin, Search, Star, Trash2 } from "lucide-react";
 import { CommentSection } from "@/components/comment-section";
 import { GuestNameDialog } from "@/components/guest-name-dialog";
 import { PhotoLocationMapDynamic } from "@/components/photo-location-map-dynamic";
@@ -291,6 +291,34 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
     }
   }
 
+  async function toggleHighlight() {
+    if (!canEdit || !photo) return;
+    try {
+      const data = await api<{ photo: Photo }>(`/api/photos/${photo.id}/highlight`, {
+        method: "POST",
+        body: JSON.stringify({ is_highlight: !photo.is_highlight }),
+      });
+      setPhoto(data.photo);
+      notifyPhotosChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Highlight fehlgeschlagen.");
+    }
+  }
+
+  async function setAsCover() {
+    if (!canEdit || !photo) return;
+    try {
+      await api(`/api/albums/${photo.album_id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ cover_photo_id: photo.id }),
+      });
+      setError(null);
+      notifyPhotosChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Cover fehlgeschlagen.");
+    }
+  }
+
   async function removePhoto() {
     if (!canEdit || !photo) return;
     if (!window.confirm("Dieses Foto wirklich löschen?")) return;
@@ -338,16 +366,51 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
           <ArrowLeft className="size-4" />
           Zurück
         </button>
-        {canEdit ? (
-          <button
-            type="button"
-            onClick={() => void removePhoto()}
-            className="inline-flex size-11 items-center justify-center rounded-2xl bg-muted text-destructive"
-            aria-label="Foto löschen"
+        <div className="flex items-center gap-2">
+          <a
+            href={withKey(`/api/photos/${photo.id}/download`, shareKey)}
+            className="inline-flex size-11 items-center justify-center rounded-2xl bg-muted"
+            aria-label="Foto herunterladen"
+            download
           >
-            <Trash2 className="size-5" />
-          </button>
-        ) : null}
+            <Download className="size-5" />
+          </a>
+          {canEdit ? (
+            <>
+              <button
+                type="button"
+                onClick={() => void toggleHighlight()}
+                className="inline-flex size-11 items-center justify-center rounded-2xl bg-muted"
+                aria-label={
+                  photo.is_highlight
+                    ? "Highlight entfernen"
+                    : "Als Highlight markieren"
+                }
+                aria-pressed={photo.is_highlight}
+              >
+                <Star
+                  className={`size-5 ${photo.is_highlight ? "fill-amber-400 text-amber-400" : ""}`}
+                />
+              </button>
+              <button
+                type="button"
+                onClick={() => void setAsCover()}
+                className="inline-flex size-11 items-center justify-center rounded-2xl bg-muted"
+                aria-label="Als Album-Cover setzen"
+              >
+                <ImagePlus className="size-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => void removePhoto()}
+                className="inline-flex size-11 items-center justify-center rounded-2xl bg-muted text-destructive"
+                aria-label="Foto löschen"
+              >
+                <Trash2 className="size-5" />
+              </button>
+            </>
+          ) : null}
+        </div>
       </div>
 
       <div className="w-full space-y-2">

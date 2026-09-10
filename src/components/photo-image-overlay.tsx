@@ -1,12 +1,23 @@
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
-import { MapPin, MessageCircle } from "lucide-react";
+import { MapPin, MessageCircle, Sparkles } from "lucide-react";
+import { isPhotoNew } from "@/lib/last-seen";
 import type { Photo } from "@/lib/types";
+
+function reactionLabel(emoji: string, names: string[], count: number) {
+  if (names.length === 0) {
+    return count > 1 ? `${emoji} ${count}` : emoji;
+  }
+  const shown = names.slice(0, 2);
+  const extra = names.length - shown.length;
+  return `${emoji} ${shown.join(", ")}${extra > 0 ? ` +${extra}` : ""}`;
+}
 
 type PhotoImageOverlayProps = {
   photo: Photo;
   authorName: string;
   compact?: boolean;
+  lastSeenAt?: string | null;
 };
 
 function formatOverlayWhen(photo: Photo, compact: boolean) {
@@ -28,6 +39,7 @@ export function PhotoImageOverlay({
   photo,
   authorName,
   compact = false,
+  lastSeenAt = null,
 }: PhotoImageOverlayProps) {
   const stamp = photo.taken_at ?? photo.created_at;
   const when = formatOverlayWhen(photo, compact);
@@ -36,7 +48,8 @@ export function PhotoImageOverlay({
   const reactions = photo.reactions ?? [];
   const commentCount = photo.comment_count ?? 0;
   const visibleTags = tags.slice(0, compact ? 1 : 3);
-  const visibleReactions = reactions.slice(0, compact ? 2 : 4);
+  const visibleReactions = reactions.slice(0, compact ? 1 : 3);
+  const isNew = isPhotoNew(photo.created_at, lastSeenAt);
   const hasMeta =
     visibleTags.length > 0 || commentCount > 0 || visibleReactions.length > 0;
 
@@ -47,16 +60,39 @@ export function PhotoImageOverlay({
           compact ? "p-1" : "p-1.5"
         }`}
       >
-        <time
-          dateTime={stamp}
-          className={`max-w-[70%] truncate rounded-full bg-neutral-900/65 font-medium leading-none text-white backdrop-blur-sm ${
-            compact
-              ? "px-1.5 py-0.5 text-[0.625rem]"
-              : "px-1.5 py-0.5 text-[0.7rem]"
-          }`}
-        >
-          {when}
-        </time>
+        <div className="flex min-w-0 flex-wrap items-center gap-0.5">
+          {isNew ? (
+            <span
+              className={`rounded-full bg-accent font-semibold leading-none text-accent-foreground ${
+                compact
+                  ? "px-1.5 py-0.5 text-[0.625rem]"
+                  : "px-1.5 py-0.5 text-[0.7rem]"
+              }`}
+            >
+              Neu
+            </span>
+          ) : null}
+          {photo.is_highlight ? (
+            <span
+              className={`inline-flex items-center rounded-full bg-neutral-900/65 text-amber-300 backdrop-blur-sm ${
+                compact ? "p-0.5" : "p-1"
+              }`}
+            >
+              <Sparkles className={compact ? "size-2.5" : "size-3"} aria-hidden />
+              <span className="sr-only">Highlight</span>
+            </span>
+          ) : null}
+          <time
+            dateTime={stamp}
+            className={`max-w-[70%] truncate rounded-full bg-neutral-900/65 font-medium leading-none text-white backdrop-blur-sm ${
+              compact
+                ? "px-1.5 py-0.5 text-[0.625rem]"
+                : "px-1.5 py-0.5 text-[0.7rem]"
+            }`}
+          >
+            {when}
+          </time>
+        </div>
         {hasGeo ? (
           <span
             className={`inline-flex shrink-0 items-center justify-center rounded-full bg-neutral-900/65 text-white backdrop-blur-sm ${
@@ -106,14 +142,17 @@ export function PhotoImageOverlay({
             {visibleReactions.map((reaction) => (
               <span
                 key={reaction.emoji}
-                className={`inline-flex items-center gap-0.5 rounded-full bg-neutral-900/65 font-medium text-white backdrop-blur-sm ${
+                className={`inline-flex max-w-full items-center gap-0.5 truncate rounded-full bg-neutral-900/65 font-medium text-white backdrop-blur-sm ${
                   compact
                     ? "px-1.5 py-0.5 text-[0.625rem]"
                     : "px-2 py-0.5 text-[0.7rem]"
                 }`}
               >
-                <span aria-hidden>{reaction.emoji}</span>
-                {reaction.count > 1 ? <span>{reaction.count}</span> : null}
+                {reactionLabel(
+                  reaction.emoji,
+                  reaction.names ?? [],
+                  reaction.count,
+                )}
               </span>
             ))}
           </div>

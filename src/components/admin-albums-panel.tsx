@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BookImage, Copy, RefreshCw } from "lucide-react";
+import { albumSubtitle } from "@/lib/album-label";
 import { api } from "@/lib/api";
 import { getSiteUrl } from "@/lib/env";
+import { publicPhotoUrl } from "@/lib/storage";
 import type { Album, Profile, ShareLink } from "@/lib/types";
 
 export function AdminAlbumsPanel() {
@@ -18,6 +20,9 @@ export function AdminAlbumsPanel() {
   const [error, setError] = useState<string | null>(null);
   const [renameId, setRenameId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [rangeDraft, setRangeDraft] = useState<
+    Record<string, { starts_on: string; ends_on: string }>
+  >({});
 
   async function load() {
     const session = await api<{ user: Profile }>("/api/auth/me");
@@ -159,6 +164,61 @@ export function AdminAlbumsPanel() {
     }
   }
 
+  function rangeFor(album: Album) {
+    return (
+      rangeDraft[album.id] ?? {
+        starts_on: album.starts_on ?? "",
+        ends_on: album.ends_on ?? "",
+      }
+    );
+  }
+
+  async function saveRange(album: Album) {
+    const draft = rangeFor(album);
+    setBusy(true);
+    setError(null);
+    try {
+      const data = await api<{ album: Album }>(`/api/albums/${album.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          starts_on: draft.starts_on || null,
+          ends_on: draft.ends_on || null,
+        }),
+      });
+      setAlbums((prev) =>
+        prev.map((item) => (item.id === album.id ? data.album : item)),
+      );
+      setRangeDraft((prev) => {
+        const next = { ...prev };
+        delete next[album.id];
+        return next;
+      });
+      flash("Zeitraum gespeichert.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function clearCover(album: Album) {
+    setBusy(true);
+    try {
+      const data = await api<{ album: Album }>(`/api/albums/${album.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ cover_photo_id: null }),
+      });
+      setAlbums((prev) =>
+        prev.map((item) => (item.id === album.id ? data.album : item)),
+      );
+      flash("Cover auf Automatik gesetzt.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Cover fehlgeschlagen.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function toggleLink(album: Album) {
     if (!album.share_link) return;
     setBusy(true);
@@ -272,13 +332,24 @@ export function AdminAlbumsPanel() {
                   </div>
                 ) : (
                   <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="font-medium leading-snug break-words">
-                        {album.name}
-                      </p>
-                      <p className="mt-0.5 text-sm text-muted-foreground">
-                        {album.photo_count} Foto{album.photo_count === 1 ? "" : "s"}
-                      </p>
+                    <div className="flex min-w-0 items-start gap-3">
+                      {album.cover_path ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={publicPhotoUrl(album.cover_path)}
+                          alt=""
+                          className="size-12 shrink-0 rounded-xl object-cover"
+                        />
+                      ) : null}
+                      <div className="min-w-0">
+                        <p className="font-medium leading-snug break-words">
+                          {albumSubtitle(album)}
+                        </p>
+                        <p className="mt-0.5 text-sm text-muted-foreground">
+                          {album.photo_count} Foto
+                          {album.photo_count === 1 ? "" : "s"}
+                        </p>
+                      </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <button
@@ -302,6 +373,74 @@ export function AdminAlbumsPanel() {
                     </div>
                   </div>
                 )}
+
+                <div className="space-y-2 rounded-2xl bg-background p-3 ring-1 ring-border">
+                  <p className="text-sm font-medium">Cover und Zeitraum</p>
+                  <p className="text-sm text-muted-foreground leading-snug">
+                    Cover in der Fotoansicht über das Bild-Plus setzen. Leer =
+                    erstes Highlight, sonst das neueste Foto.
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block space-y-1">
+                      <span className="text-xs font-medium text-muted-foreground">
+                        Von
+                      </span>
+                      <input
+                        type="date"
+                        data-empty={rangeFor(album).starts_on ? "false" : "true"}
+                        className="date-field h-11 w-full rounded-2xl border border-border bg-card px-3 text-sm"
+                        value={rangeFor(album).starts_on}
+                        onChange={(event) =>
+                          setRangeDraft((prev) => ({
+                            ...prev,
+                            [album.id]: {
+                              ...rangeFor(album),
+                              starts_on: event.target.value,
+                            },
+                          }))
+                        }
+                      />
+                    </label>
+                    <label className="block space-y-1">
+                      <span className="text-xs font-medium text-muted-foreground">
+                        Bis
+                      </span>
+                      <input
+                        type="date"
+                        data-empty={rangeFor(album).ends_on ? "false" : "true"}
+                        className="date-field h-11 w-full rounded-2xl border border-border bg-card px-3 text-sm"
+                        value={rangeFor(album).ends_on}
+                        onChange={(event) =>
+                          setRangeDraft((prev) => ({
+                            ...prev,
+                            [album.id]: {
+                              ...rangeFor(album),
+                              ends_on: event.target.value,
+                            },
+                          }))
+                        }
+                      />
+                    </label>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void saveRange(album)}
+                      className="inline-flex h-11 items-center rounded-2xl bg-muted px-3 text-sm font-medium"
+                    >
+                      Zeitraum speichern
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy || !album.cover_photo_id}
+                      onClick={() => void clearCover(album)}
+                      className="inline-flex h-11 items-center rounded-2xl bg-muted px-3 text-sm font-medium disabled:opacity-50"
+                    >
+                      Cover automatisch
+                    </button>
+                  </div>
+                </div>
 
                 <fieldset className="space-y-2">
                   <legend className="text-sm font-medium">Teilnehmer</legend>

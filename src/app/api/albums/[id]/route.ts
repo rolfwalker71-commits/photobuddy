@@ -10,8 +10,9 @@ import {
   countPhotosInAlbum,
   deleteAlbum,
   getAlbum,
+  getPhoto,
   isAlbumMember,
-  renameAlbum,
+  updateAlbum,
 } from "@/lib/db/queries";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -33,12 +34,43 @@ export async function GET(request: Request, ctx: Ctx) {
 
 export async function PATCH(request: Request, ctx: Ctx) {
   try {
-    await requireAdmin();
+    const user = await requireTeilnehmer();
     const { id } = await ctx.params;
-    const body = (await request.json()) as { name?: string };
-    const name = body.name?.trim() ?? "";
-    if (!name) throw new HttpError(400, "Album-Name fehlt.");
-    const album = await renameAlbum(id, name);
+    const existing = await getAlbum(id);
+    if (!existing) throw new HttpError(404, "Album nicht gefunden.");
+    if (user.role !== "admin" && !(await isAlbumMember(id, user.id))) {
+      throw new HttpError(403, "Kein Zugriff auf dieses Album.");
+    }
+
+    const body = (await request.json()) as {
+      name?: string;
+      cover_photo_id?: string | null;
+      starts_on?: string | null;
+      ends_on?: string | null;
+    };
+
+    if (body.name != null && user.role !== "admin") {
+      throw new HttpError(403, "Nur die Administration darf Alben umbenennen.");
+    }
+    const name = body.name?.trim();
+    if (body.name != null && !name) {
+      throw new HttpError(400, "Album-Name fehlt.");
+    }
+
+    if (body.cover_photo_id) {
+      const photo = await getPhoto(body.cover_photo_id);
+      if (!photo || photo.album_id !== id) {
+        throw new HttpError(400, "Cover-Foto gehört nicht zu diesem Album.");
+      }
+    }
+
+    const album = await updateAlbum(id, {
+      name: name || undefined,
+      coverPhotoId:
+        "cover_photo_id" in body ? body.cover_photo_id : undefined,
+      startsOn: "starts_on" in body ? body.starts_on : undefined,
+      endsOn: "ends_on" in body ? body.ends_on : undefined,
+    });
     if (!album) throw new HttpError(404, "Album nicht gefunden.");
     return NextResponse.json({ album });
   } catch (err) {

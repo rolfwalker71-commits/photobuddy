@@ -2,11 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, withKey } from "@/lib/api";
+import { getGuestSessionId } from "@/lib/guest";
 import {
   consumePhotosDirty,
   subscribePhotosChanged,
 } from "@/lib/photos-sync";
-import type { Album, Photo, PhotoTag, Profile, ViewerMode } from "@/lib/types";
+import type {
+  Album,
+  DayNote,
+  Photo,
+  PhotoTag,
+  Profile,
+  ViewerMode,
+} from "@/lib/types";
 
 const POLL_MS = 10_000;
 
@@ -23,6 +31,8 @@ export function useTripData(
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [shareLabel, setShareLabel] = useState<string | null>(null);
+  const [dayNotes, setDayNotes] = useState<DayNote[]>([]);
+  const [lastSeenAt, setLastSeenAt] = useState<string | null>(null);
   const stampRef = useRef<string | null>(null);
   const loadingRef = useRef(false);
 
@@ -39,6 +49,12 @@ export function useTripData(
           setLoading(false);
           return;
         }
+        const guestSessionId = mode === "guest" ? getGuestSessionId() : "";
+        const tripPath = withKey(
+          "/api/trip",
+          shareKey,
+          mode === "guest" ? null : albumId,
+        );
         const data = await api<{
           photos: Photo[];
           profiles: Profile[];
@@ -47,15 +63,22 @@ export function useTripData(
           stamp?: string;
           albums?: Album[];
           currentAlbum?: Album | null;
-        }>(withKey("/api/trip", shareKey, mode === "guest" ? null : albumId), {
-          cache: "no-store",
-        });
+          dayNotes?: DayNote[];
+          lastSeenAt?: string | null;
+        }>(
+          guestSessionId
+            ? `${tripPath}${tripPath.includes("?") ? "&" : "?"}guestSessionId=${encodeURIComponent(guestSessionId)}`
+            : tripPath,
+          { cache: "no-store" },
+        );
         setPhotos(data.photos);
         setProfiles(data.profiles);
         setTags(data.tags);
         setShareLabel(data.shareLabel);
         setAlbums(data.albums ?? []);
         setCurrentAlbum(data.currentAlbum ?? null);
+        setDayNotes(data.dayNotes ?? []);
+        setLastSeenAt(data.lastSeenAt ?? null);
         stampRef.current = data.stamp ?? `${data.photos.length}`;
       } catch (err) {
         setError(err instanceof Error ? err.message : "Laden fehlgeschlagen.");
@@ -134,6 +157,12 @@ export function useTripData(
     return Object.fromEntries(profiles.map((p) => [p.id, p]));
   }, [profiles]);
 
+  const patchPhoto = useCallback((next: Photo) => {
+    setPhotos((prev) =>
+      prev.map((photo) => (photo.id === next.id ? { ...photo, ...next } : photo)),
+    );
+  }, []);
+
   return {
     photos,
     profiles,
@@ -144,6 +173,11 @@ export function useTripData(
     loading,
     error,
     shareLabel,
+    dayNotes,
+    setDayNotes,
+    lastSeenAt,
+    setLastSeenAt,
+    patchPhoto,
     reload: load,
   };
 }
