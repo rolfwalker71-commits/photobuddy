@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { formatDistanceToNow } from "date-fns";
-import { de } from "date-fns/locale";
 import { api, withKey } from "@/lib/api";
+import { formatAppDateTime } from "@/lib/format-date";
 import {
   getGuestSessionId,
   getStoredGuestName,
@@ -149,11 +148,11 @@ export function CommentSection({
                   <p className="text-xs font-medium leading-snug break-words sm:text-sm">
                     {name}
                   </p>
-                  <time className="shrink-0 text-[0.65rem] text-muted-foreground sm:text-xs">
-                    {formatDistanceToNow(new Date(comment.created_at), {
-                      addSuffix: true,
-                      locale: de,
-                    })}
+                  <time
+                    dateTime={comment.created_at}
+                    className="shrink-0 text-right text-[0.65rem] leading-snug text-muted-foreground sm:text-xs"
+                  >
+                    {formatAppDateTime(comment.created_at)}
                   </time>
                 </div>
                 <p className="mt-0.5 text-xs leading-snug break-words sm:text-sm">

@@ -2,8 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
-import { format, parseISO } from "date-fns";
-import { de } from "date-fns/locale";
 import { ArrowLeft, Download, ImagePlus, MapPin, Search, Star, Trash2 } from "lucide-react";
 import { CommentSection } from "@/components/comment-section";
 import { GuestNameDialog } from "@/components/guest-name-dialog";
@@ -19,6 +17,7 @@ import {
   parseCoordPair,
   toValidCoordPair,
 } from "@/lib/coords";
+import { formatAppDateTime } from "@/lib/format-date";
 import { hasGuestName, storeGuestName } from "@/lib/guest";
 import { humanLocationName } from "@/lib/image";
 import { appHref } from "@/lib/paths";
@@ -336,12 +335,7 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
   }
 
   const taken = photo.taken_at ?? photo.created_at;
-  let when = taken;
-  try {
-    when = format(parseISO(taken), "d. MMMM yyyy, HH:mm", { locale: de });
-  } catch {
-    when = taken;
-  }
+  const when = formatAppDateTime(taken) || taken;
 
   const resolvedMapCoords = mapCoords();
   const canSuggestPlace = validInputCoords() != null;

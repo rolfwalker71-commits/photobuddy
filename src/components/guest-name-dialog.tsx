@@ -47,7 +47,7 @@ export function GuestNameDialog({
           id="guest-name-title"
           className="text-lg font-semibold leading-snug"
         >
-          Wie heißt du?
+          Wie heisst du?
         </h2>
         <p className="mt-1 text-sm text-muted-foreground leading-snug">
           Bevor du kommentierst oder reagierst, brauchen wir deinen Namen, z. B.

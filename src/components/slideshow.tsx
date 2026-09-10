@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Pause, Play, X } from "lucide-react";
+import { formatAppDateTime } from "@/lib/format-date";
 import { publicPhotoUrl } from "@/lib/storage";
 import type { Photo } from "@/lib/types";
 
@@ -73,6 +74,7 @@ export function Slideshow({ photos, open, onClose }: SlideshowProps) {
 
   const src = publicPhotoUrl(photo.storage_path);
   const label = photo.title?.trim() || "Diashow";
+  const when = formatAppDateTime(photo.taken_at ?? photo.created_at);
 
   return (
     <div
@@ -115,6 +117,7 @@ export function Slideshow({ photos, open, onClose }: SlideshowProps) {
             <p className="text-base font-semibold leading-snug">Heute Abend</p>
             <p className="text-sm text-white/75 leading-snug break-words">
               {index + 1} / {count}
+              {when ? ` · ${when}` : ""}
               {photo.title ? ` · ${photo.title}` : ""}
               {paused ? " · Pause" : ""}
             </p>

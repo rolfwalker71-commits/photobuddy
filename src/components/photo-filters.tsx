@@ -48,7 +48,7 @@ export function PhotoFiltersSheet({
       <button
         type="button"
         className="absolute inset-0 bg-foreground/40"
-        aria-label="Filter schließen"
+        aria-label="Filter schliessen"
         onClick={onClose}
       />
       <div
@@ -64,7 +64,7 @@ export function PhotoFiltersSheet({
             type="button"
             onClick={onClose}
             className="inline-flex size-11 items-center justify-center rounded-2xl bg-muted"
-            aria-label="Schließen"
+            aria-label="Schliessen"
           >
             <X className="size-5" />
           </button>

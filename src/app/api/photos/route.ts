@@ -34,7 +34,7 @@ export async function POST(request: Request) {
       throw new HttpError(400, "Bilddatei fehlt.");
     }
     if (full.size > MAX_BYTES) {
-      throw new HttpError(400, "Datei ist größer als 15 MB.");
+      throw new HttpError(400, "Datei ist groesser als 15 MB.");
     }
 
     const id = crypto.randomUUID();

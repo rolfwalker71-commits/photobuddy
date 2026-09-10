@@ -14,7 +14,9 @@ import { Slideshow, slideshowPhotos } from "@/components/slideshow";
 import { useTripData } from "@/hooks/use-trip-data";
 import { getStoredAlbumId, pickAlbumId, storeAlbumId } from "@/lib/album";
 import { api, withKey } from "@/lib/api";
+import { formatDateRange } from "@/lib/album-label";
 import { emptyFilters, filterPhotos } from "@/lib/filters";
+import { formatAppDate, formatAppDateTime } from "@/lib/format-date";
 import { getGuestSessionId } from "@/lib/guest";
 import { readLocalLastSeen, writeLocalLastSeen } from "@/lib/last-seen";
 import { notifyPhotosChanged } from "@/lib/photos-sync";
@@ -154,12 +156,21 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
     mode === "guest"
       ? shareLabel || currentAlbum?.name || "Gäste-Galerie"
       : currentAlbum?.name || "Photobuddy";
-  const subtitle =
+  const filterDates =
+    filters.dateFrom && filters.dateTo
+      ? formatDateRange(filters.dateFrom, filters.dateTo)
+      : filters.dateFrom
+        ? formatAppDate(filters.dateFrom)
+        : filters.dateTo
+          ? formatAppDate(filters.dateTo)
+          : null;
+  const viewLabel =
     view === "map"
       ? "Karte"
       : view === "timeline"
         ? "Timeline"
         : `${visible.length} Foto${visible.length === 1 ? "" : "s"}`;
+  const subtitle = filterDates ? `${viewLabel} · ${filterDates}` : viewLabel;
 
   function changeAlbum(id: string) {
     storeAlbumId(id);
@@ -313,6 +324,11 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
                 Neu{newCount > 0 ? ` ${newCount}` : ""}
               </button>
             </div>
+            {filters.onlyNew && compareSeen ? (
+              <p className="text-xs leading-snug text-muted-foreground">
+                Neu seit {formatAppDateTime(compareSeen)}
+              </p>
+            ) : null}
           </div>
         ) : null}
 

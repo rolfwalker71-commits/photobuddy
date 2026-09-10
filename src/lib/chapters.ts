@@ -1,5 +1,4 @@
-import { format } from "date-fns";
-import { de } from "date-fns/locale";
+import { formatAppDate } from "@/lib/format-date";
 import { humanLocationName } from "@/lib/image";
 import type { DayNote, Photo } from "@/lib/types";
 
@@ -46,7 +45,7 @@ export function chapterHeading(dayKey: string, photos: Photo[]) {
   const place = dominantPlace(photos);
   let dateLabel = dayKey;
   try {
-    dateLabel = format(parseLocalDay(dayKey), "d. MMMM", { locale: de });
+    dateLabel = formatAppDate(parseLocalDay(dayKey));
   } catch {
     dateLabel = dayKey;
   }

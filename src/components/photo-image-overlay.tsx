@@ -1,6 +1,5 @@
-import { format, parseISO } from "date-fns";
-import { de } from "date-fns/locale";
 import { MapPin, MessageCircle, Sparkles } from "lucide-react";
+import { formatAppDate, formatAppTime } from "@/lib/format-date";
 import { isPhotoNew } from "@/lib/last-seen";
 import type { Photo } from "@/lib/types";
 
@@ -20,21 +19,12 @@ type PhotoImageOverlayProps = {
   lastSeenAt?: string | null;
 };
 
-/** Compact overlay stamp: `10.9.` + `14:32` (day.month. + 24h time). */
+/** Overlay stamp: `10.09.2026` + `22:01` on two lines so the pill never ellipsizes. */
 function formatOverlayWhenParts(photo: Photo) {
   const stamp = photo.taken_at ?? photo.created_at;
-  try {
-    const date = parseISO(stamp);
-    if (Number.isNaN(date.getTime())) {
-      return { day: stamp, time: null as string | null };
-    }
-    return {
-      day: format(date, "d.M.", { locale: de }),
-      time: format(date, "HH:mm", { locale: de }),
-    };
-  } catch {
-    return { day: stamp, time: null as string | null };
-  }
+  const day = formatAppDate(stamp) || stamp;
+  const time = formatAppTime(stamp);
+  return { day, time: time || null };
 }
 
 function photoHasGps(photo: Photo) {
@@ -90,10 +80,10 @@ export function PhotoImageOverlay({
           ) : null}
           <time
             dateTime={stamp}
-            className={`inline-flex w-max min-w-0 max-w-full flex-wrap items-center justify-center rounded-lg bg-neutral-900/65 font-medium leading-none text-white backdrop-blur-sm ${
+            className={`inline-flex w-max shrink-0 flex-col items-center justify-center rounded-lg bg-neutral-900/65 font-medium leading-tight text-white backdrop-blur-sm ${
               compact
-                ? "gap-x-0.5 gap-y-px px-1 py-0.5 text-[0.5625rem]"
-                : "gap-x-0.5 gap-y-px px-1.5 py-0.5 text-[0.625rem]"
+                ? "gap-px px-1 py-0.5 text-[0.5rem]"
+                : "gap-px px-1.5 py-0.5 text-[0.5625rem]"
             }`}
           >
             <span className="whitespace-nowrap">{when.day}</span>
