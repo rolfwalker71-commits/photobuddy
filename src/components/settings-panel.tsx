@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BookImage, MapPin, Users } from "lucide-react";
+import { AlbumGuestLinkPanel } from "@/components/album-guest-link-panel";
 import { MapStylePicker } from "@/components/map-style-picker";
 import { InstallButton } from "@/components/pwa/install-button";
 import { api } from "@/lib/api";
@@ -92,6 +93,8 @@ export function SettingsPanel() {
       ) : null}
 
       {profile?.role === "admin" ? <MapStylePicker /> : null}
+
+      <AlbumGuestLinkPanel />
 
       <section className="space-y-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border">
         <h2 className="text-base font-semibold">Profil</h2>

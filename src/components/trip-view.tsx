@@ -27,6 +27,7 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
   const {
     photos,
     profiles,
+    tags: albumTags,
     albums,
     currentAlbum,
     profileById,
@@ -129,6 +130,7 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
         filters={filters}
         onChange={setFilters}
         profiles={profiles}
+        albumTags={albumTags}
       />
       <FloatingDock mode={mode} shareKey={shareKey} />
     </div>

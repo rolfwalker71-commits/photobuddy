@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, ImagePlus, LoaderCircle, MapPin, Upload } from "lucide-react";
-import { getStoredAlbumId, pickAlbumId, storeAlbumId } from "@/lib/album";
+import { AlbumPicker } from "@/components/album-picker";
 import { api } from "@/lib/api";
 import type { Album } from "@/lib/types";
 import {
@@ -149,7 +149,13 @@ async function postPhoto(
   });
 }
 
-export function UploadForm() {
+type UploadFormProps = {
+  albumId: string | null;
+  albums: Album[];
+  onAlbumChange: (id: string) => void;
+};
+
+export function UploadForm({ albumId, albums, onAlbumChange }: UploadFormProps) {
   const router = useRouter();
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const reviewRef = useRef<HTMLDivElement>(null);
@@ -166,32 +172,16 @@ export function UploadForm() {
   const [error, setError] = useState<string | null>(null);
   const [geotag, setGeotag] = useState(true);
   const [locating, setLocating] = useState(false);
-  const [albumId, setAlbumId] = useState<string | null>(null);
-  const [albumName, setAlbumName] = useState<string | null>(null);
+  const [failedDrafts, setFailedDrafts] = useState<Draft[]>([]);
+  const [continueDrafts, setContinueDrafts] = useState<Draft[]>([]);
+  const [geocoding, setGeocoding] = useState(false);
 
   useEffect(() => {
     setGeotag(isGeotaggingEnabled());
     return subscribeGeotagging(setGeotag);
   }, []);
 
-  useEffect(() => {
-    void api<{ albums: Album[] }>("/api/albums")
-      .then((data) => {
-        const id = pickAlbumId(data.albums, getStoredAlbumId());
-        if (!id) {
-          setAlbumId(null);
-          setAlbumName(null);
-          return;
-        }
-        setAlbumId(id);
-        storeAlbumId(id);
-        setAlbumName(data.albums.find((album) => album.id === id)?.name ?? null);
-      })
-      .catch(() => {
-        setAlbumId(null);
-        setAlbumName(null);
-      });
-  }, []);
+  const albumName = albums.find((album) => album.id === albumId)?.name ?? null;
 
   useEffect(() => {
     return () => {
@@ -354,40 +344,131 @@ export function UploadForm() {
     }
   }
 
-  async function uploadBatch() {
-    if (!batch.length) return;
+  async function uploadDraftQueue(queue: Draft[], labelTotal: number, offset = 0) {
     if (!albumId) {
       setError("Du bist keinem Album zugeordnet.");
-      return;
+      return false;
     }
-    setBusy(true);
-    setError(null);
     const title = sharedTitle.trim();
     const description = sharedRemark.trim();
-    let uploaded = 0;
-    try {
-      await api("/api/auth/me");
-      for (let i = 0; i < batch.length; i += 1) {
-        setProgress({ done: i, total: batch.length });
-        setStatus(`Foto ${i + 1} von ${batch.length} wird komprimiert…`);
-        await postPhoto(batch[i], { title, description }, albumId);
-        uploaded = i + 1;
+    await api("/api/auth/me");
+    const failures: Draft[] = [];
+    let stopIndex = -1;
+    for (let i = 0; i < queue.length; i += 1) {
+      setProgress({ done: offset + i, total: labelTotal });
+      setStatus(`Foto ${offset + i + 1} von ${labelTotal} wird komprimiert…`);
+      try {
+        await postPhoto(queue[i], { title, description }, albumId);
+      } catch (err) {
+        failures.push(queue[i]);
+        stopIndex = i;
+        setError(err instanceof Error ? err.message : "Upload fehlgeschlagen.");
+        break;
       }
-      setProgress({ done: batch.length, total: batch.length });
-      notifyPhotosChanged();
-      router.refresh();
-      router.push("/gallery");
-    } catch (err) {
-      if (uploaded) notifyPhotosChanged();
+    }
+    const uploadedCount = stopIndex === -1 ? queue.length : stopIndex;
+    if (uploadedCount > 0) notifyPhotosChanged();
+    if (stopIndex === -1) {
+      setFailedDrafts([]);
+      setContinueDrafts([]);
+      return true;
+    }
+    setFailedDrafts(failures);
+    setContinueDrafts(queue.slice(stopIndex + 1));
+    if (uploadedCount > 0) {
       setError(
-        err instanceof Error
-          ? `${err.message}${uploaded ? ` (${uploaded} von ${batch.length} schon hochgeladen)` : ""}`
-          : "Upload fehlgeschlagen.",
+        (prev) =>
+          `${prev ?? "Upload fehlgeschlagen."} (${offset + uploadedCount} von ${labelTotal} gespeichert.)`,
       );
+    }
+    return false;
+  }
+
+  async function uploadBatch() {
+    if (!batch.length) return;
+    setBusy(true);
+    setError(null);
+    setFailedDrafts([]);
+    setContinueDrafts([]);
+    try {
+      const ok = await uploadDraftQueue(batch, batch.length, 0);
+      if (ok) {
+        setProgress({ done: batch.length, total: batch.length });
+        router.refresh();
+        router.push("/gallery");
+      }
     } finally {
       setBusy(false);
       setStatus(null);
       setProgress(null);
+    }
+  }
+
+  async function retryFailed() {
+    if (!failedDrafts.length) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const ok = await uploadDraftQueue(failedDrafts, failedDrafts.length, 0);
+      if (ok) {
+        revokeDrafts(failedDrafts);
+        setFailedDrafts([]);
+        if (!continueDrafts.length) {
+          router.refresh();
+          router.push("/gallery");
+        }
+      }
+    } finally {
+      setBusy(false);
+      setStatus(null);
+      setProgress(null);
+    }
+  }
+
+  async function continueRest() {
+    if (!continueDrafts.length) return;
+    setBusy(true);
+    setError(null);
+    const queue = continueDrafts;
+    setContinueDrafts([]);
+    try {
+      const ok = await uploadDraftQueue(queue, queue.length, 0);
+      if (ok) {
+        revokeDrafts(queue);
+        setFailedDrafts([]);
+        router.refresh();
+        router.push("/gallery");
+      }
+    } finally {
+      setBusy(false);
+      setStatus(null);
+      setProgress(null);
+    }
+  }
+
+  async function suggestPlaceForDraft() {
+    if (!draft) return;
+    const lat = Number(draft.latitude.replace(",", "."));
+    const lng = Number(draft.longitude.replace(",", "."));
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      setError("Zuerst gültige Koordinaten eintragen.");
+      return;
+    }
+    setGeocoding(true);
+    setError(null);
+    try {
+      const data = await api<{ place_name: string | null }>(
+        `/api/geocode/reverse?lat=${encodeURIComponent(String(lat))}&lng=${encodeURIComponent(String(lng))}`,
+      );
+      if (!data.place_name) {
+        setError("Kein Ortsname gefunden.");
+        return;
+      }
+      setDraft({ ...draft, locationName: data.place_name });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ortsvorschlag fehlgeschlagen.");
+    } finally {
+      setGeocoding(false);
     }
   }
 
@@ -452,11 +533,20 @@ export function UploadForm() {
 
   return (
     <div className={`space-y-5 ${batch.length > 0 ? "pb-24" : ""}`}>
-      <p className="rounded-2xl bg-card px-4 py-3 text-sm leading-snug shadow-card ring-1 ring-border">
-        {albumName
-          ? `Upload ins Album „${albumName}“. Wechsel oben in der Galerie.`
-          : "Noch keinem Album zugeordnet — ein Admin kann dich unter Einstellungen → Alben hinzufügen."}
-      </p>
+      <div className="rounded-2xl bg-card px-4 py-3 shadow-card ring-1 ring-border">
+        {albums.length > 1 ? (
+          <AlbumPicker albums={albums} currentId={albumId} onChange={onAlbumChange} />
+        ) : (
+          <p className="text-sm font-medium leading-snug">
+            {albumName ?? "Album"}
+          </p>
+        )}
+        <p className="mt-1 text-sm leading-snug text-muted-foreground">
+          {albumId
+            ? `Fotos landen in „${albumName ?? "Album"}“.`
+            : "Noch keinem Album zugeordnet — ein Admin kann dich unter Einstellungen → Alben hinzufügen."}
+        </p>
+      </div>
       {shared}
 
       <div className="grid grid-cols-2 gap-3">
@@ -567,6 +657,28 @@ export function UploadForm() {
             </p>
           ) : null}
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          {failedDrafts.length > 0 ? (
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void retryFailed()}
+                className="inline-flex h-11 flex-1 items-center justify-center rounded-2xl bg-primary text-sm font-medium text-primary-foreground disabled:opacity-60"
+              >
+                Fehlgeschlagene erneut versuchen ({failedDrafts.length})
+              </button>
+              {continueDrafts.length > 0 ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void continueRest()}
+                  className="inline-flex h-11 flex-1 items-center justify-center rounded-2xl bg-muted text-sm font-medium disabled:opacity-60"
+                >
+                  Rest fortsetzen ({continueDrafts.length})
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           <div className="hidden md:block">
             <SaveButton />
           </div>
@@ -675,6 +787,16 @@ export function UploadForm() {
               onChange={(e) => setDraft({ ...draft, locationName: e.target.value })}
             />
           </label>
+          {hasGps ? (
+            <button
+              type="button"
+              disabled={geocoding || busy}
+              onClick={() => void suggestPlaceForDraft()}
+              className="inline-flex h-11 w-full items-center justify-center rounded-2xl bg-muted text-sm font-medium disabled:opacity-60"
+            >
+              {geocoding ? "Suche Ort…" : "Ort vorschlagen"}
+            </button>
+          ) : null}
           {geotag ? (
             <p className="text-sm leading-snug text-muted-foreground">
               {locating

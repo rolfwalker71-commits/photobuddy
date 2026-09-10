@@ -1,13 +1,36 @@
 import { NextResponse } from "next/server";
-import { HttpError, jsonError, requireAdmin } from "@/lib/auth/request";
+import {
+  HttpError,
+  assertCanAccessAlbum,
+  jsonError,
+  requireAdmin,
+  requireTeilnehmer,
+} from "@/lib/auth/request";
 import {
   ensureShareLink,
   getAlbum,
+  getShareLinkForAlbum,
   rotateShareLink,
   setAlbumShareLinkActive,
 } from "@/lib/db/queries";
 
 type Ctx = { params: Promise<{ id: string }> };
+
+export async function GET(_request: Request, ctx: Ctx) {
+  try {
+    const user = await requireTeilnehmer();
+    const { id } = await ctx.params;
+    if (!(await getAlbum(id))) throw new HttpError(404, "Album nicht gefunden.");
+    await assertCanAccessAlbum(
+      { mode: "teilnehmer", user, shareKey: null, albumId: null },
+      id,
+    );
+    const shareLink = await getShareLinkForAlbum(id);
+    return NextResponse.json({ shareLink });
+  } catch (err) {
+    return jsonError(err);
+  }
+}
 
 export async function POST(request: Request, ctx: Ctx) {
   try {

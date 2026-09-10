@@ -56,6 +56,7 @@ export type Comment = {
   photo_id: string;
   author_id: string | null;
   guest_name: string | null;
+  guest_session_id?: string | null;
   body: string;
   created_at: string;
   author_display_name?: string | null;
@@ -96,4 +97,5 @@ export type PhotoFilters = {
   dateFrom: string;
   dateTo: string;
   location: string;
+  tagNames: string[];
 };

@@ -14,11 +14,16 @@ import {
 } from "@/components/photo-stage";
 import { ReactionBar } from "@/components/reaction-bar";
 import { api, withKey } from "@/lib/api";
+import { formatCoordPair, parseCoordPair } from "@/lib/coords";
 import { hasGuestName, storeGuestName } from "@/lib/guest";
+import { humanLocationName } from "@/lib/image";
 import { appHref } from "@/lib/paths";
 import { notifyPhotosChanged } from "@/lib/photos-sync";
-import { humanLocationName } from "@/lib/image";
-import type { Photo, PhotoTag, Profile, ViewerMode } from "@/lib/types";
+import type { Photo, PhotoTag, Profile, UserRole, ViewerMode } from "@/lib/types";
+
+const compactField =
+  "h-9 w-full rounded-xl border border-border bg-background px-2.5 text-xs sm:text-sm";
+const compactLabel = "text-xs font-medium text-muted-foreground";
 
 type PhotoDetailProps = {
   photoId: string;
@@ -31,12 +36,15 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
   const [photo, setPhoto] = useState<Photo | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [tags, setTags] = useState<PhotoTag[]>([]);
   const [description, setDescription] = useState("");
   const [title, setTitle] = useState("");
   const [tagInput, setTagInput] = useState("");
   const [locationName, setLocationName] = useState("");
+  const [coordInput, setCoordInput] = useState("");
   const [saving, setSaving] = useState(false);
+  const [geocoding, setGeocoding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [askName, setAskName] = useState(false);
   const [neighbors, setNeighbors] = useState<{
@@ -51,8 +59,9 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
     const load = async () => {
       try {
         if (mode === "teilnehmer") {
-          const me = await api<{ user: { id: string } }>("/api/auth/me");
+          const me = await api<{ user: { id: string; role: UserRole } }>("/api/auth/me");
           setUserId(me.user.id);
+          setUserRole(me.user.role);
         }
         const data = await api<{
           photo: Photo;
@@ -67,6 +76,7 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
         setTitle(data.photo.title ?? "");
         setDescription(data.photo.description ?? "");
         setLocationName(data.photo.location_name ?? "");
+        setCoordInput(formatCoordPair(data.photo.latitude, data.photo.longitude));
         setProfile(data.profile);
         setTags(data.tags);
         setNeighbors(data.neighbors ?? { prev: null, next: null });
@@ -127,24 +137,65 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
     setAskName(false);
   }
 
+  function parsedCoords() {
+    const trimmed = coordInput.trim();
+    if (!trimmed) return { latitude: null, longitude: null };
+    const pair = parseCoordPair(trimmed);
+    if (!pair) return null;
+    return pair;
+  }
+
   async function saveMeta() {
     if (!canEdit || !photo) return;
+    const coords = parsedCoords();
+    if (coords === null) {
+      setError("Koordinaten ungültig. Format: Breite, Länge (z. B. 47.05, 8.31).");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
-      await api(`/api/photos/${photo.id}`, {
+      const data = await api<{ photo: Photo }>(`/api/photos/${photo.id}`, {
         method: "PATCH",
         body: JSON.stringify({
           title: title.trim() || null,
           description: description.trim() || null,
           location_name: locationName.trim() || null,
+          latitude: coords.latitude,
+          longitude: coords.longitude,
         }),
       });
-      setPhoto({ ...photo, title, description, location_name: locationName });
+      setPhoto(data.photo);
+      setCoordInput(formatCoordPair(data.photo.latitude, data.photo.longitude));
+      notifyPhotosChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function suggestPlace() {
+    const coords = parsedCoords();
+    if (!coords || coords.latitude == null || coords.longitude == null) {
+      setError("Zuerst gültige Koordinaten eintragen.");
+      return;
+    }
+    setGeocoding(true);
+    setError(null);
+    try {
+      const data = await api<{ place_name: string | null }>(
+        `/api/geocode/reverse?lat=${encodeURIComponent(String(coords.latitude))}&lng=${encodeURIComponent(String(coords.longitude))}`,
+      );
+      if (!data.place_name) {
+        setError("Kein Ortsname gefunden.");
+        return;
+      }
+      setLocationName(data.place_name);
+    } catch {
+      setError("Ortsvorschlag fehlgeschlagen.");
+    } finally {
+      setGeocoding(false);
     }
   }
 
@@ -192,8 +243,18 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
     when = taken;
   }
 
+  const mapLat = photo.latitude;
+  const mapLng = photo.longitude;
+  const showMap = mapLat != null && mapLng != null;
+  const displayPlace = humanLocationName(photo.location_name);
+  const locationLine =
+    displayPlace ||
+    (mapLat != null && mapLng != null
+      ? formatCoordPair(mapLat, mapLng)
+      : null);
+
   return (
-    <article className="mx-auto max-w-3xl space-y-5 pb-8">
+    <article className="mx-auto max-w-3xl space-y-3 pb-8">
       <div className="flex items-center justify-between gap-3">
         <button
           type="button"
@@ -215,7 +276,7 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
         ) : null}
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         <PhotoStage
           photo={photo}
           prev={neighbors.prev}
@@ -224,9 +285,9 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
           onNext={goNext}
           imageRef={photoRef}
         />
-        {photo.latitude != null && photo.longitude != null ? (
+        {showMap ? (
           <div
-            className="h-[var(--photo-h)] overflow-hidden rounded-2xl bg-card shadow-card ring-1 ring-border md:min-h-80"
+            className="overflow-hidden rounded-2xl bg-card shadow-card ring-1 ring-border max-md:h-[var(--photo-h)] md:aspect-[5/2] md:max-h-48 md:h-auto"
             style={
               {
                 "--photo-h": photoHeight > 0 ? `${photoHeight}px` : "16rem",
@@ -236,8 +297,9 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
             aria-label="Kartenausschnitt des Foto-Standorts"
           >
             <PhotoLocationMapDynamic
-              latitude={photo.latitude}
-              longitude={photo.longitude}
+              key={`${mapLat}-${mapLng}`}
+              latitude={mapLat}
+              longitude={mapLng}
               locationName={photo.location_name}
               accentColor={profile?.accent_color}
             />
@@ -245,39 +307,58 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
         ) : null}
       </div>
 
-      <div className="space-y-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border">
+      <div className="space-y-2.5 rounded-2xl bg-card p-3 shadow-card ring-1 ring-border">
         {canEdit ? (
-          <div className="space-y-3">
-            <label className="block space-y-1.5">
-              <span className="text-sm font-medium">Titel</span>
+          <div className="space-y-2">
+            <label className="block space-y-1">
+              <span className={compactLabel}>Titel</span>
               <input
-                className="h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm"
+                className={compactField}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
               />
             </label>
-            <label className="block space-y-1.5">
-              <span className="text-sm font-medium">Beschreibung</span>
+            <label className="block space-y-1">
+              <span className={compactLabel}>Beschreibung</span>
               <textarea
-                rows={3}
-                className="w-full rounded-2xl border border-border bg-background px-3 py-2 text-sm"
+                rows={2}
+                className={`${compactField} py-1.5`}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
               />
             </label>
-            <label className="block space-y-1.5">
-              <span className="text-sm font-medium">Ort</span>
+            <label className="block space-y-1">
+              <span className={compactLabel}>Ort</span>
               <input
-                className="h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm"
+                className={compactField}
                 value={locationName}
                 onChange={(e) => setLocationName(e.target.value)}
+                placeholder="Anzeigename in Timeline"
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className={compactLabel}>Koordinaten</span>
+              <input
+                className={compactField}
+                value={coordInput}
+                onChange={(e) => setCoordInput(e.target.value)}
+                placeholder="Breite, Länge — z. B. 47.05, 8.31"
+                inputMode="decimal"
               />
             </label>
             <button
               type="button"
+              disabled={geocoding || saving}
+              onClick={() => void suggestPlace()}
+              className="inline-flex h-9 items-center rounded-xl bg-muted px-3 text-xs font-medium"
+            >
+              {geocoding ? "Suche Ort…" : "Ort vorschlagen"}
+            </button>
+            <button
+              type="button"
               disabled={saving}
               onClick={() => void saveMeta()}
-              className="inline-flex h-11 items-center rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground"
+              className="inline-flex h-9 items-center rounded-xl bg-primary px-3 text-xs font-medium text-primary-foreground"
             >
               {saving ? "Speichern…" : "Änderungen speichern"}
             </button>
@@ -285,35 +366,33 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
         ) : photo.title || photo.description ? (
           <div>
             {photo.title ? (
-              <h1 className="text-xl font-semibold leading-snug break-words">
+              <h1 className="text-lg font-semibold leading-snug break-words">
                 {photo.title}
               </h1>
             ) : null}
             {photo.description ? (
-              <p className={`text-sm leading-relaxed break-words ${photo.title ? "mt-2" : ""}`}>
+              <p className={`text-xs leading-relaxed break-words sm:text-sm ${photo.title ? "mt-1.5" : ""}`}>
                 {photo.description}
               </p>
             ) : null}
           </div>
         ) : null}
 
-        <p className="text-sm text-muted-foreground">
+        <p className="text-xs text-muted-foreground sm:text-sm">
           {profile?.display_name ?? "Teilnehmer"} · {when}
         </p>
-        {humanLocationName(photo.location_name) ? (
-          <p className="flex items-start gap-1 text-sm text-muted-foreground">
-            <MapPin className="mt-0.5 size-4 shrink-0" />
-            <span className="break-words">
-              {humanLocationName(photo.location_name)}
-            </span>
+        {locationLine ? (
+          <p className="flex items-start gap-1 text-xs text-muted-foreground sm:text-sm">
+            <MapPin className="mt-0.5 size-3.5 shrink-0 sm:size-4" />
+            <span className="break-words">{locationLine}</span>
           </p>
         ) : null}
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5">
           {tags.map((tag) => (
             <span
               key={tag.tag_id}
-              className="rounded-full bg-muted px-3 py-1 text-sm"
+              className="rounded-full bg-muted px-2 py-0.5 text-xs"
             >
               #{tag.name}
             </span>
@@ -321,9 +400,9 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
         </div>
 
         {canEdit ? (
-          <div className="flex gap-2">
+          <div className="flex gap-1.5">
             <input
-              className="h-11 min-w-0 flex-1 rounded-2xl border border-border bg-background px-3 text-sm"
+              className={`${compactField} min-w-0 flex-1`}
               placeholder="Tag hinzufügen"
               value={tagInput}
               onChange={(e) => setTagInput(e.target.value)}
@@ -331,14 +410,14 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
             <button
               type="button"
               onClick={() => void addTag()}
-              className="inline-flex h-11 items-center rounded-2xl bg-muted px-4 text-sm font-medium"
+              className="inline-flex h-9 shrink-0 items-center rounded-xl bg-muted px-3 text-xs font-medium"
             >
               Tag
             </button>
           </div>
         ) : null}
 
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {error ? <p className="text-xs text-destructive">{error}</p> : null}
       </div>
 
       <ReactionBar
@@ -347,13 +426,16 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
         shareKey={shareKey}
         currentUserId={userId}
         onNeedGuestName={requestGuestName}
+        compact
       />
       <CommentSection
         photoId={photo.id}
         mode={mode}
         shareKey={shareKey}
         currentUserId={userId}
+        userRole={userRole}
         onNeedGuestName={requestGuestName}
+        compact
       />
       <GuestNameDialog
         open={askName}

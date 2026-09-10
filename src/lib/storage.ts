@@ -4,10 +4,10 @@ export function publicPhotoUrl(path: string | null | undefined) {
   return `/api/photos/files/${parts}`;
 }
 
-/** Grid / map / timeline: use the full file so old 480px thumbs are not stretched. */
+/** Grid / map / timeline: prefer thumbnail; detail views use storage_path. */
 export function previewPhotoUrl(photo: {
   storage_path: string;
   thumbnail_path: string | null;
 }) {
-  return publicPhotoUrl(photo.storage_path || photo.thumbnail_path);
+  return publicPhotoUrl(photo.thumbnail_path || photo.storage_path);
 }

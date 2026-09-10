@@ -1,8 +1,9 @@
 "use client";
 
+import { useMemo } from "react";
 import { X } from "lucide-react";
 import { emptyFilters } from "@/lib/filters";
-import type { PhotoFilters, Profile } from "@/lib/types";
+import type { PhotoFilters, PhotoTag, Profile } from "@/lib/types";
 
 type PhotoFiltersSheetProps = {
   open: boolean;
@@ -10,6 +11,7 @@ type PhotoFiltersSheetProps = {
   filters: PhotoFilters;
   onChange: (next: PhotoFilters) => void;
   profiles: Profile[];
+  albumTags?: PhotoTag[];
 };
 
 export function PhotoFiltersSheet({
@@ -18,7 +20,27 @@ export function PhotoFiltersSheet({
   filters,
   onChange,
   profiles,
+  albumTags = [],
 }: PhotoFiltersSheetProps) {
+  const tagNames = useMemo(() => {
+    const names = new Set<string>();
+    for (const tag of albumTags) {
+      names.add(tag.name);
+    }
+    return [...names].sort((a, b) => a.localeCompare(b, "de"));
+  }, [albumTags]);
+
+  function toggleTag(name: string) {
+    const lower = name.toLowerCase();
+    const has = filters.tagNames.some((t) => t.toLowerCase() === lower);
+    onChange({
+      ...filters,
+      tagNames: has
+        ? filters.tagNames.filter((t) => t.toLowerCase() !== lower)
+        : [...filters.tagNames, name],
+    });
+  }
+
   if (!open) return null;
 
   return (
@@ -106,6 +128,36 @@ export function PhotoFiltersSheet({
               }
             />
           </label>
+
+          {tagNames.length > 0 ? (
+            <div className="space-y-2">
+              <span className="text-sm font-medium">Tags</span>
+              <p className="text-xs text-muted-foreground leading-snug">
+                Mehrere Tags = Foto muss alle gewählten Tags haben.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {tagNames.map((name) => {
+                  const active = filters.tagNames.some(
+                    (t) => t.toLowerCase() === name.toLowerCase(),
+                  );
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => toggleTag(name)}
+                      className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                        active
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "bg-muted text-foreground"
+                      }`}
+                    >
+                      #{name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <div className="mt-5 flex gap-2">

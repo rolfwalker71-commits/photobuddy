@@ -129,6 +129,7 @@ export function toComment(row: {
   photo_id: string;
   author_id: string | null;
   guest_name: string | null;
+  guest_session_id?: string | null;
   body: string;
   created_at: Date | string;
   author_display_name?: string | null;
@@ -138,6 +139,7 @@ export function toComment(row: {
     photo_id: row.photo_id,
     author_id: row.author_id,
     guest_name: row.guest_name,
+    guest_session_id: row.guest_session_id ?? null,
     body: row.body,
     created_at: iso(row.created_at),
     author_display_name: row.author_display_name ?? null,

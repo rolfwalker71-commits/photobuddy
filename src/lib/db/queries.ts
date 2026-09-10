@@ -269,14 +269,37 @@ export async function insertPhoto(input: {
 
 export async function updatePhoto(
   id: string,
-  input: { title: string | null; description: string | null; locationName: string | null },
+  input: {
+    title: string | null;
+    description: string | null;
+    locationName: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+  },
 ): Promise<Photo | null> {
+  const touchGeo =
+    input.latitude !== undefined && input.longitude !== undefined;
   const row = await queryOne<PhotoRow>(
-    `update public.photos
-     set title = $2, description = $3, location_name = $4
-     where id = $1
-     returning *`,
-    [id, input.title, input.description, input.locationName],
+    touchGeo
+      ? `update public.photos
+         set title = $2, description = $3, location_name = $4,
+             latitude = $5, longitude = $6
+         where id = $1
+         returning *`
+      : `update public.photos
+         set title = $2, description = $3, location_name = $4
+         where id = $1
+         returning *`,
+    touchGeo
+      ? [
+          id,
+          input.title,
+          input.description,
+          input.locationName,
+          input.latitude,
+          input.longitude,
+        ]
+      : [id, input.title, input.description, input.locationName],
   );
   return row ? toPhoto(row) : null;
 }
@@ -332,11 +355,12 @@ export async function listComments(photoId: string): Promise<Comment[]> {
     photo_id: string;
     author_id: string | null;
     guest_name: string | null;
+    guest_session_id: string | null;
     body: string;
     created_at: Date | string;
     author_display_name: string | null;
   }>(
-    `select c.id, c.photo_id, c.author_id, c.guest_name, c.body, c.created_at,
+    `select c.id, c.photo_id, c.author_id, c.guest_name, c.guest_session_id, c.body, c.created_at,
             u.display_name as author_display_name
      from public.comments c
      left join public.users u on u.id = c.author_id
@@ -370,6 +394,24 @@ export async function addGuestComment(input: {
      values ($1, $2, $3, $4)`,
     [input.photoId, input.guestName.slice(0, 80), input.guestSessionId, input.body.slice(0, 2000)],
   );
+}
+
+export async function getComment(id: string) {
+  const row = await queryOne<{
+    id: string;
+    photo_id: string;
+    author_id: string | null;
+    guest_name: string | null;
+    guest_session_id: string | null;
+    body: string;
+    created_at: Date | string;
+  }>(
+    `select id, photo_id, author_id, guest_name, guest_session_id, body, created_at
+     from public.comments
+     where id = $1`,
+    [id],
+  );
+  return row;
 }
 
 export async function deleteComment(id: string) {

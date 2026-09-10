@@ -8,6 +8,9 @@ export const metadata: Metadata = {
   description: "Gemeinsames Reisetagebuch mit Fotos, Karte und Timeline.",
   applicationName: "Photobuddy",
   manifest: "/manifest.webmanifest",
+  icons: {
+    apple: [{ url: "/icons/icon-180.png", sizes: "180x180", type: "image/png" }],
+  },
   appleWebApp: {
     capable: true,
     title: "Photobuddy",
@@ -31,7 +34,7 @@ export default function RootLayout({
   return (
     <html lang="de" suppressHydrationWarning>
       <head>
-        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        <link rel="apple-touch-icon" href="/icons/icon-180.png" sizes="180x180" />
       </head>
       <body className="font-sans antialiased">
         <Script src="/runtime-config.js" strategy="beforeInteractive" />

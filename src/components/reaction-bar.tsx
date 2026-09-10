@@ -18,6 +18,7 @@ type ReactionBarProps = {
   shareKey: string | null;
   currentUserId: string | null;
   onNeedGuestName: () => boolean;
+  compact?: boolean;
 };
 
 export function ReactionBar({
@@ -26,6 +27,7 @@ export function ReactionBar({
   shareKey,
   currentUserId,
   onNeedGuestName,
+  compact = false,
 }: ReactionBarProps) {
   const [reactions, setReactions] = useState<Reaction[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
@@ -83,16 +85,20 @@ export function ReactionBar({
     }
   }
 
+  const btnSize = compact
+    ? "inline-flex h-8 items-center gap-0.5 rounded-full px-2 text-xs ring-1 transition disabled:opacity-50"
+    : "inline-flex h-10 items-center gap-1 rounded-full px-3 text-sm ring-1 transition disabled:opacity-50";
+
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Reaktionen">
+    <div className={compact ? "space-y-1.5" : "space-y-2"}>
+      <div className="flex flex-wrap gap-1.5 sm:gap-2" role="group" aria-label="Reaktionen">
         {counts.map(({ emoji, count, mine }) => (
           <button
             key={emoji}
             type="button"
             disabled={busy === emoji || !guestReady}
             onClick={() => void toggle(emoji)}
-            className={`inline-flex h-10 items-center gap-1 rounded-full px-3 text-sm ring-1 transition disabled:opacity-50 ${
+            className={`${btnSize} ${
               mine ? "bg-muted ring-primary" : "bg-card ring-border"
             }`}
             aria-pressed={mine}
@@ -103,7 +109,7 @@ export function ReactionBar({
         ))}
       </div>
       {mode === "guest" && !guestReady ? (
-        <p className="text-sm text-muted-foreground leading-snug">
+        <p className="text-xs text-muted-foreground leading-snug sm:text-sm">
           Reaktionen sind frei, sobald du deinen Namen angegeben hast.
         </p>
       ) : null}

@@ -62,6 +62,7 @@ function png(size, rgba) {
 const dir = join(dirname(fileURLToPath(import.meta.url)), "..", "public", "icons");
 mkdirSync(dir, { recursive: true });
 const teal = [15, 118, 110];
+writeFileSync(join(dir, "icon-180.png"), png(180, teal));
 writeFileSync(join(dir, "icon-192.png"), png(192, teal));
 writeFileSync(join(dir, "icon-512.png"), png(512, teal));
-console.log("Wrote public/icons/icon-192.png and icon-512.png");
+console.log("Wrote public/icons/icon-180.png, icon-192.png and icon-512.png");

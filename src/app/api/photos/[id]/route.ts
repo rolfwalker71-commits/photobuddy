@@ -35,11 +35,25 @@ async function updatePhotoMeta(request: Request, ctx: Ctx) {
       title?: string;
       description?: string;
       location_name?: string;
+      latitude?: number | null;
+      longitude?: number | null;
     };
+    const lat =
+      body.latitude === null || body.latitude === undefined
+        ? body.latitude ?? undefined
+        : Number(body.latitude);
+    const lng =
+      body.longitude === null || body.longitude === undefined
+        ? body.longitude ?? undefined
+        : Number(body.longitude);
     const photo = await updatePhoto(id, {
       title: body.title?.trim() || null,
       description: body.description?.trim() || null,
       locationName: body.location_name?.trim() || null,
+      latitude:
+        lat !== undefined && (lat === null || Number.isFinite(lat)) ? lat : undefined,
+      longitude:
+        lng !== undefined && (lng === null || Number.isFinite(lng)) ? lng : undefined,
     });
     if (!photo) throw new HttpError(404, "Foto nicht gefunden.");
     return NextResponse.json({ photo });

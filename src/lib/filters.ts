@@ -5,6 +5,7 @@ export const emptyFilters: PhotoFilters = {
   dateFrom: "",
   dateTo: "",
   location: "",
+  tagNames: [],
 };
 
 export function filterPhotos(photos: Photo[], filters: PhotoFilters) {
@@ -20,12 +21,23 @@ export function filterPhotos(photos: Photo[], filters: PhotoFilters) {
       const hay = (photo.location_name ?? "").toLowerCase();
       if (!hay.includes(q)) return false;
     }
+    if (filters.tagNames.length > 0) {
+      const names = new Set(
+        (photo.tags ?? []).map((tag) => tag.name.toLowerCase()),
+      );
+      const need = filters.tagNames.map((t) => t.toLowerCase());
+      if (!need.every((tag) => names.has(tag))) return false;
+    }
     return true;
   });
 }
 
 export function isFiltered(filters: PhotoFilters) {
   return Boolean(
-    filters.uploaderId || filters.dateFrom || filters.dateTo || filters.location,
+    filters.uploaderId ||
+      filters.dateFrom ||
+      filters.dateTo ||
+      filters.location ||
+      filters.tagNames.length > 0,
   );
 }
