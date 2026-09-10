@@ -98,8 +98,22 @@ export function AdminAlbumsPanel() {
     }
   }
 
+  function showError(message: string) {
+    setStatus(null);
+    setError(message);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   async function removeAlbum(album: Album) {
-    if (!window.confirm(`„${album.name}“ wirklich löschen?`)) return;
+    if (albums.length < 2) {
+      showError("Mindestens ein Album muss bleiben.");
+      return;
+    }
+    const extra =
+      album.photo_count > 0
+        ? ` Alle ${album.photo_count} Foto${album.photo_count === 1 ? "" : "s"} werden mitgelöscht.`
+        : "";
+    if (!window.confirm(`„${album.name}“ wirklich löschen?${extra}`)) return;
     setBusy(true);
     setError(null);
     try {
@@ -107,7 +121,7 @@ export function AdminAlbumsPanel() {
       setAlbums((prev) => prev.filter((item) => item.id !== album.id));
       flash("Album gelöscht.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Löschen fehlgeschlagen.");
+      showError(err instanceof Error ? err.message : "Löschen fehlgeschlagen.");
     } finally {
       setBusy(false);
     }
@@ -239,6 +253,16 @@ export function AdminAlbumsPanel() {
 
   return (
     <div className="space-y-6">
+      {error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
+      {status ? (
+        <p className="text-sm text-muted-foreground" aria-live="polite">
+          {status}
+        </p>
+      ) : null}
       <form
         onSubmit={(event) => void createAlbum(event)}
         className="space-y-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border"
@@ -364,7 +388,7 @@ export function AdminAlbumsPanel() {
                       </button>
                       <button
                         type="button"
-                        disabled={busy || albums.length < 2}
+                        disabled={busy}
                         onClick={() => void removeAlbum(album)}
                         className="inline-flex h-11 items-center rounded-2xl bg-muted px-3 text-sm font-medium text-destructive disabled:opacity-50"
                       >
@@ -513,9 +537,6 @@ export function AdminAlbumsPanel() {
           })}
         </ul>
       </section>
-
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
-      {status ? <p className="text-sm text-muted-foreground">{status}</p> : null}
     </div>
   );
 }

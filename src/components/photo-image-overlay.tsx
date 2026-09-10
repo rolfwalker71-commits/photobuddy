@@ -20,14 +20,20 @@ type PhotoImageOverlayProps = {
   lastSeenAt?: string | null;
 };
 
-function formatOverlayWhen(photo: Photo, compact: boolean) {
+/** Compact overlay stamp: `10.9.` + `14:32` (day.month. + 24h time). */
+function formatOverlayWhenParts(photo: Photo) {
   const stamp = photo.taken_at ?? photo.created_at;
   try {
-    return format(parseISO(stamp), compact ? "HH:mm" : "d.M., HH:mm", {
-      locale: de,
-    });
+    const date = parseISO(stamp);
+    if (Number.isNaN(date.getTime())) {
+      return { day: stamp, time: null as string | null };
+    }
+    return {
+      day: format(date, "d.M.", { locale: de }),
+      time: format(date, "HH:mm", { locale: de }),
+    };
   } catch {
-    return stamp;
+    return { day: stamp, time: null as string | null };
   }
 }
 
@@ -42,7 +48,7 @@ export function PhotoImageOverlay({
   lastSeenAt = null,
 }: PhotoImageOverlayProps) {
   const stamp = photo.taken_at ?? photo.created_at;
-  const when = formatOverlayWhen(photo, compact);
+  const when = formatOverlayWhenParts(photo);
   const hasGeo = photoHasGps(photo);
   const tags = photo.tags ?? [];
   const reactions = photo.reactions ?? [];
@@ -84,13 +90,16 @@ export function PhotoImageOverlay({
           ) : null}
           <time
             dateTime={stamp}
-            className={`max-w-[70%] truncate rounded-full bg-neutral-900/65 font-medium leading-none text-white backdrop-blur-sm ${
+            className={`inline-flex w-max min-w-0 max-w-full flex-wrap items-center justify-center rounded-lg bg-neutral-900/65 font-medium leading-none text-white backdrop-blur-sm ${
               compact
-                ? "px-1.5 py-0.5 text-[0.625rem]"
-                : "px-1.5 py-0.5 text-[0.7rem]"
+                ? "gap-x-0.5 gap-y-px px-1 py-0.5 text-[0.5625rem]"
+                : "gap-x-0.5 gap-y-px px-1.5 py-0.5 text-[0.625rem]"
             }`}
           >
-            {when}
+            <span className="whitespace-nowrap">{when.day}</span>
+            {when.time ? (
+              <span className="whitespace-nowrap tabular-nums">{when.time}</span>
+            ) : null}
           </time>
         </div>
         {hasGeo ? (

@@ -7,13 +7,13 @@ import {
 } from "@/lib/auth/request";
 import {
   countAlbums,
-  countPhotosInAlbum,
   deleteAlbum,
   getAlbum,
   getPhoto,
   isAlbumMember,
   updateAlbum,
 } from "@/lib/db/queries";
+import { removePhotoFiles } from "@/lib/files";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -84,12 +84,12 @@ export async function DELETE(_request: Request, ctx: Ctx) {
     const { id } = await ctx.params;
     if (!(await getAlbum(id))) throw new HttpError(404, "Album nicht gefunden.");
     if ((await countAlbums()) < 2) {
-      throw new HttpError(409, "Das letzte Album kann nicht gelöscht werden.");
+      throw new HttpError(409, "Mindestens ein Album muss bleiben.");
     }
-    if ((await countPhotosInAlbum(id)) > 0) {
-      throw new HttpError(409, "Album hat noch Fotos. Zuerst die Fotos entfernen.");
-    }
-    await deleteAlbum(id);
+    const photos = await deleteAlbum(id);
+    await removePhotoFiles(
+      photos.flatMap((photo) => [photo.storage_path, photo.thumbnail_path]),
+    );
     return NextResponse.json({ ok: true });
   } catch (err) {
     return jsonError(err);

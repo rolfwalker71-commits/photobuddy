@@ -821,16 +821,23 @@ export async function countAlbums() {
   return Number(row?.n ?? 0);
 }
 
-export async function countPhotosInAlbum(albumId: string) {
-  const row = await queryOne<{ n: string }>(
-    `select count(*)::text as n from public.photos where album_id = $1`,
-    [albumId],
-  );
-  return Number(row?.n ?? 0);
-}
-
 export async function deleteAlbum(id: string) {
+  const photos = await query<{
+    storage_path: string;
+    thumbnail_path: string | null;
+  }>(
+    `select storage_path, thumbnail_path from public.photos where album_id = $1`,
+    [id],
+  );
+  // cover_photo_id → photos ON DELETE SET NULL; clear first so photo rows can go.
+  await query(
+    `update public.albums set cover_photo_id = null where id = $1`,
+    [id],
+  );
+  // photos.album_id is ON DELETE RESTRICT — remove children before the album.
+  await query(`delete from public.photos where album_id = $1`, [id]);
   await query(`delete from public.albums where id = $1`, [id]);
+  return photos;
 }
 
 export async function isAlbumMember(albumId: string, userId: string) {
