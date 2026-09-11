@@ -13,6 +13,7 @@ type PhotoGridProps = {
   mode: ViewerMode;
   shareKey: string | null;
   lastSeenAt?: string | null;
+  viewerId?: string | null;
   onToggleHighlight?: (photo: Photo) => void;
   selecting?: boolean;
   selectedIds?: Set<string>;
@@ -26,6 +27,7 @@ export function PhotoGrid({
   mode,
   shareKey,
   lastSeenAt = null,
+  viewerId = null,
   onToggleHighlight,
   selecting = false,
   selectedIds,
@@ -77,6 +79,7 @@ export function PhotoGrid({
               photo={photo}
               authorName={author}
               lastSeenAt={lastSeenAt}
+              viewerId={viewerId}
               duplicate={duplicateIds?.has(photo.id) ?? false}
               favoriteSlot={
                 mode === "teilnehmer" &&

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, CheckSquare, Download, MoonStar, PartyPopper, Sparkles, Trash2 } from "lucide-react";
+import { Check, CheckSquare, Download, MoonStar, PartyPopper, Sparkles, Trash2, X } from "lucide-react";
 import { GalleryBulkBar } from "@/components/gallery-bulk-bar";
 import { AlbumPicker } from "@/components/album-picker";
 import { AppHeader } from "@/components/app-header";
@@ -23,7 +23,7 @@ import { formatAppDate, formatAppDateTime } from "@/lib/format-date";
 import { appHref } from "@/lib/paths";
 import { photoDayKey } from "@/lib/chapters";
 import { getGuestSessionId } from "@/lib/guest";
-import { readLocalLastSeen, writeLocalLastSeen } from "@/lib/last-seen";
+import { isPhotoNew, readLocalLastSeen, writeLocalLastSeen } from "@/lib/last-seen";
 import { notifyPhotosChanged } from "@/lib/photos-sync";
 import type { Photo, PhotoFilters, Profile, ViewerMode } from "@/lib/types";
 import { filenameFromDisposition } from "@/lib/zip-download";
@@ -68,6 +68,7 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
   const [compareSeen, setCompareSeen] = useState<string | null>(null);
   const [selecting, setSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [newBannerHidden, setNewBannerHidden] = useState(false);
   const markedRef = useRef(false);
   const guestDefaulted = useRef(false);
 
@@ -89,6 +90,7 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
   useEffect(() => {
     guestDefaulted.current = false;
     markedRef.current = false;
+    setNewBannerHidden(false);
     setFilters(emptyFilters);
   }, [currentAlbum?.id]);
 
@@ -146,17 +148,15 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentAlbum?.id, mode, shareKey]);
 
+  const viewerId = mode === "teilnehmer" ? (me?.id ?? null) : null;
   const visible = useMemo(
-    () => filterPhotos(photos, filters, { lastSeenAt: compareSeen }),
-    [photos, filters, compareSeen],
+    () => filterPhotos(photos, filters, { lastSeenAt: compareSeen, viewerId }),
+    [photos, filters, compareSeen, viewerId],
   );
 
   const newCount = useMemo(
-    () =>
-      compareSeen
-        ? photos.filter((photo) => photo.created_at > compareSeen).length
-        : 0,
-    [photos, compareSeen],
+    () => photos.filter((photo) => isPhotoNew(photo, compareSeen, viewerId)).length,
+    [photos, compareSeen, viewerId],
   );
   const highlightCount = useMemo(
     () => photos.filter((photo) => photo.is_highlight).length,
@@ -430,6 +430,34 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
                 Neu seit {formatAppDateTime(compareSeen)}
               </p>
             ) : null}
+            {newCount > 0 && compareSeen && !filters.onlyNew && !newBannerHidden ? (
+              <div className="flex items-stretch overflow-hidden rounded-2xl bg-primary/10 ring-1 ring-primary/25">
+                <button
+                  type="button"
+                  onClick={() => setChip("new")}
+                  className="flex min-h-12 min-w-0 flex-1 items-center gap-3 px-4 py-2 text-left"
+                >
+                  <Sparkles className="size-5 shrink-0 text-primary" aria-hidden />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold leading-snug">
+                      {newCount} neue Aufnahme{newCount === 1 ? "" : "n"} seit
+                      deinem letzten Besuch
+                    </span>
+                    <span className="block text-xs leading-snug text-muted-foreground">
+                      {formatAppDateTime(compareSeen)} · antippen zum Anzeigen
+                    </span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewBannerHidden(true)}
+                  className="flex w-11 shrink-0 items-center justify-center text-muted-foreground"
+                  aria-label="Hinweis ausblenden"
+                >
+                  <X className="size-4" aria-hidden />
+                </button>
+              </div>
+            ) : null}
           </div>
         ) : null}
 
@@ -464,6 +492,7 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
             mode={mode}
             shareKey={shareKey}
             lastSeenAt={compareSeen}
+            viewerId={viewerId}
             focusDay={
               filters.dateFrom && filters.dateFrom === filters.dateTo
                 ? filters.dateFrom
@@ -515,6 +544,7 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
             mode={mode}
             shareKey={shareKey}
             lastSeenAt={compareSeen}
+            viewerId={viewerId}
             onToggleHighlight={toggleHighlight}
             selecting={mode === "teilnehmer" && selecting}
             selectedIds={selectedIds}

@@ -34,7 +34,13 @@ export function writeLocalLastSeen(albumId: string, iso: string) {
   writeCookie(cookieName(albumId), iso);
 }
 
-export function isPhotoNew(createdAt: string, lastSeenAt: string | null) {
+/** New since the last visit — your own uploads never count as new. */
+export function isPhotoNew(
+  photo: { created_at: string; uploaded_by: string },
+  lastSeenAt: string | null,
+  viewerId: string | null = null,
+) {
   if (!lastSeenAt) return false;
-  return createdAt > lastSeenAt;
+  if (viewerId && photo.uploaded_by === viewerId) return false;
+  return photo.created_at > lastSeenAt;
 }

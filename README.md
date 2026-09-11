@@ -41,6 +41,14 @@ Optional, ohne UI: `npm run create-user -- anna@familie.de geheim Anna`
 
 Cloud-Dashboard, Storage-Bucket, VAPID von Hand. Schema, Admin-Konto und Gäste-Link kommen mit dem ersten Start.
 
+### Benachrichtigungen
+
+Push pro Gerät: „Bei jedem Foto“ oder „Abends“ — eine Zusammenfassung pro Album („Heute 23 neue Aufnahmen von Anna und Ben · Altdorf“). Gäste bekommen standardmässig die Abend-Variante. Uhrzeit und Zeitzone: **Einstellungen → Tägliche Zusammenfassung** (Admin).
+
+### Offline hochladen
+
+Fotos werden auf dem Gerät zwischengespeichert und gehen automatisch hoch, sobald wieder Netz da ist — auch nach einem Neustart der App. Die Warteschlange steht auf der Kamera-Seite.
+
 ### Server (gleicher Compose-Stack)
 
 `NEXT_PUBLIC_SITE_URL` = öffentliche App-URL (ohne Slash).
@@ -56,6 +64,20 @@ Das Image `ghcr.io/rolfwalker71-commits/photobuddy` existiert **erst nach einem 
 Fotos liegen im Volume **`photobuddy-photos`**, die Datenbank in **`photobuddy-db`**, Secrets in **`photobuddy-secrets`**, VAPID in **`photobuddy-vapid`**.
 
 Wenn zuvor das alte Supabase-Stack lief: Volume `photobuddy-db` einmal löschen (`docker volume rm photobuddy-db`), das Format ist nicht kompatibel.
+
+### Backup
+
+**Einstellungen → Backup** lädt ein ZIP mit Datenbank, Fotos und Push-Schlüsseln. Automatisch jede Nacht (Server, im Photobuddy-Ordner):
+
+```bash
+30 3 * * * cd /pfad/zu/photobuddy && scripts/backup.sh backups 14 >> backups/backup.log 2>&1
+```
+
+Wiederherstellen (ersetzt alle Daten, braucht `docker`, `curl`, `unzip`):
+
+```bash
+scripts/restore-backup.sh backups/photobuddy-backup-2026-09-11_0330.zip
+```
 
 Lokales Image bauen (nur deine Maschine, nicht der Server): `docker compose -f docker-compose.yml -f docker-compose.build.yml build`
 

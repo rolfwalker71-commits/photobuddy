@@ -87,13 +87,15 @@ export function getVapidPublicKey() {
   return getVapidKeys().publicKey;
 }
 
-type PushPayload = {
+export type PushPayload = {
   title: string;
   body: string;
   url: string;
+  /** Notifications with the same tag replace each other on the device. */
+  tag?: string;
 };
 
-async function sendOne(
+export async function sendPush(
   sub: { endpoint: string; p256dh: string; auth: string },
   payload: PushPayload,
 ) {
@@ -137,12 +139,15 @@ export async function notifyNewPhoto(input: {
       subs.map((sub) => {
         if (seen.has(sub.endpoint)) return;
         seen.add(sub.endpoint);
+        // Daily subscribers get the evening summary instead (src/lib/digest.ts).
+        if (sub.notify_mode === "daily") return;
         if (sub.user_id && sub.user_id === input.uploaderId) return;
         const isGuest = !sub.user_id;
-        return sendOne(sub, {
+        return sendPush(sub, {
           title: albumName,
           body: `${input.uploaderName} hat ein Foto geteilt.`,
           url: isGuest ? guestUrl : memberUrl,
+          tag: `album-${input.albumId}`,
         });
       }),
     );
@@ -168,7 +173,7 @@ export async function notifyNewComment(input: {
       body: `${input.commenterName} hat geschrieben.`,
       url: `/photos/${input.photoId}`,
     };
-    await Promise.all(subs.map((sub) => sendOne(sub, payload)));
+    await Promise.all(subs.map((sub) => sendPush(sub, payload)));
   } catch (err) {
     console.error("notifyNewComment", err);
   }

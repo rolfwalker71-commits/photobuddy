@@ -27,6 +27,7 @@ import type {
   PhotoTag,
   Profile,
   Reaction,
+  NotifyMode,
   ShareLink,
   UserRole,
 } from "@/lib/types";
@@ -280,14 +281,15 @@ export async function insertPhoto(input: {
   weatherTempC?: number | null;
   weatherCode?: number | null;
   contentHash?: string | null;
+  clientUploadId?: string | null;
 }): Promise<Photo> {
   const row = await queryOne<PhotoRow>(
     `insert into public.photos (
        album_id, uploaded_by, storage_path, thumbnail_path, title, description,
        taken_at, latitude, longitude, location_name, width, height,
        mime_type, file_size, kind, duration_ms, weather_temp_c, weather_code,
-       content_hash
-     ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+       content_hash, client_upload_id
+     ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
      returning *`,
     [
       input.albumId,
@@ -309,10 +311,25 @@ export async function insertPhoto(input: {
       input.weatherTempC ?? null,
       input.weatherCode ?? null,
       input.contentHash ?? null,
+      input.clientUploadId ?? null,
     ],
   );
   if (!row) throw new Error("Foto konnte nicht gespeichert werden.");
   return toPhoto(row);
+}
+
+/** A retried queue upload whose first attempt already reached the server. */
+export async function findPhotoByClientUploadId(
+  uploadedBy: string,
+  clientUploadId: string,
+): Promise<Photo | null> {
+  const row = await queryOne<PhotoRow>(
+    `select * from public.photos
+     where uploaded_by = $1 and client_upload_id = $2
+     limit 1`,
+    [uploadedBy, clientUploadId],
+  );
+  return row ? toPhoto(row) : null;
 }
 
 export async function updatePhoto(
@@ -1178,7 +1195,11 @@ export type PushSubscriptionRow = {
   user_id: string | null;
   guest_session_id: string | null;
   album_id: string | null;
+  notify_mode: NotifyMode;
 };
+
+const PUSH_COLS =
+  "s.id, s.endpoint, s.p256dh, s.auth, s.user_id, s.guest_session_id, s.album_id, s.notify_mode";
 
 export async function upsertPushSubscription(input: {
   endpoint: string;
@@ -1187,17 +1208,21 @@ export async function upsertPushSubscription(input: {
   userId?: string | null;
   guestSessionId?: string | null;
   albumId?: string | null;
+  /** Null keeps the stored mode; new rows default by viewer type. */
+  notifyMode?: NotifyMode | null;
 }) {
+  const fallback: NotifyMode = input.userId ? "instant" : "daily";
   await query(
     `insert into public.push_subscriptions
-       (endpoint, p256dh, auth, user_id, guest_session_id, album_id)
-     values ($1, $2, $3, $4, $5, $6)
+       (endpoint, p256dh, auth, user_id, guest_session_id, album_id, notify_mode)
+     values ($1, $2, $3, $4, $5, $6, coalesce($7, $8))
      on conflict (endpoint) do update
        set p256dh = excluded.p256dh,
            auth = excluded.auth,
            user_id = excluded.user_id,
            guest_session_id = excluded.guest_session_id,
            album_id = excluded.album_id,
+           notify_mode = coalesce($7, public.push_subscriptions.notify_mode),
            updated_at = now()`,
     [
       input.endpoint,
@@ -1206,7 +1231,25 @@ export async function upsertPushSubscription(input: {
       input.userId ?? null,
       input.guestSessionId ?? null,
       input.albumId ?? null,
+      input.notifyMode ?? null,
+      fallback,
     ],
+  );
+}
+
+export async function getPushSubscriptionByEndpoint(endpoint: string) {
+  return queryOne<PushSubscriptionRow>(
+    `select ${PUSH_COLS} from public.push_subscriptions s where s.endpoint = $1`,
+    [endpoint],
+  );
+}
+
+export async function setPushSubscriptionMode(endpoint: string, mode: NotifyMode) {
+  await query(
+    `update public.push_subscriptions
+     set notify_mode = $2, updated_at = now()
+     where endpoint = $1`,
+    [endpoint, mode],
   );
 }
 
@@ -1218,16 +1261,16 @@ export async function deletePushSubscriptionByEndpoint(endpoint: string) {
 
 export async function listPushSubscriptionsForUser(userId: string) {
   return query<PushSubscriptionRow>(
-    `select id, endpoint, p256dh, auth, user_id, guest_session_id, album_id
-     from public.push_subscriptions
-     where user_id = $1`,
+    `select ${PUSH_COLS}
+     from public.push_subscriptions s
+     where s.user_id = $1`,
     [userId],
   );
 }
 
 export async function listPushSubscriptionsForAlbumNotify(albumId: string) {
   return query<PushSubscriptionRow>(
-    `select s.id, s.endpoint, s.p256dh, s.auth, s.user_id, s.guest_session_id, s.album_id
+    `select ${PUSH_COLS}
      from public.push_subscriptions s
      where s.album_id = $1
         or s.user_id in (
@@ -1540,4 +1583,66 @@ export async function deleteDayVoiceNote(id: string) {
     [id],
   );
   return row?.storage_path ?? null;
+}
+
+/** sent_at of the latest digest before `digestDate`, i.e. where tonight's window starts. */
+export async function getPreviousDigestSentAt(albumId: string, digestDate: string) {
+  const row = await queryOne<{ sent_at: Date | string }>(
+    `select sent_at from public.push_digests
+     where album_id = $1 and digest_date < $2
+     order by digest_date desc
+     limit 1`,
+    [albumId, digestDate],
+  );
+  return row ? new Date(row.sent_at) : null;
+}
+
+/**
+ * Marks tonight's digest as sent. Returns false when another run already
+ * claimed it, so parallel instances never double-send.
+ */
+export async function claimDigest(albumId: string, digestDate: string) {
+  const rows = await query<{ album_id: string }>(
+    `insert into public.push_digests (album_id, digest_date)
+     values ($1, $2)
+     on conflict (album_id, digest_date) do nothing
+     returning album_id`,
+    [albumId, digestDate],
+  );
+  return rows.length > 0;
+}
+
+export async function setDigestPhotoCount(
+  albumId: string,
+  digestDate: string,
+  count: number,
+) {
+  await query(
+    `update public.push_digests set photo_count = $3
+     where album_id = $1 and digest_date = $2`,
+    [albumId, digestDate, count],
+  );
+}
+
+export type DigestPhotoRow = {
+  id: string;
+  uploaded_by: string;
+  author_name: string | null;
+  location_name: string | null;
+};
+
+export async function listPhotosCreatedBetween(
+  albumId: string,
+  since: Date,
+  until: Date,
+) {
+  return query<DigestPhotoRow>(
+    `select p.id, p.uploaded_by, u.display_name as author_name, p.location_name
+     from public.photos p
+     left join public.users u on u.id = p.uploaded_by
+     where p.album_id = $1 and p.deleted_at is null
+       and p.created_at > $2 and p.created_at <= $3
+     order by p.created_at asc`,
+    [albumId, since.toISOString(), until.toISOString()],
+  );
 }

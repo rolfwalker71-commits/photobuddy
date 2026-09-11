@@ -31,3 +31,6 @@ yarn-debug.log*
 yarn-error.log*
 .turbo
 *.tsbuildinfo
+
+# Backups (scripts/backup.sh)
+backups/

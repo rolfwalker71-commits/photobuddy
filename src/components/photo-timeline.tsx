@@ -214,6 +214,7 @@ export function PhotoTimeline({
                           photo={photo}
                           authorName={author}
                           lastSeenAt={lastSeenAt}
+                          viewerId={currentUserId}
                           duplicate={duplicateIds?.has(photo.id) ?? false}
                           favoriteSlot={
                             mode === "teilnehmer" && Boolean(onToggleHighlight)

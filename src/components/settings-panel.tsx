@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BookImage, Map as MapIcon, MapPin, Trash2, Users } from "lucide-react";
 import { AlbumGuestLinkPanel } from "@/components/album-guest-link-panel";
+import { BackupPanel } from "@/components/backup-panel";
+import { DigestSettings } from "@/components/digest-settings";
 import { InstallButton } from "@/components/pwa/install-button";
 import { PushEnable } from "@/components/push-enable";
 import { api } from "@/lib/api";
@@ -102,6 +104,8 @@ export function SettingsPanel() {
               </span>
             </Link>
           </div>
+          <DigestSettings />
+          <BackupPanel />
         </section>
       ) : (
         <Link
@@ -212,7 +216,8 @@ export function SettingsPanel() {
         <h2 className="text-base font-semibold">Benachrichtigungen</h2>
         <p className="text-sm text-muted-foreground leading-snug">
           Ein Tipp — neue Fotos und Kommentare kommen als Hinweis. Kein extra
-          Konto, nur diese Erlaubnis.
+          Konto, nur diese Erlaubnis. Fotos wahlweise sofort oder gesammelt am
+          Abend.
         </p>
         <PushEnable mode="teilnehmer" shareKey={null} />
       </section>

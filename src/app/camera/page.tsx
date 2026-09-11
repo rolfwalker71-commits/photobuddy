@@ -5,8 +5,15 @@ import { AlbumPicker } from "@/components/album-picker";
 import { AppHeader } from "@/components/app-header";
 import { FloatingDock } from "@/components/floating-dock";
 import { UploadForm } from "@/components/upload-form";
+import { UploadQueuePanel } from "@/components/upload-queue-panel";
 import { api } from "@/lib/api";
-import { getStoredAlbumId, pickAlbumId, storeAlbumId } from "@/lib/album";
+import {
+  cacheAlbums,
+  getCachedAlbums,
+  getStoredAlbumId,
+  pickAlbumId,
+  storeAlbumId,
+} from "@/lib/album";
 import type { Album } from "@/lib/types";
 
 export default function CameraPage() {
@@ -16,13 +23,16 @@ export default function CameraPage() {
   useEffect(() => {
     void api<{ albums: Album[] }>("/api/albums")
       .then((data) => {
+        cacheAlbums(data.albums);
         setAlbums(data.albums);
         const id = pickAlbumId(data.albums, getStoredAlbumId());
         setAlbumId(id);
       })
       .catch(() => {
-        setAlbums([]);
-        setAlbumId(null);
+        // Offline: fall back to the last known albums so photos can be queued.
+        const cached = getCachedAlbums<Album>();
+        setAlbums(cached);
+        setAlbumId(pickAlbumId(cached, getStoredAlbumId()));
       });
   }, []);
 
@@ -48,7 +58,8 @@ export default function CameraPage() {
         }
         subtitle="Kamera oder mehrere aus der Galerie"
       />
-      <main className="mx-auto max-w-lg px-4 py-4">
+      <main className="mx-auto max-w-lg space-y-5 px-4 py-4">
+        <UploadQueuePanel />
         <UploadForm albumId={albumId} onAlbumChange={changeAlbum} albums={albums} />
       </main>
       <FloatingDock mode="teilnehmer" shareKey={null} />

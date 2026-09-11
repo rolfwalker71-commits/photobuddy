@@ -1,3 +1,4 @@
+import { isPhotoNew } from "@/lib/last-seen";
 import type { Photo, PhotoFilters } from "@/lib/types";
 
 export const emptyFilters: PhotoFilters = {
@@ -13,7 +14,7 @@ export const emptyFilters: PhotoFilters = {
 export function filterPhotos(
   photos: Photo[],
   filters: PhotoFilters,
-  opts?: { lastSeenAt?: string | null },
+  opts?: { lastSeenAt?: string | null; viewerId?: string | null },
 ) {
   return photos.filter((photo) => {
     if (filters.uploaderId && photo.uploaded_by !== filters.uploaderId) {
@@ -35,9 +36,11 @@ export function filterPhotos(
       if (!need.every((tag) => names.has(tag))) return false;
     }
     if (filters.onlyHighlights && !photo.is_highlight) return false;
-    if (filters.onlyNew) {
-      const lastSeen = opts?.lastSeenAt;
-      if (!lastSeen || photo.created_at <= lastSeen) return false;
+    if (
+      filters.onlyNew &&
+      !isPhotoNew(photo, opts?.lastSeenAt ?? null, opts?.viewerId ?? null)
+    ) {
+      return false;
     }
     return true;
   });

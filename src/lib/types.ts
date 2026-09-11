@@ -1,5 +1,8 @@
 export type UserRole = "teilnehmer" | "admin";
 
+/** instant: a push per new photo · daily: one evening summary per album. */
+export type NotifyMode = "instant" | "daily";
+
 export type Profile = {
   id: string;
   email: string;
