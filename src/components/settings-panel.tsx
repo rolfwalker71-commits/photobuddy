@@ -3,9 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BookImage, MapPin, Trash2, Users } from "lucide-react";
+import { BookImage, Map as MapIcon, MapPin, Trash2, Users } from "lucide-react";
 import { AlbumGuestLinkPanel } from "@/components/album-guest-link-panel";
-import { MapStylePicker } from "@/components/map-style-picker";
 import { InstallButton } from "@/components/pwa/install-button";
 import { PushEnable } from "@/components/push-enable";
 import { api } from "@/lib/api";
@@ -61,7 +60,7 @@ export function SettingsPanel() {
 
   return (
     <div className="space-y-6">
-      {profile?.role === "admin" ? (
+      {!profile ? null : profile.role === "admin" ? (
         <section className="space-y-3">
           <h2 className="px-1 text-base font-semibold">Verwaltung</h2>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -89,11 +88,36 @@ export function SettingsPanel() {
                 Alben anlegen, Teilnehmer zuordnen, Gäste-Links teilen.
               </span>
             </Link>
+            <Link
+              href="/settings/map"
+              id="darstellung"
+              className="flex min-h-11 scroll-mt-24 flex-col justify-center gap-1 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border"
+            >
+              <span className="inline-flex items-center gap-2 text-base font-semibold">
+                <MapIcon className="size-4" aria-hidden />
+                Darstellung
+              </span>
+              <span className="text-sm text-muted-foreground leading-snug">
+                Karte — Voyager, Satellit, Topo und weitere Stile.
+              </span>
+            </Link>
           </div>
         </section>
-      ) : null}
-
-      {profile?.role === "admin" ? <MapStylePicker /> : null}
+      ) : (
+        <Link
+          href="/settings/map"
+          id="darstellung"
+          className="flex min-h-11 scroll-mt-24 items-center gap-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border"
+        >
+          <MapIcon className="size-5 shrink-0" aria-hidden />
+          <span className="min-w-0">
+            <span className="block text-base font-semibold">Darstellung</span>
+            <span className="block text-sm text-muted-foreground leading-snug">
+              Karte — aktueller Stil sichtbar. Wechseln können nur Admins.
+            </span>
+          </span>
+        </Link>
+      )}
 
       <Link
         href="/settings/trash"

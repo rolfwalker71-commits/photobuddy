@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { TileLayer, useMap } from "react-leaflet";
 import { useMapStyle } from "@/hooks/use-map-style";
+import type { MapStyle } from "@/lib/map-styles";
 
 function ClampMaxZoom({ maxZoom }: { maxZoom: number }) {
   const map = useMap();
@@ -13,8 +14,7 @@ function ClampMaxZoom({ maxZoom }: { maxZoom: number }) {
   return null;
 }
 
-export function BasemapLayer() {
-  const style = useMapStyle();
+export function BasemapTiles({ style }: { style: MapStyle }) {
   return (
     <>
       <ClampMaxZoom maxZoom={style.maxZoom} />
@@ -27,4 +27,9 @@ export function BasemapLayer() {
       />
     </>
   );
+}
+
+export function BasemapLayer() {
+  const style = useMapStyle();
+  return <BasemapTiles style={style} />;
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { BookImage, Users } from "lucide-react";
+import { BookImage, Map as MapIcon, Users } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Profile } from "@/lib/types";
 
@@ -37,6 +37,10 @@ export function AdminNavLinks({ compact = false }: { compact?: boolean }) {
       >
         <BookImage className="size-4" aria-hidden />
         Alben
+      </Link>
+      <Link href="/settings/map" className={itemClass}>
+        <MapIcon className="size-4" aria-hidden />
+        Karte
       </Link>
     </nav>
   );

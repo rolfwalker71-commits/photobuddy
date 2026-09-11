@@ -14,6 +14,7 @@ export function MapStylePicker() {
   const [selected, setSelected] = useState<MapStyleId>(DEFAULT_MAP_STYLE);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [canEdit, setCanEdit] = useState(false);
 
   useEffect(() => {
     api<{ map_style: string }>("/api/settings")
@@ -23,10 +24,13 @@ export function MapStylePicker() {
       .catch(() => {
         /* keep default */
       });
+    api<{ user: { role: string } }>("/api/auth/me")
+      .then((data) => setCanEdit(data.user.role === "admin"))
+      .catch(() => setCanEdit(false));
   }, []);
 
   async function choose(id: MapStyleId) {
-    if (id === selected || busy) return;
+    if (!canEdit || id === selected || busy) return;
     const previous = selected;
     setSelected(id);
     setBusy(true);
@@ -46,14 +50,25 @@ export function MapStylePicker() {
   }
 
   return (
-    <section className="space-y-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border">
+    <section
+      id="darstellung"
+      className="scroll-mt-24 space-y-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border"
+    >
       <h2 className="flex items-center gap-2 text-base font-semibold">
         <MapIcon className="size-4 shrink-0" aria-hidden />
         Darstellung
       </h2>
       <p className="text-sm text-muted-foreground leading-snug">
-        Kartenstil für Galerie, Foto-Ausschnitt und Gäste-Links.
+        {canEdit
+          ? "Kartenstil für Galerie, Foto-Ausschnitt und Gäste-Links. Tippen speichert für alle."
+          : "Aktueller Kartenstil für alle. Wechseln können nur Admins."}
       </p>
+      <a
+        href="/map-compare.html"
+        className="inline-flex min-h-11 items-center text-sm font-medium text-primary"
+      >
+        Stile vergleichen
+      </a>
       <div
         role="radiogroup"
         aria-label="Kartenstil"
@@ -67,13 +82,13 @@ export function MapStylePicker() {
               type="button"
               role="radio"
               aria-checked={active}
-              disabled={busy}
+              disabled={busy || !canEdit}
               onClick={() => void choose(style.id)}
               className={`min-h-11 rounded-2xl p-3 text-left ring-1 transition ${
                 active
                   ? "bg-muted ring-2 ring-primary"
-                  : "bg-background ring-border hover:bg-muted"
-              }`}
+                  : "bg-background ring-border"
+              } ${canEdit && !active ? "hover:bg-muted" : ""}`}
             >
               <span
                 className="mb-2 flex h-10 overflow-hidden rounded-xl"
