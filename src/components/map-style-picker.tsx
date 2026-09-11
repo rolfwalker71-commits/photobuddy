@@ -57,7 +57,7 @@ export function MapStylePicker() {
       <div
         role="radiogroup"
         aria-label="Kartenstil"
-        className="grid gap-2 sm:grid-cols-2"
+        className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3"
       >
         {MAP_STYLE_LIST.map((style) => {
           const active = style.id === selected;
