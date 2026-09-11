@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, MoonStar, Sparkles } from "lucide-react";
 import { AlbumPicker } from "@/components/album-picker";
 import { AppHeader } from "@/components/app-header";
+import { DownloadZipDialog } from "@/components/download-zip-dialog";
 import { FloatingDock } from "@/components/floating-dock";
 import { PhotoFiltersSheet } from "@/components/photo-filters";
 import { PhotoGrid } from "@/components/photo-grid";
@@ -21,6 +22,7 @@ import { getGuestSessionId } from "@/lib/guest";
 import { readLocalLastSeen, writeLocalLastSeen } from "@/lib/last-seen";
 import { notifyPhotosChanged } from "@/lib/photos-sync";
 import type { Photo, PhotoFilters, Profile, ViewerMode } from "@/lib/types";
+import { filenameFromDisposition } from "@/lib/zip-download";
 
 type TripViewProps = {
   mode: ViewerMode;
@@ -53,7 +55,9 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
   const [filters, setFilters] = useState<PhotoFilters>(emptyFilters);
   const [openFilters, setOpenFilters] = useState(false);
   const [slideshowOpen, setSlideshowOpen] = useState(false);
+  const [zipOpen, setZipOpen] = useState(false);
   const [zipBusy, setZipBusy] = useState(false);
+  const [zipError, setZipError] = useState<string | null>(null);
   const [compareSeen, setCompareSeen] = useState<string | null>(null);
   const markedRef = useRef(false);
   const guestDefaulted = useRef(false);
@@ -201,11 +205,16 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
     }
   }
 
-  async function downloadZip() {
+  async function downloadZip(input: {
+    uploaderIds: string[];
+    from: string;
+    to: string;
+    filename: string;
+  }) {
     if (!currentAlbum) return;
     setZipBusy(true);
+    setZipError(null);
     try {
-      const useFilter = highlightCount === 0 && visible.length > 0;
       const res = await fetch(
         withKey(`/api/albums/${currentAlbum.id}/zip`, shareKey),
         {
@@ -213,7 +222,9 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
           credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            photo_ids: useFilter ? visible.map((photo) => photo.id) : undefined,
+            uploaderIds: input.uploaderIds,
+            from: input.from || undefined,
+            to: input.to || undefined,
           }),
         },
       );
@@ -225,11 +236,17 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
       const href = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = href;
-      link.download = "Oma-Auswahl.zip";
+      link.download = filenameFromDisposition(
+        res.headers.get("Content-Disposition"),
+        input.filename,
+      );
       link.click();
       URL.revokeObjectURL(href);
-    } catch {
-      /* ignore */
+      setZipOpen(false);
+    } catch (err) {
+      setZipError(
+        err instanceof Error ? err.message : "Download fehlgeschlagen.",
+      );
     } finally {
       setZipBusy(false);
     }
@@ -271,12 +288,15 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
               </button>
               <button
                 type="button"
-                disabled={zipBusy || visible.length === 0}
-                onClick={() => void downloadZip()}
+                disabled={zipBusy || photos.length === 0}
+                onClick={() => {
+                  setZipError(null);
+                  setZipOpen(true);
+                }}
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-muted px-4 text-sm font-medium disabled:opacity-50"
               >
                 <Download className="size-4" aria-hidden />
-                Oma-Auswahl
+                Download
               </button>
             </div>
             <div
@@ -407,6 +427,22 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
         open={slideshowOpen}
         onClose={() => setSlideshowOpen(false)}
       />
+      {currentAlbum ? (
+        <DownloadZipDialog
+          open={zipOpen}
+          busy={zipBusy}
+          error={zipError}
+          album={currentAlbum}
+          photos={photos}
+          profiles={profiles}
+          onClose={() => {
+            if (zipBusy) return;
+            setZipOpen(false);
+            setZipError(null);
+          }}
+          onConfirm={(input) => void downloadZip(input)}
+        />
+      ) : null}
       <FloatingDock mode={mode} shareKey={shareKey} />
     </div>
   );
