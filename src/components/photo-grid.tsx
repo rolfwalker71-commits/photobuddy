@@ -78,6 +78,11 @@ export function PhotoGrid({
               authorName={author}
               lastSeenAt={lastSeenAt}
               duplicate={duplicateIds?.has(photo.id) ?? false}
+              favoriteSlot={
+                mode === "teilnehmer" &&
+                Boolean(onToggleHighlight) &&
+                !selecting
+              }
             />
           </>
         );
@@ -119,7 +124,7 @@ export function PhotoGrid({
                 <button
                   type="button"
                   onClick={() => onToggleHighlight(photo)}
-                  className="absolute right-0.5 top-6 z-10 inline-flex min-h-10 min-w-10 items-center justify-center"
+                  className="absolute right-1.5 top-1.5 z-10 inline-flex min-h-10 min-w-10 items-start justify-end"
                   aria-label={
                     photo.is_highlight
                       ? "Highlight entfernen"

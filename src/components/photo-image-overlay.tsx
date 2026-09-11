@@ -1,6 +1,7 @@
 import { Copy, MapPin, MessageCircle, Sparkles } from "lucide-react";
 import { WeatherChip } from "@/components/weather-chip";
 import { formatOverlayWhen } from "@/lib/format-date";
+import { humanLocationName } from "@/lib/image";
 import { isPhotoNew } from "@/lib/last-seen";
 import type { Photo } from "@/lib/types";
 
@@ -19,6 +20,8 @@ type PhotoImageOverlayProps = {
   compact?: boolean;
   lastSeenAt?: string | null;
   duplicate?: boolean;
+  /** Leave room for the interactive favorite star on the same row. */
+  favoriteSlot?: boolean;
 };
 
 function photoHasGps(photo: Photo) {
@@ -31,10 +34,12 @@ export function PhotoImageOverlay({
   compact = false,
   lastSeenAt = null,
   duplicate = false,
+  favoriteSlot = false,
 }: PhotoImageOverlayProps) {
   const stamp = photo.taken_at ?? photo.created_at;
   const when = formatOverlayWhen(stamp);
   const hasGeo = photoHasGps(photo);
+  const placeName = humanLocationName(photo.location_name);
   const tags = photo.tags ?? [];
   const reactions = photo.reactions ?? [];
   const commentCount = photo.comment_count ?? 0;
@@ -43,7 +48,8 @@ export function PhotoImageOverlay({
   const isNew = isPhotoNew(photo.created_at, lastSeenAt);
   const hasMeta =
     visibleTags.length > 0 || commentCount > 0 || visibleReactions.length > 0;
-  const hasRightChrome = hasGeo || photo.is_highlight;
+  const showHighlight = photo.is_highlight && !favoriteSlot;
+  const hasRightChrome = hasGeo || showHighlight;
 
   return (
     <div className="pointer-events-none absolute inset-0">
@@ -107,31 +113,37 @@ export function PhotoImageOverlay({
           ) : null}
 
           {hasRightChrome ? (
-            <div className="z-[1] flex shrink-0 items-start gap-0.5">
-              {photo.is_highlight ? (
-                <span
-                  className={`inline-flex items-center justify-center rounded-full bg-neutral-900/65 text-amber-300 backdrop-blur-sm ${
-                    compact ? "size-4" : "size-5"
-                  }`}
-                >
-                  <Sparkles
-                    className={compact ? "size-2" : "size-2.5"}
-                    aria-hidden
-                  />
-                  <span className="sr-only">Highlight</span>
-                </span>
-              ) : null}
+            <div
+              className={`z-[1] flex shrink-0 items-center justify-end gap-0.5 ${
+                favoriteSlot ? "pr-8" : ""
+              }`}
+            >
               {hasGeo ? (
                 <span
-                  className={`inline-flex items-center justify-center rounded-full bg-neutral-900/65 text-white backdrop-blur-sm ${
-                    compact ? "size-4" : "size-5"
+                  className={`inline-flex shrink-0 items-center justify-center rounded-full bg-neutral-900/65 text-white backdrop-blur-sm ${
+                    compact ? "size-5" : "size-7"
                   }`}
                 >
                   <MapPin
-                    className={compact ? "size-2" : "size-2.5"}
+                    className={compact ? "size-2.5" : "size-3.5"}
                     aria-hidden
                   />
-                  <span className="sr-only">Mit Standort</span>
+                  <span className="sr-only">
+                    {placeName ? `Standort: ${placeName}` : "Mit Standort"}
+                  </span>
+                </span>
+              ) : null}
+              {showHighlight ? (
+                <span
+                  className={`inline-flex shrink-0 items-center justify-center rounded-full bg-neutral-900/65 text-amber-300 backdrop-blur-sm ${
+                    compact ? "size-5" : "size-7"
+                  }`}
+                >
+                  <Sparkles
+                    className={compact ? "size-2.5" : "size-3.5"}
+                    aria-hidden
+                  />
+                  <span className="sr-only">Highlight</span>
                 </span>
               ) : null}
             </div>
@@ -189,6 +201,24 @@ export function PhotoImageOverlay({
                 )}
               </span>
             ))}
+          </div>
+        ) : null}
+        {placeName ? (
+          <div
+            className={`flex justify-end ${
+              compact ? "px-1 pb-0.5" : "px-1.5 pb-1"
+            }`}
+          >
+            <span
+              title={placeName}
+              className={`inline-block max-w-[min(14rem,85%)] rounded-md bg-neutral-900/65 text-right font-medium leading-snug text-white backdrop-blur-sm ${
+                compact
+                  ? "px-1 py-0.5 text-[0.5625rem]"
+                  : "px-1.5 py-0.5 text-[0.625rem]"
+              }`}
+            >
+              <span className="line-clamp-2 break-words">{placeName}</span>
+            </span>
           </div>
         ) : null}
         <span
