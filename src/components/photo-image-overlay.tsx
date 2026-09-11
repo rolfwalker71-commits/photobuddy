@@ -57,16 +57,16 @@ export function PhotoImageOverlay({
         className={`absolute inset-x-0 top-0 ${compact ? "p-1" : "p-1.5"}`}
       >
         <div className="relative flex items-start justify-between gap-1">
-          <div className="z-[1] flex min-w-0 max-w-[46%] flex-col items-start gap-0.5">
+          <div className="z-[1] flex w-max min-w-0 max-w-[46%] flex-col items-start gap-0.5 max-md:max-w-[78%]">
             <time
               dateTime={stamp}
               className={`inline-flex w-max max-w-full flex-col items-start rounded-lg bg-neutral-900/65 font-medium leading-snug text-white backdrop-blur-sm ${
                 compact
-                  ? "gap-px px-1 py-0.5 text-[0.625rem]"
-                  : "gap-0.5 px-1.5 py-1 text-xs"
+                  ? "gap-px px-1 py-0.5 text-[0.625rem] max-md:min-w-[10ch] max-md:px-1.5 max-md:text-[0.5625rem]"
+                  : "gap-0.5 px-1.5 py-1 text-xs max-md:min-w-[10ch] max-md:px-2 max-md:text-[0.6875rem]"
               }`}
             >
-              <span className="break-words">{when.day}</span>
+              <span className="whitespace-nowrap">{when.day}</span>
               {when.time ? (
                 <span className="break-words tabular-nums">{when.time}</span>
               ) : null}
