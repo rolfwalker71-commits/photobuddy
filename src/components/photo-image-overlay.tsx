@@ -43,83 +43,100 @@ export function PhotoImageOverlay({
   const isNew = isPhotoNew(photo.created_at, lastSeenAt);
   const hasMeta =
     visibleTags.length > 0 || commentCount > 0 || visibleReactions.length > 0;
+  const hasRightChrome = hasGeo || photo.is_highlight;
 
   return (
     <div className="pointer-events-none absolute inset-0">
       <div
-        className={`absolute inset-x-0 top-0 flex items-start justify-between gap-1 ${
-          compact ? "p-1" : "p-1.5"
-        }`}
+        className={`absolute inset-x-0 top-0 ${compact ? "p-1" : "p-1.5"}`}
       >
-        <div className="flex min-w-0 flex-wrap items-center gap-0.5">
+        <div className="relative flex items-start justify-between gap-1">
+          <div className="z-[1] flex min-w-0 max-w-[46%] flex-col items-start gap-0.5">
+            <time
+              dateTime={stamp}
+              className={`inline-flex w-max max-w-full flex-col items-start rounded-lg bg-neutral-900/65 font-medium leading-snug text-white backdrop-blur-sm ${
+                compact
+                  ? "gap-px px-1 py-0.5 text-[0.625rem]"
+                  : "gap-0.5 px-1.5 py-1 text-xs"
+              }`}
+            >
+              <span className="break-words">{when.day}</span>
+              {when.time ? (
+                <span className="break-words tabular-nums">{when.time}</span>
+              ) : null}
+              {when.zurichTime ? (
+                <span
+                  className={`break-words tabular-nums text-white/75 ${
+                    compact ? "text-[0.5rem]" : "text-[0.625rem]"
+                  }`}
+                >
+                  {when.zurichTime} ZH
+                </span>
+              ) : null}
+            </time>
+            <WeatherChip
+              code={photo.weather_code}
+              tempC={photo.weather_temp_c}
+              compact={compact}
+            />
+            {duplicate ? (
+              <span
+                className={`inline-flex max-w-full items-center gap-0.5 rounded-full bg-neutral-900/45 font-medium leading-snug text-white/80 backdrop-blur-sm ${
+                  compact
+                    ? "px-1 py-0.5 text-[0.625rem]"
+                    : "px-1.5 py-0.5 text-[0.625rem]"
+                }`}
+                title="Ähnliches Foto im Album"
+              >
+                <Copy className={compact ? "size-2.5" : "size-3"} aria-hidden />
+                <span className="break-words">Doppelt</span>
+              </span>
+            ) : null}
+          </div>
+
           {isNew ? (
             <span
-              className={`rounded-full bg-accent font-semibold leading-none text-accent-foreground ${
+              className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent font-semibold leading-none text-accent-foreground ${
                 compact
                   ? "px-1.5 py-0.5 text-[0.625rem]"
-                  : "px-1.5 py-0.5 text-[0.7rem]"
+                  : "px-2 py-0.5 text-[0.7rem]"
               }`}
             >
               Neu
             </span>
           ) : null}
-          {photo.is_highlight ? (
-            <span
-              className={`inline-flex items-center rounded-full bg-neutral-900/65 text-amber-300 backdrop-blur-sm ${
-                compact ? "p-0.5" : "p-1"
-              }`}
-            >
-              <Sparkles className={compact ? "size-2.5" : "size-3"} aria-hidden />
-              <span className="sr-only">Highlight</span>
-            </span>
-          ) : null}
-          <WeatherChip
-            code={photo.weather_code}
-            tempC={photo.weather_temp_c}
-            compact={compact}
-          />
-          <time
-            dateTime={stamp}
-            className={`inline-flex w-max shrink-0 flex-col items-center justify-center rounded-lg bg-neutral-900/65 font-medium leading-tight text-white backdrop-blur-sm ${
-              compact
-                ? "gap-px px-1 py-0.5 text-[0.5rem]"
-                : "gap-px px-1.5 py-0.5 text-[0.5625rem]"
-            }`}
-          >
-            <span className="whitespace-nowrap">{when.day}</span>
-            {when.time ? (
-              <span className="whitespace-nowrap tabular-nums">{when.time}</span>
-            ) : null}
-            {when.zurichTime ? (
-              <span className="whitespace-nowrap tabular-nums text-white/80">
-                {when.zurichTime} ZH
-              </span>
-            ) : null}
-          </time>
-          {duplicate ? (
-            <span
-              className={`inline-flex items-center gap-0.5 rounded-full bg-neutral-900/45 font-medium text-white/80 backdrop-blur-sm ${
-                compact
-                  ? "px-1 py-0.5 text-[0.5rem]"
-                  : "px-1.5 py-0.5 text-[0.625rem]"
-              }`}
-              title="Ähnliches Foto im Album"
-            >
-              <Copy className={compact ? "size-2.5" : "size-3"} aria-hidden />
-              Doppelt
-            </span>
+
+          {hasRightChrome ? (
+            <div className="z-[1] flex shrink-0 items-start gap-0.5">
+              {photo.is_highlight ? (
+                <span
+                  className={`inline-flex items-center justify-center rounded-full bg-neutral-900/65 text-amber-300 backdrop-blur-sm ${
+                    compact ? "size-4" : "size-5"
+                  }`}
+                >
+                  <Sparkles
+                    className={compact ? "size-2" : "size-2.5"}
+                    aria-hidden
+                  />
+                  <span className="sr-only">Highlight</span>
+                </span>
+              ) : null}
+              {hasGeo ? (
+                <span
+                  className={`inline-flex items-center justify-center rounded-full bg-neutral-900/65 text-white backdrop-blur-sm ${
+                    compact ? "size-4" : "size-5"
+                  }`}
+                >
+                  <MapPin
+                    className={compact ? "size-2" : "size-2.5"}
+                    aria-hidden
+                  />
+                  <span className="sr-only">Mit Standort</span>
+                </span>
+              ) : null}
+            </div>
           ) : null}
         </div>
-        {hasGeo ? (
-          <span
-            className={`inline-flex shrink-0 items-center justify-center rounded-full bg-neutral-900/65 text-white backdrop-blur-sm ${
-              compact ? "size-5" : "size-6"
-            }`}
-          >
-            <MapPin className={compact ? "size-2.5" : "size-3"} aria-hidden />
-            <span className="sr-only">Mit Standort</span>
-          </span>
-        ) : null}
       </div>
       <div className="absolute inset-x-0 bottom-0">
         {hasMeta ? (
@@ -131,7 +148,7 @@ export function PhotoImageOverlay({
             {visibleTags.map((tag) => (
               <span
                 key={tag.tag_id}
-                className={`max-w-full truncate rounded-full bg-neutral-900/65 font-medium text-white backdrop-blur-sm ${
+                className={`max-w-full break-words rounded-full bg-neutral-900/65 font-medium leading-snug text-white backdrop-blur-sm ${
                   compact
                     ? "px-1.5 py-0.5 text-[0.625rem]"
                     : "px-2 py-0.5 text-[0.7rem]"
@@ -142,7 +159,7 @@ export function PhotoImageOverlay({
             ))}
             {commentCount > 0 ? (
               <span
-                className={`inline-flex items-center gap-0.5 rounded-full bg-neutral-900/65 font-medium text-white backdrop-blur-sm ${
+                className={`inline-flex items-center gap-0.5 rounded-full bg-neutral-900/65 font-medium leading-snug text-white backdrop-blur-sm ${
                   compact
                     ? "px-1.5 py-0.5 text-[0.625rem]"
                     : "px-2 py-0.5 text-[0.7rem]"
@@ -159,7 +176,7 @@ export function PhotoImageOverlay({
             {visibleReactions.map((reaction) => (
               <span
                 key={reaction.emoji}
-                className={`inline-flex max-w-full items-center gap-0.5 truncate rounded-full bg-neutral-900/65 font-medium text-white backdrop-blur-sm ${
+                className={`inline-flex max-w-full items-center gap-0.5 break-words rounded-full bg-neutral-900/65 font-medium leading-snug text-white backdrop-blur-sm ${
                   compact
                     ? "px-1.5 py-0.5 text-[0.625rem]"
                     : "px-2 py-0.5 text-[0.7rem]"

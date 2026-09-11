@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckSquare, Download, MoonStar, PartyPopper, Sparkles, Trash2 } from "lucide-react";
+import { Check, CheckSquare, Download, MoonStar, PartyPopper, Sparkles, Trash2 } from "lucide-react";
 import { GalleryBulkBar } from "@/components/gallery-bulk-bar";
 import { AlbumPicker } from "@/components/album-picker";
 import { AppHeader } from "@/components/app-header";
@@ -283,6 +283,10 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
     "h-full min-h-0 self-stretch rounded-full px-3 text-xs font-medium leading-none";
   const chipActive = "bg-card text-foreground shadow-sm";
   const chipIdle = "text-muted-foreground";
+  const action =
+    "inline-flex h-11 min-h-11 min-w-11 flex-1 items-center justify-center gap-0 rounded-2xl px-2 text-sm font-medium md:min-w-0 md:flex-none md:gap-2 md:px-4";
+  const actionIcon = "size-5 shrink-0 md:size-4";
+  const actionLabel = "sr-only md:not-sr-only";
 
   return (
     <div className="min-h-dvh pb-28">
@@ -304,14 +308,16 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
       <main className="mx-auto max-w-5xl space-y-4 px-4 py-4">
         {currentAlbum && photos.length > 0 ? (
           <div className="space-y-3">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto md:flex-wrap md:overflow-visible md:gap-2">
               <button
                 type="button"
                 onClick={() => setSlideshowOpen(true)}
-                className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-sm font-semibold text-primary-foreground sm:flex-none"
+                className={`${action} bg-primary font-semibold text-primary-foreground`}
+                aria-label="Heute Abend"
+                title="Heute Abend"
               >
-                <MoonStar className="size-4" aria-hidden />
-                Heute Abend
+                <MoonStar className={actionIcon} aria-hidden />
+                <span className={actionLabel}>Heute Abend</span>
               </button>
               <button
                 type="button"
@@ -320,17 +326,21 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
                   setZipError(null);
                   setZipOpen(true);
                 }}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-muted px-4 text-sm font-medium disabled:opacity-50"
+                className={`${action} bg-muted disabled:opacity-50`}
+                aria-label="Download"
+                title="Download"
               >
-                <Download className="size-4" aria-hidden />
-                Download
+                <Download className={actionIcon} aria-hidden />
+                <span className={actionLabel}>Download</span>
               </button>
               <Link
                 href={appHref(mode, shareKey, "recap")}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-muted px-4 text-sm font-medium"
+                className={`${action} bg-muted`}
+                aria-label="Rückblick"
+                title="Rückblick"
               >
-                <PartyPopper className="size-4" aria-hidden />
-                Rückblick
+                <PartyPopper className={actionIcon} aria-hidden />
+                <span className={actionLabel}>Rückblick</span>
               </Link>
               {mode === "teilnehmer" ? (
                 <>
@@ -340,18 +350,32 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
                       setSelecting((prev) => !prev);
                       setSelectedIds(new Set());
                     }}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-muted px-4 text-sm font-medium"
+                    className={`${action} ${
+                      selecting
+                        ? "bg-primary/15 text-primary"
+                        : "bg-muted"
+                    }`}
                     aria-pressed={selecting}
+                    aria-label={selecting ? "Fertig" : "Auswählen"}
+                    title={selecting ? "Fertig" : "Auswählen"}
                   >
-                    <CheckSquare className="size-4" aria-hidden />
-                    {selecting ? "Fertig" : "Auswählen"}
+                    {selecting ? (
+                      <Check className={actionIcon} aria-hidden />
+                    ) : (
+                      <CheckSquare className={actionIcon} aria-hidden />
+                    )}
+                    <span className={actionLabel}>
+                      {selecting ? "Fertig" : "Auswählen"}
+                    </span>
                   </button>
                   <Link
                     href={appHref(mode, shareKey, "trash")}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-muted px-4 text-sm font-medium"
+                    className={`${action} bg-muted`}
+                    aria-label="Papierkorb"
+                    title="Papierkorb"
                   >
-                    <Trash2 className="size-4" aria-hidden />
-                    Papierkorb
+                    <Trash2 className={actionIcon} aria-hidden />
+                    <span className={actionLabel}>Papierkorb</span>
                   </Link>
                 </>
               ) : null}

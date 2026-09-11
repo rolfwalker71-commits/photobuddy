@@ -119,7 +119,7 @@ export function PhotoGrid({
                 <button
                   type="button"
                   onClick={() => onToggleHighlight(photo)}
-                  className="absolute right-2 top-8 z-10 inline-flex size-11 items-center justify-center rounded-2xl bg-neutral-900/65 text-white backdrop-blur-sm"
+                  className="absolute right-0.5 top-6 z-10 inline-flex min-h-10 min-w-10 items-center justify-center"
                   aria-label={
                     photo.is_highlight
                       ? "Highlight entfernen"
@@ -127,9 +127,11 @@ export function PhotoGrid({
                   }
                   aria-pressed={photo.is_highlight}
                 >
-                  <Star
-                    className={`size-5 ${photo.is_highlight ? "fill-amber-300 text-amber-300" : ""}`}
-                  />
+                  <span className="inline-flex size-7 items-center justify-center rounded-full bg-neutral-900/65 text-white backdrop-blur-sm">
+                    <Star
+                      className={`size-3.5 ${photo.is_highlight ? "fill-amber-300 text-amber-300" : ""}`}
+                    />
+                  </span>
                 </button>
               ) : null}
             </div>
