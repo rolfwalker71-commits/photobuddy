@@ -61,3 +61,65 @@ export function formatAppDateTime(value: string | Date | null | undefined): stri
   if (!date) return typeof value === "string" ? value : "";
   return `${formatAppDate(date)} ${formatAppTime(date)}`;
 }
+
+export const ZURICH_TZ = "Europe/Zurich";
+
+function formatInZone(
+  value: string | Date | null | undefined,
+  timeZone: string,
+): { day: string; time: string } | null {
+  const date = parseAppDate(value);
+  if (!date) return null;
+  const parts = new Intl.DateTimeFormat("de-CH", {
+    timeZone,
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? "";
+  const day = `${get("day")}.${get("month")}.${get("year")}`;
+  const time = `${get("hour")}:${get("minute")}`;
+  if (!get("day") || !get("hour")) return null;
+  return { day, time };
+}
+
+/** Local/EXIF capture time plus Zurich suffix when the clocks differ. */
+export function formatOverlayWhen(value: string | Date | null | undefined): {
+  day: string;
+  time: string | null;
+  zurichTime: string | null;
+} {
+  const date = parseAppDate(value);
+  if (!date) {
+    return {
+      day: typeof value === "string" ? value : "",
+      time: null,
+      zurichTime: null,
+    };
+  }
+  const day = formatAppDate(date);
+  const time = formatAppTime(date) || null;
+  const zurich = formatInZone(date, ZURICH_TZ);
+  const same = Boolean(
+    zurich && zurich.day === day && zurich.time === time,
+  );
+  return {
+    day,
+    time,
+    zurichTime: same || !zurich?.time ? null : zurich.time,
+  };
+}
+
+export function formatAppDateTimeWithZurich(
+  value: string | Date | null | undefined,
+): string {
+  const overlay = formatOverlayWhen(value);
+  if (!overlay.day) return typeof value === "string" ? value : "";
+  const local = overlay.time ? `${overlay.day} ${overlay.time}` : overlay.day;
+  if (!overlay.zurichTime) return local;
+  return `${local} · ${overlay.zurichTime} ZH`;
+}

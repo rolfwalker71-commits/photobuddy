@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Copy, Link2 } from "lucide-react";
+import { ShareQr } from "@/components/share-qr";
 import { AlbumPicker } from "@/components/album-picker";
 import { api } from "@/lib/api";
 import { getStoredAlbumId, pickAlbumId, storeAlbumId } from "@/lib/album";
@@ -92,6 +93,7 @@ export function AlbumGuestLinkPanel() {
             <Copy className="size-4" aria-hidden />
             Link kopieren
           </button>
+          <ShareQr url={href} label="QR-Code Gäste-Link — zum Ausdrucken" />
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">

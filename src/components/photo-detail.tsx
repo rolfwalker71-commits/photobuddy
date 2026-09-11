@@ -17,7 +17,8 @@ import {
   parseCoordPair,
   toValidCoordPair,
 } from "@/lib/coords";
-import { formatAppDateTime } from "@/lib/format-date";
+import { formatAppDateTimeWithZurich } from "@/lib/format-date";
+import { WeatherChip } from "@/components/weather-chip";
 import { hasGuestName, storeGuestName } from "@/lib/guest";
 import { humanLocationName } from "@/lib/image";
 import { appHref } from "@/lib/paths";
@@ -57,7 +58,7 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
     prev: PhotoNeighbor | null;
     next: PhotoNeighbor | null;
   }>({ prev: null, next: null });
-  const photoRef = useRef<HTMLImageElement>(null);
+  const photoRef = useRef<HTMLElement | null>(null);
   const [photoHeight, setPhotoHeight] = useState(0);
   const canEdit = mode === "teilnehmer";
 
@@ -119,15 +120,17 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
   }, [mode, neighbors.next, neighbors.prev, router, shareKey]);
 
   useEffect(() => {
-    const img = photoRef.current;
-    if (!img) return;
-    const sync = () => setPhotoHeight(img.getBoundingClientRect().height);
+    const node = photoRef.current;
+    if (!node) return;
+    const sync = () => setPhotoHeight(node.getBoundingClientRect().height);
     sync();
-    img.addEventListener("load", sync);
+    node.addEventListener("load", sync);
+    node.addEventListener("loadedmetadata", sync);
     const ro = new ResizeObserver(sync);
-    ro.observe(img);
+    ro.observe(node);
     return () => {
-      img.removeEventListener("load", sync);
+      node.removeEventListener("load", sync);
+      node.removeEventListener("loadedmetadata", sync);
       ro.disconnect();
     };
   }, [photo]);
@@ -320,7 +323,12 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
 
   async function removePhoto() {
     if (!canEdit || !photo) return;
-    if (!window.confirm("Dieses Foto wirklich löschen?")) return;
+    if (
+      !window.confirm(
+        "Dieses Foto in den Papierkorb legen? 30 Tage lang wiederherstellbar.",
+      )
+    )
+      return;
     await api(`/api/photos/${photo.id}`, { method: "DELETE" });
     notifyPhotosChanged();
     router.refresh();
@@ -335,7 +343,7 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
   }
 
   const taken = photo.taken_at ?? photo.created_at;
-  const when = formatAppDateTime(taken) || taken;
+  const when = formatAppDateTimeWithZurich(taken) || taken;
 
   const resolvedMapCoords = mapCoords();
   const canSuggestPlace = validInputCoords() != null;
@@ -570,8 +578,18 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
           </div>
         ) : null}
 
-        <p className="text-xs text-muted-foreground sm:text-sm">
-          {profile?.display_name ?? "Teilnehmer"} · {when}
+        <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground sm:text-sm">
+          <span>
+            {profile?.display_name ?? "Teilnehmer"} · {when}
+          </span>
+          <WeatherChip
+            code={photo.weather_code}
+            tempC={photo.weather_temp_c}
+          />
+        </p>
+        <p className="text-[0.7rem] leading-snug text-muted-foreground">
+          Aufnahmezeit kommt aus EXIF DateTimeOriginal, sonst von Gerät oder
+          Upload. ZH = Europe/Zurich, nur wenn die Uhren abweichen.
         </p>
         {locationLine ? (
           <p className="flex items-start gap-1 text-xs text-muted-foreground sm:text-sm">

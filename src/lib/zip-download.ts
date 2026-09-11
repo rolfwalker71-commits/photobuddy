@@ -92,10 +92,15 @@ export function zipFolderName(displayName: string) {
   return cleaned || "Unbekannt";
 }
 
-export function zipPhotoFilename(name: string, index: number) {
+export function zipPhotoFilename(
+  name: string,
+  index: number,
+  ext = "jpg",
+) {
   const cleaned =
     name.replace(/[^\w\u00C0-\u024f .-]+/g, "_").slice(0, 60) || "foto";
-  return `${String(index + 1).padStart(2, "0")}-${cleaned}.jpg`;
+  const suffix = ext.replace(/^\./, "") || "jpg";
+  return `${String(index + 1).padStart(2, "0")}-${cleaned}.${suffix}`;
 }
 
 export function zipEntryPath(folder: string, filename: string) {

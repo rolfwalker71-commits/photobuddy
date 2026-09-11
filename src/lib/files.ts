@@ -5,7 +5,7 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 
 export function photosDir() {
-  return process.env.PHOTOS_DIR || "/data/photos";
+  return process.env.PHOTOS_DIR || process.env.AUDIO_DIR || "/data/photos";
 }
 
 export function resolvePhotoPath(relative: string) {

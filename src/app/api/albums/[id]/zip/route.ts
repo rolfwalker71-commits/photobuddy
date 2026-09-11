@@ -10,6 +10,7 @@ import {
 } from "@/lib/auth/request";
 import { getAlbum, listPhotos, listProfiles } from "@/lib/db/queries";
 import { resolvePhotoPath } from "@/lib/files";
+import { extFromMime } from "@/lib/mime";
 import type { Photo } from "@/lib/types";
 import {
   contentDispositionAttachment,
@@ -97,7 +98,11 @@ async function buildZip(photos: Photo[]) {
       createReadStream(absolute),
       zipEntryPath(
         folder,
-        zipPhotoFilename(photo.title?.trim() || photo.id.slice(0, 8), index),
+        zipPhotoFilename(
+          photo.title?.trim() || photo.id.slice(0, 8),
+          index,
+          extFromMime(photo.mime_type, photo.kind === "video" ? "mp4" : "jpg"),
+        ),
       ),
     );
     added += 1;

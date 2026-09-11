@@ -14,6 +14,7 @@ const AUTH_REQUIRED = [
   "/settings",
   "/admin",
   "/photos",
+  "/recap",
 ];
 
 function isProtected(pathname: string) {

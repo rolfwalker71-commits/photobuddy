@@ -10,6 +10,7 @@ import {
 import type {
   Album,
   DayNote,
+  DayVoiceNote,
   Photo,
   PhotoTag,
   Profile,
@@ -32,6 +33,7 @@ export function useTripData(
   const [error, setError] = useState<string | null>(null);
   const [shareLabel, setShareLabel] = useState<string | null>(null);
   const [dayNotes, setDayNotes] = useState<DayNote[]>([]);
+  const [voiceNotes, setVoiceNotes] = useState<DayVoiceNote[]>([]);
   const [lastSeenAt, setLastSeenAt] = useState<string | null>(null);
   const stampRef = useRef<string | null>(null);
   const loadingRef = useRef(false);
@@ -64,6 +66,7 @@ export function useTripData(
           albums?: Album[];
           currentAlbum?: Album | null;
           dayNotes?: DayNote[];
+          voiceNotes?: DayVoiceNote[];
           lastSeenAt?: string | null;
         }>(
           guestSessionId
@@ -78,6 +81,7 @@ export function useTripData(
         setAlbums(data.albums ?? []);
         setCurrentAlbum(data.currentAlbum ?? null);
         setDayNotes(data.dayNotes ?? []);
+        setVoiceNotes(data.voiceNotes ?? []);
         setLastSeenAt(data.lastSeenAt ?? null);
         stampRef.current = data.stamp ?? `${data.photos.length}`;
       } catch (err) {
@@ -175,6 +179,8 @@ export function useTripData(
     shareLabel,
     dayNotes,
     setDayNotes,
+    voiceNotes,
+    setVoiceNotes,
     lastSeenAt,
     setLastSeenAt,
     patchPhoto,

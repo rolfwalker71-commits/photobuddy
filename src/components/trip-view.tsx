@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Download, MoonStar, Sparkles } from "lucide-react";
+import { CheckSquare, Download, MoonStar, PartyPopper, Sparkles, Trash2 } from "lucide-react";
+import { GalleryBulkBar } from "@/components/gallery-bulk-bar";
 import { AlbumPicker } from "@/components/album-picker";
 import { AppHeader } from "@/components/app-header";
 import { DownloadZipDialog } from "@/components/download-zip-dialog";
@@ -18,6 +20,8 @@ import { api, withKey } from "@/lib/api";
 import { formatDateRange } from "@/lib/album-label";
 import { emptyFilters, filterPhotos } from "@/lib/filters";
 import { formatAppDate, formatAppDateTime } from "@/lib/format-date";
+import { appHref } from "@/lib/paths";
+import { photoDayKey } from "@/lib/chapters";
 import { getGuestSessionId } from "@/lib/guest";
 import { readLocalLastSeen, writeLocalLastSeen } from "@/lib/last-seen";
 import { notifyPhotosChanged } from "@/lib/photos-sync";
@@ -47,8 +51,11 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
     shareLabel,
     dayNotes,
     setDayNotes,
+    voiceNotes,
+    setVoiceNotes,
     lastSeenAt,
     patchPhoto,
+    reload,
   } = useTripData(mode, shareKey, mode === "guest" ? null : albumId);
 
   const [me, setMe] = useState<Profile | null>(null);
@@ -59,6 +66,8 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
   const [zipBusy, setZipBusy] = useState(false);
   const [zipError, setZipError] = useState<string | null>(null);
   const [compareSeen, setCompareSeen] = useState<string | null>(null);
+  const [selecting, setSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const markedRef = useRef(false);
   const guestDefaulted = useRef(false);
 
@@ -155,6 +164,24 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
   );
 
   const showPhotos = useMemo(() => slideshowPhotos(photos), [photos]);
+  const duplicateIds = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const photo of photos) {
+      if (!photo.content_hash) continue;
+      counts.set(photo.content_hash, (counts.get(photo.content_hash) ?? 0) + 1);
+    }
+    const ids = new Set<string>();
+    for (const photo of photos) {
+      if (photo.content_hash && (counts.get(photo.content_hash) ?? 0) > 1) {
+        ids.add(photo.id);
+      }
+    }
+    return ids;
+  }, [photos]);
+  const selectedPhotos = useMemo(
+    () => visible.filter((photo) => selectedIds.has(photo.id)),
+    [visible, selectedIds],
+  );
 
   const title =
     mode === "guest"
@@ -173,7 +200,7 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
       ? "Karte"
       : view === "timeline"
         ? "Timeline"
-        : `${visible.length} Foto${visible.length === 1 ? "" : "s"}`;
+        : `${visible.length} Aufnahme${visible.length === 1 ? "" : "n"}`;
   const subtitle = filterDates ? `${viewLabel} · ${filterDates}` : viewLabel;
 
   function changeAlbum(id: string) {
@@ -298,6 +325,36 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
                 <Download className="size-4" aria-hidden />
                 Download
               </button>
+              <Link
+                href={appHref(mode, shareKey, "recap")}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-muted px-4 text-sm font-medium"
+              >
+                <PartyPopper className="size-4" aria-hidden />
+                Rückblick
+              </Link>
+              {mode === "teilnehmer" ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelecting((prev) => !prev);
+                      setSelectedIds(new Set());
+                    }}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-muted px-4 text-sm font-medium"
+                    aria-pressed={selecting}
+                  >
+                    <CheckSquare className="size-4" aria-hidden />
+                    {selecting ? "Fertig" : "Auswählen"}
+                  </button>
+                  <Link
+                    href={appHref(mode, shareKey, "trash")}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-muted px-4 text-sm font-medium"
+                  >
+                    <Trash2 className="size-4" aria-hidden />
+                    Papierkorb
+                  </Link>
+                </>
+              ) : null}
             </div>
             <div
               className="flex h-10 min-h-10 rounded-full bg-muted p-0.5"
@@ -397,11 +454,35 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
             shareKey={shareKey}
             albumId={currentAlbum?.id}
             dayNotes={dayNotes}
+            voiceNotes={voiceNotes}
             lastSeenAt={compareSeen}
             currentUserId={me?.id ?? null}
             isAdmin={me?.role === "admin"}
             onNotesChange={setDayNotes}
+            onVoiceNotesChange={setVoiceNotes}
             onToggleHighlight={toggleHighlight}
+            duplicateIds={duplicateIds}
+            onShiftDay={
+              mode === "teilnehmer" && currentAlbum
+                ? async (day, hours) => {
+                    const ids = visible
+                      .filter((photo) => photoDayKey(photo) === day)
+                      .map((photo) => photo.id);
+                    if (ids.length === 0) return;
+                    await api("/api/photos/bulk", {
+                      method: "POST",
+                      body: JSON.stringify({
+                        action: "shift",
+                        albumId: currentAlbum.id,
+                        photoIds: ids,
+                        hours,
+                      }),
+                    });
+                    notifyPhotosChanged();
+                    await reload({ silent: true });
+                  }
+                : undefined
+            }
           />
         ) : (
           <PhotoGrid
@@ -411,8 +492,34 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
             shareKey={shareKey}
             lastSeenAt={compareSeen}
             onToggleHighlight={toggleHighlight}
+            selecting={mode === "teilnehmer" && selecting}
+            selectedIds={selectedIds}
+            duplicateIds={duplicateIds}
+            onToggleSelect={(photo) => {
+              setSelectedIds((prev) => {
+                const next = new Set(prev);
+                if (next.has(photo.id)) next.delete(photo.id);
+                else next.add(photo.id);
+                return next;
+              });
+            }}
           />
         )}
+        {mode === "teilnehmer" && selecting && currentAlbum ? (
+          <GalleryBulkBar
+            albumId={currentAlbum.id}
+            albums={albums}
+            selected={selectedPhotos}
+            onClear={() => setSelectedIds(new Set())}
+            onSelectAll={() =>
+              setSelectedIds(new Set(visible.map((photo) => photo.id)))
+            }
+            onDone={() => {
+              setSelecting(false);
+              setSelectedIds(new Set());
+            }}
+          />
+        ) : null}
       </main>
       <PhotoFiltersSheet
         open={openFilters}

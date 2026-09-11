@@ -3,12 +3,14 @@ import {
   toAlbum,
   toComment,
   toDayNote,
+  toDayVoiceNote,
   toPhoto,
   toProfile,
   toReaction,
   toShareLink,
   toTag,
   type AlbumRow,
+  type DayVoiceNoteRow,
   type PhotoRow,
   type ShareLinkRow,
   type UserRow,
@@ -17,6 +19,9 @@ import type {
   Album,
   Comment,
   DayNote,
+  DayVoiceNote,
+  DuplicateHint,
+  MediaKind,
   Photo,
   PhotoReactionSummary,
   PhotoTag,
@@ -25,6 +30,9 @@ import type {
   ShareLink,
   UserRole,
 } from "@/lib/types";
+
+const VISIBLE = "deleted_at is null";
+const TRASH_FRESH = "deleted_at is not null and deleted_at > now() - interval '30 days'";
 
 const ALBUM_COLS =
   "id, name, cover_photo_id, starts_on, ends_on, created_at, updated_at";
@@ -135,7 +143,8 @@ export async function countOtherActiveAdmins(id: string) {
 
 export async function countPhotosByUser(id: string) {
   const row = await queryOne<{ n: string }>(
-    `select count(*)::text as n from public.photos where uploaded_by = $1`,
+    `select count(*)::text as n from public.photos
+     where uploaded_by = $1 and deleted_at is null`,
     [id],
   );
   return Number(row?.n ?? 0);
@@ -144,7 +153,7 @@ export async function countPhotosByUser(id: string) {
 export async function listPhotos(albumId: string): Promise<Photo[]> {
   const rows = await query<PhotoRow>(
     `select * from public.photos
-     where album_id = $1
+     where album_id = $1 and ${VISIBLE}
      order by coalesce(taken_at, created_at) desc`,
     [albumId],
   );
@@ -216,19 +225,25 @@ export async function getPhotosUpdatedStamp(albumId: string): Promise<string> {
     latest: Date | string | null;
   }>(
     `select
-       (select count(*)::text from public.photos where album_id = $1) as photos,
+       (select count(*)::text from public.photos where album_id = $1 and ${VISIBLE}) as photos,
        (select count(*)::text from public.comments c
-         join public.photos p on p.id = c.photo_id where p.album_id = $1) as comments,
+         join public.photos p on p.id = c.photo_id
+         where p.album_id = $1 and p.deleted_at is null) as comments,
        (select count(*)::text from public.reactions r
-         join public.photos p on p.id = r.photo_id where p.album_id = $1) as reactions,
+         join public.photos p on p.id = r.photo_id
+         where p.album_id = $1 and p.deleted_at is null) as reactions,
        greatest(
          (select max(greatest(created_at, updated_at, coalesce(taken_at, created_at)))
-           from public.photos where album_id = $1),
+           from public.photos where album_id = $1 and ${VISIBLE}),
          (select max(c.created_at) from public.comments c
-           join public.photos p on p.id = c.photo_id where p.album_id = $1),
+           join public.photos p on p.id = c.photo_id
+           where p.album_id = $1 and p.deleted_at is null),
          (select max(r.created_at) from public.reactions r
-           join public.photos p on p.id = r.photo_id where p.album_id = $1),
+           join public.photos p on p.id = r.photo_id
+           where p.album_id = $1 and p.deleted_at is null),
          (select max(greatest(created_at, updated_at)) from public.day_notes
+           where album_id = $1),
+         (select max(greatest(created_at, updated_at)) from public.day_voice_notes
            where album_id = $1)
        ) as latest`,
     [albumId],
@@ -239,7 +254,7 @@ export async function getPhotosUpdatedStamp(albumId: string): Promise<string> {
 
 export async function getPhoto(id: string): Promise<Photo | null> {
   const row = await queryOne<PhotoRow>(
-    `select * from public.photos where id = $1`,
+    `select * from public.photos where id = $1 and ${VISIBLE}`,
     [id],
   );
   return row ? toPhoto(row) : null;
@@ -249,7 +264,7 @@ export async function insertPhoto(input: {
   albumId: string;
   uploadedBy: string;
   storagePath: string;
-  thumbnailPath: string;
+  thumbnailPath: string | null;
   title: string | null;
   description: string | null;
   takenAt: string | null;
@@ -260,13 +275,19 @@ export async function insertPhoto(input: {
   height: number | null;
   mimeType: string;
   fileSize: number;
+  kind?: MediaKind;
+  durationMs?: number | null;
+  weatherTempC?: number | null;
+  weatherCode?: number | null;
+  contentHash?: string | null;
 }): Promise<Photo> {
   const row = await queryOne<PhotoRow>(
     `insert into public.photos (
        album_id, uploaded_by, storage_path, thumbnail_path, title, description,
        taken_at, latitude, longitude, location_name, width, height,
-       mime_type, file_size
-     ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+       mime_type, file_size, kind, duration_ms, weather_temp_c, weather_code,
+       content_hash
+     ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
      returning *`,
     [
       input.albumId,
@@ -283,6 +304,11 @@ export async function insertPhoto(input: {
       input.height,
       input.mimeType,
       input.fileSize,
+      input.kind ?? "photo",
+      input.durationMs ?? null,
+      input.weatherTempC ?? null,
+      input.weatherCode ?? null,
+      input.contentHash ?? null,
     ],
   );
   if (!row) throw new Error("Foto konnte nicht gespeichert werden.");
@@ -637,7 +663,9 @@ async function albumMemberMap() {
 
 async function albumPhotoCounts() {
   const rows = await query<{ album_id: string; n: string }>(
-    `select album_id, count(*)::text as n from public.photos group by album_id`,
+    `select album_id, count(*)::text as n from public.photos
+     where ${VISIBLE}
+     group by album_id`,
   );
   return new Map(rows.map((row) => [row.album_id, Number(row.n)]));
 }
@@ -676,6 +704,7 @@ async function albumDateRanges() {
             min(coalesce(taken_at, created_at)) as first_at,
             max(coalesce(taken_at, created_at)) as last_at
      from public.photos
+     where ${VISIBLE}
      group by album_id`,
   );
   return new Map(
@@ -696,7 +725,8 @@ async function albumCoverPaths() {
   }>(
     `select a.id as album_id, coalesce(p.thumbnail_path, p.storage_path) as path
      from public.albums a
-     join public.photos p on p.id = a.cover_photo_id`,
+     join public.photos p on p.id = a.cover_photo_id
+     where p.deleted_at is null`,
   );
   const highlights = await query<{
     album_id: string;
@@ -705,7 +735,7 @@ async function albumCoverPaths() {
     `select distinct on (album_id) album_id,
             coalesce(thumbnail_path, storage_path) as path
      from public.photos
-     where is_highlight = true
+     where is_highlight = true and ${VISIBLE}
      order by album_id, coalesce(taken_at, created_at) desc`,
   );
   const latest = await query<{
@@ -715,6 +745,7 @@ async function albumCoverPaths() {
     `select distinct on (album_id) album_id,
             coalesce(thumbnail_path, storage_path) as path
      from public.photos
+     where ${VISIBLE}
      order by album_id, coalesce(taken_at, created_at) desc`,
   );
   const map = new Map<string, string | null>();
@@ -908,7 +939,7 @@ export async function getAlbumPhotoNeighbors(
 ): Promise<{ prev: PhotoNeighbor | null; next: PhotoNeighbor | null }> {
   const rows = await query<PhotoNeighbor>(
     `select id, storage_path from public.photos
-     where album_id = $1
+     where album_id = $1 and ${VISIBLE}
      order by coalesce(taken_at, created_at) desc, id desc`,
     [albumId],
   );
@@ -922,7 +953,9 @@ export async function getAlbumPhotoNeighbors(
 
 export async function setPhotoHighlight(id: string, isHighlight: boolean) {
   const row = await queryOne<PhotoRow>(
-    `update public.photos set is_highlight = $2 where id = $1 returning *`,
+    `update public.photos set is_highlight = $2
+     where id = $1 and ${VISIBLE}
+     returning *`,
     [id, isHighlight],
   );
   return row ? toPhoto(row) : null;
@@ -932,7 +965,7 @@ export async function listPhotosByIds(albumId: string, ids: string[]) {
   if (ids.length === 0) return [];
   const rows = await query<PhotoRow>(
     `select * from public.photos
-     where album_id = $1 and id = any($2::uuid[])
+     where album_id = $1 and id = any($2::uuid[]) and ${VISIBLE}
      order by coalesce(taken_at, created_at) asc`,
     [albumId, ids],
   );
@@ -942,7 +975,7 @@ export async function listPhotosByIds(albumId: string, ids: string[]) {
 export async function listHighlightPhotos(albumId: string) {
   const rows = await query<PhotoRow>(
     `select * from public.photos
-     where album_id = $1 and is_highlight = true
+     where album_id = $1 and is_highlight = true and ${VISIBLE}
      order by coalesce(taken_at, created_at) asc`,
     [albumId],
   );
@@ -1237,4 +1270,274 @@ export async function hasPushSubscription(input: {
     return Boolean(row);
   }
   return false;
+}
+
+export async function findDuplicateInAlbum(
+  albumId: string,
+  contentHash: string,
+): Promise<DuplicateHint | null> {
+  if (!contentHash) return null;
+  const row = await queryOne<{
+    id: string;
+    author_name: string | null;
+  }>(
+    `select p.id, u.display_name as author_name
+     from public.photos p
+     left join public.users u on u.id = p.uploaded_by
+     where p.album_id = $1 and p.content_hash = $2 and p.deleted_at is null
+     order by p.created_at asc
+     limit 1`,
+    [albumId, contentHash],
+  );
+  if (!row) return null;
+  return {
+    photo_id: row.id,
+    author_name: row.author_name || "Unbekannt",
+  };
+}
+
+export async function updatePhotoWeather(
+  id: string,
+  input: { tempC: number; code: number },
+): Promise<Photo | null> {
+  const row = await queryOne<PhotoRow>(
+    `update public.photos
+     set weather_temp_c = $2, weather_code = $3
+     where id = $1 and ${VISIBLE}
+     returning *`,
+    [id, input.tempC, input.code],
+  );
+  return row ? toPhoto(row) : null;
+}
+
+export async function listPhotosNeedingWeather(albumId: string, limit = 40) {
+  const rows = await query<PhotoRow>(
+    `select * from public.photos
+     where album_id = $1 and ${VISIBLE}
+       and weather_code is null
+       and latitude is not null and longitude is not null
+       and taken_at is not null
+     order by coalesce(taken_at, created_at) desc
+     limit $2`,
+    [albumId, limit],
+  );
+  return rows.map(toPhoto);
+}
+
+export async function softDeletePhotos(ids: string[]) {
+  if (ids.length === 0) return [];
+  const rows = await query<PhotoRow>(
+    `update public.photos
+     set deleted_at = now()
+     where id = any($1::uuid[]) and ${VISIBLE}
+     returning *`,
+    [ids],
+  );
+  return rows.map(toPhoto);
+}
+
+export async function restorePhotos(ids: string[]) {
+  if (ids.length === 0) return [];
+  const rows = await query<PhotoRow>(
+    `update public.photos
+     set deleted_at = null
+     where id = any($1::uuid[]) and ${TRASH_FRESH}
+     returning *`,
+    [ids],
+  );
+  return rows.map(toPhoto);
+}
+
+export async function listTrashedPhotos(albumId: string): Promise<Photo[]> {
+  const rows = await query<PhotoRow>(
+    `select * from public.photos
+     where album_id = $1 and ${TRASH_FRESH}
+     order by deleted_at desc`,
+    [albumId],
+  );
+  return rows.map(toPhoto);
+}
+
+export async function getTrashedPhoto(id: string): Promise<Photo | null> {
+  const row = await queryOne<PhotoRow>(
+    `select * from public.photos where id = $1 and ${TRASH_FRESH}`,
+    [id],
+  );
+  return row ? toPhoto(row) : null;
+}
+
+export async function listExpiredTrash() {
+  return query<{
+    id: string;
+    storage_path: string;
+    thumbnail_path: string | null;
+  }>(
+    `select id, storage_path, thumbnail_path from public.photos
+     where deleted_at is not null
+       and deleted_at <= now() - interval '30 days'`,
+  );
+}
+
+export async function purgePhotosByIds(ids: string[]) {
+  if (ids.length === 0) return [];
+  const rows = await query<{
+    id: string;
+    storage_path: string;
+    thumbnail_path: string | null;
+  }>(
+    `delete from public.photos
+     where id = any($1::uuid[]) and deleted_at is not null
+     returning id, storage_path, thumbnail_path`,
+    [ids],
+  );
+  return rows;
+}
+
+export async function movePhotosToAlbum(ids: string[], albumId: string) {
+  if (ids.length === 0) return [];
+  const rows = await query<PhotoRow>(
+    `update public.photos
+     set album_id = $2
+     where id = any($1::uuid[]) and ${VISIBLE}
+     returning *`,
+    [ids, albumId],
+  );
+  return rows.map(toPhoto);
+}
+
+export async function updatePhotosLocation(
+  ids: string[],
+  input: {
+    locationName: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+  },
+) {
+  if (ids.length === 0) return [];
+  const touchGeo =
+    input.latitude !== undefined && input.longitude !== undefined;
+  const rows = await query<PhotoRow>(
+    touchGeo
+      ? `update public.photos
+         set location_name = $2, latitude = $3, longitude = $4
+         where id = any($1::uuid[]) and ${VISIBLE}
+         returning *`
+      : `update public.photos
+         set location_name = $2
+         where id = any($1::uuid[]) and ${VISIBLE}
+         returning *`,
+    touchGeo
+      ? [ids, input.locationName, input.latitude, input.longitude]
+      : [ids, input.locationName],
+  );
+  return rows.map(toPhoto);
+}
+
+export async function shiftPhotosTakenAt(ids: string[], hours: number) {
+  if (ids.length === 0) return [];
+  const rows = await query<PhotoRow>(
+    `update public.photos
+     set taken_at = coalesce(taken_at, created_at) + ($2 * interval '1 hour')
+     where id = any($1::uuid[]) and ${VISIBLE}
+     returning *`,
+    [ids, hours],
+  );
+  return rows.map(toPhoto);
+}
+
+const VOICE_NOTE_SELECT = `
+  n.id, n.album_id, n.note_date, n.author_id, n.storage_path, n.duration_ms,
+  n.mime_type, n.created_at, n.updated_at,
+  u.display_name as author_display_name
+`;
+
+export async function listDayVoiceNotes(albumId: string): Promise<DayVoiceNote[]> {
+  const rows = await query<DayVoiceNoteRow>(
+    `select ${VOICE_NOTE_SELECT}
+     from public.day_voice_notes n
+     left join public.users u on u.id = n.author_id
+     where n.album_id = $1
+     order by n.note_date desc`,
+    [albumId],
+  );
+  return rows.map(toDayVoiceNote);
+}
+
+export async function getDayVoiceNote(id: string) {
+  const row = await queryOne<DayVoiceNoteRow>(
+    `select ${VOICE_NOTE_SELECT}
+     from public.day_voice_notes n
+     left join public.users u on u.id = n.author_id
+     where n.id = $1`,
+    [id],
+  );
+  return row ? toDayVoiceNote(row) : null;
+}
+
+export async function getDayVoiceNoteForDay(albumId: string, noteDate: string) {
+  const row = await queryOne<DayVoiceNoteRow>(
+    `select ${VOICE_NOTE_SELECT}
+     from public.day_voice_notes n
+     left join public.users u on u.id = n.author_id
+     where n.album_id = $1 and n.note_date = $2
+     limit 1`,
+    [albumId, noteDate],
+  );
+  return row ? toDayVoiceNote(row) : null;
+}
+
+export async function upsertDayVoiceNote(input: {
+  albumId: string;
+  noteDate: string;
+  authorId: string;
+  storagePath: string;
+  durationMs: number;
+  mimeType: string | null;
+}): Promise<{ previousPath: string | null; note: DayVoiceNote }> {
+  const existing = await getDayVoiceNoteForDay(input.albumId, input.noteDate);
+  if (existing) {
+    const row = await queryOne<DayVoiceNoteRow>(
+      `update public.day_voice_notes
+       set author_id = $2, storage_path = $3, duration_ms = $4, mime_type = $5
+       where id = $1
+       returning id, album_id, note_date, author_id, storage_path, duration_ms,
+                 mime_type, created_at, updated_at,
+                 (select display_name from public.users where id = $2) as author_display_name`,
+      [
+        existing.id,
+        input.authorId,
+        input.storagePath,
+        input.durationMs,
+        input.mimeType,
+      ],
+    );
+    if (!row) throw new Error("Sprachnotiz konnte nicht ersetzt werden.");
+    return { previousPath: existing.storage_path, note: toDayVoiceNote(row) };
+  }
+  const row = await queryOne<DayVoiceNoteRow>(
+    `insert into public.day_voice_notes
+       (album_id, note_date, author_id, storage_path, duration_ms, mime_type)
+     values ($1, $2, $3, $4, $5, $6)
+     returning id, album_id, note_date, author_id, storage_path, duration_ms,
+               mime_type, created_at, updated_at,
+               (select display_name from public.users where id = $3) as author_display_name`,
+    [
+      input.albumId,
+      input.noteDate,
+      input.authorId,
+      input.storagePath,
+      input.durationMs,
+      input.mimeType,
+    ],
+  );
+  if (!row) throw new Error("Sprachnotiz konnte nicht gespeichert werden.");
+  return { previousPath: null, note: toDayVoiceNote(row) };
+}
+
+export async function deleteDayVoiceNote(id: string) {
+  const row = await queryOne<{ storage_path: string }>(
+    `delete from public.day_voice_notes where id = $1 returning storage_path`,
+    [id],
+  );
+  return row?.storage_path ?? null;
 }

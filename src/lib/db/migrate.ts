@@ -1,8 +1,10 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { unlink } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Pool } from "pg";
 import { ensureAdminUser } from "@/lib/db/bootstrap";
+import { resolvePhotoPath } from "@/lib/files";
 
 function findMigrationsDir() {
   const candidates = [join(process.cwd(), "db/migrations")];
@@ -77,8 +79,42 @@ export async function migrate() {
       }
     }
     await ensureAdminUser(pool);
+    await purgeExpiredTrash(pool);
     applied = true;
   } finally {
     await pool.end();
+  }
+}
+
+async function purgeExpiredTrash(pool: Pool) {
+  try {
+    const expired = await pool.query<{
+      storage_path: string;
+      thumbnail_path: string | null;
+    }>(
+      `select storage_path, thumbnail_path from public.photos
+       where deleted_at is not null
+         and deleted_at <= now() - interval '30 days'`,
+    );
+    for (const row of expired.rows) {
+      for (const rel of [row.storage_path, row.thumbnail_path]) {
+        if (!rel) continue;
+        try {
+          await unlink(resolvePhotoPath(rel));
+        } catch {
+          // already gone
+        }
+      }
+    }
+    if (expired.rows.length > 0) {
+      await pool.query(
+        `delete from public.photos
+         where deleted_at is not null
+           and deleted_at <= now() - interval '30 days'`,
+      );
+      console.log(`migrate: Papierkorb ${expired.rows.length} Einträge entfernt.`);
+    }
+  } catch {
+    // column may be missing mid-migrate; ignore
   }
 }

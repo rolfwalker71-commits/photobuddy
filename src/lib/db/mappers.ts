@@ -2,6 +2,7 @@ import type {
   Album,
   Comment,
   DayNote,
+  DayVoiceNote,
   Photo,
   PhotoTag,
   Profile,
@@ -57,6 +58,25 @@ export type PhotoRow = {
   mime_type: string | null;
   file_size: number | null;
   is_highlight?: boolean;
+  kind?: string | null;
+  duration_ms?: number | null;
+  weather_temp_c?: number | null;
+  weather_code?: number | null;
+  deleted_at?: Date | string | null;
+  content_hash?: string | null;
+  created_at: Date | string;
+  updated_at: Date | string;
+};
+
+export type DayVoiceNoteRow = {
+  id: string;
+  album_id: string;
+  note_date: Date | string;
+  author_id: string;
+  author_display_name?: string | null;
+  storage_path: string;
+  duration_ms: number;
+  mime_type: string | null;
   created_at: Date | string;
   updated_at: Date | string;
 };
@@ -117,6 +137,27 @@ export function toPhoto(row: PhotoRow): Photo {
     mime_type: row.mime_type,
     file_size: row.file_size,
     is_highlight: Boolean(row.is_highlight),
+    kind: row.kind === "video" ? "video" : "photo",
+    duration_ms: numOrNull(row.duration_ms),
+    weather_temp_c: numOrNull(row.weather_temp_c),
+    weather_code: numOrNull(row.weather_code),
+    deleted_at: isoOrNull(row.deleted_at),
+    content_hash: row.content_hash ?? null,
+    created_at: iso(row.created_at),
+    updated_at: iso(row.updated_at),
+  };
+}
+
+export function toDayVoiceNote(row: DayVoiceNoteRow): DayVoiceNote {
+  return {
+    id: row.id,
+    album_id: row.album_id,
+    note_date: dateOnly(row.note_date) ?? iso(row.note_date).slice(0, 10),
+    author_id: row.author_id,
+    author_display_name: row.author_display_name ?? null,
+    storage_path: row.storage_path,
+    duration_ms: Number(row.duration_ms) || 0,
+    mime_type: row.mime_type,
     created_at: iso(row.created_at),
     updated_at: iso(row.updated_at),
   };

@@ -8,6 +8,8 @@ export function publicPhotoUrl(path: string | null | undefined) {
 export function previewPhotoUrl(photo: {
   storage_path: string;
   thumbnail_path: string | null;
+  kind?: string | null;
 }) {
+  if (photo.kind === "video" && !photo.thumbnail_path) return "";
   return publicPhotoUrl(photo.thumbnail_path || photo.storage_path);
 }

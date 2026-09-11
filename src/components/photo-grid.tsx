@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Star } from "lucide-react";
+import { Check, Play, Star, Video } from "lucide-react";
 import { PhotoImageOverlay } from "@/components/photo-image-overlay";
 import { appHref } from "@/lib/paths";
 import { previewPhotoUrl } from "@/lib/storage";
@@ -14,6 +14,10 @@ type PhotoGridProps = {
   shareKey: string | null;
   lastSeenAt?: string | null;
   onToggleHighlight?: (photo: Photo) => void;
+  selecting?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (photo: Photo) => void;
+  duplicateIds?: Set<string>;
 };
 
 export function PhotoGrid({
@@ -23,6 +27,10 @@ export function PhotoGrid({
   shareKey,
   lastSeenAt = null,
   onToggleHighlight,
+  selecting = false,
+  selectedIds,
+  onToggleSelect,
+  duplicateIds,
 }: PhotoGridProps) {
   if (photos.length === 0) {
     return (
@@ -30,7 +38,7 @@ export function PhotoGrid({
         <p className="font-medium">Noch keine Fotos</p>
         <p className="mt-1 text-sm text-muted-foreground leading-snug">
           {mode === "teilnehmer"
-            ? "Nimm das erste Foto auf oder lade eines aus der Galerie hoch."
+            ? "Nimm das erste Foto auf oder lade ein kurzes Video aus der Galerie hoch."
             : "Sobald die Reisegruppe Fotos teilt, erscheinen sie hier."}
         </p>
       </div>
@@ -42,27 +50,72 @@ export function PhotoGrid({
       {photos.map((photo) => {
         const src = previewPhotoUrl(photo);
         const author = profiles[photo.uploaded_by]?.display_name ?? "Unbekannt";
+        const selected = selectedIds?.has(photo.id) ?? false;
+        const isVideo = photo.kind === "video";
+        const tile = (
+          <>
+            {src ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={src}
+                alt={photo.title || photo.description || `Foto von ${author}`}
+                className="aspect-[4/5] w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                loading="lazy"
+              />
+            ) : (
+              <div className="flex aspect-[4/5] w-full items-center justify-center bg-muted">
+                <Video className="size-8 text-muted-foreground" aria-hidden />
+              </div>
+            )}
+            {isVideo ? (
+              <span className="absolute left-2 bottom-10 z-[1] inline-flex items-center gap-1 rounded-full bg-neutral-900/70 px-2 py-0.5 text-[0.7rem] font-semibold text-white">
+                <Play className="size-3 fill-white" aria-hidden />
+                Video
+              </span>
+            ) : null}
+            <PhotoImageOverlay
+              photo={photo}
+              authorName={author}
+              lastSeenAt={lastSeenAt}
+              duplicate={duplicateIds?.has(photo.id) ?? false}
+            />
+          </>
+        );
         return (
           <li key={photo.id}>
             <div className="relative">
-              <Link
-                href={appHref(mode, shareKey, "photo", photo.id)}
-                className="group relative block overflow-hidden rounded-2xl bg-muted shadow-card ring-1 ring-border"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={src}
-                  alt={photo.title || photo.description || `Foto von ${author}`}
-                  className="aspect-[4/5] w-full object-cover transition duration-300 group-hover:scale-[1.03]"
-                  loading="lazy"
-                />
-                <PhotoImageOverlay
-                  photo={photo}
-                  authorName={author}
-                  lastSeenAt={lastSeenAt}
-                />
-              </Link>
-              {mode === "teilnehmer" && onToggleHighlight ? (
+              {selecting && onToggleSelect ? (
+                <button
+                  type="button"
+                  onClick={() => onToggleSelect(photo)}
+                  aria-pressed={selected}
+                  className={`group relative block w-full overflow-hidden rounded-2xl bg-muted shadow-card ring-1 ${
+                    selected ? "ring-2 ring-primary" : "ring-border"
+                  }`}
+                >
+                  {tile}
+                  <span
+                    className={`absolute left-2 top-2 z-10 inline-flex size-8 items-center justify-center rounded-full ${
+                      selected
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-neutral-900/55 text-white"
+                    }`}
+                  >
+                    <Check className="size-4" aria-hidden />
+                    <span className="sr-only">
+                      {selected ? "Auswahl entfernen" : "Auswählen"}
+                    </span>
+                  </span>
+                </button>
+              ) : (
+                <Link
+                  href={appHref(mode, shareKey, "photo", photo.id)}
+                  className="group relative block overflow-hidden rounded-2xl bg-muted shadow-card ring-1 ring-border"
+                >
+                  {tile}
+                </Link>
+              )}
+              {mode === "teilnehmer" && onToggleHighlight && !selecting ? (
                 <button
                   type="button"
                   onClick={() => onToggleHighlight(photo)}

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BookImage, MapPin, Users } from "lucide-react";
+import { BookImage, MapPin, Trash2, Users } from "lucide-react";
 import { AlbumGuestLinkPanel } from "@/components/album-guest-link-panel";
 import { MapStylePicker } from "@/components/map-style-picker";
 import { InstallButton } from "@/components/pwa/install-button";
@@ -94,6 +94,19 @@ export function SettingsPanel() {
       ) : null}
 
       {profile?.role === "admin" ? <MapStylePicker /> : null}
+
+      <Link
+        href="/settings/trash"
+        className="flex min-h-11 items-center gap-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border"
+      >
+        <Trash2 className="size-5" aria-hidden />
+        <span className="min-w-0">
+          <span className="block text-base font-semibold">Papierkorb</span>
+          <span className="block text-sm text-muted-foreground leading-snug">
+            Gelöschte Fotos 30 Tage wiederherstellen.
+          </span>
+        </span>
+      </Link>
 
       <AlbumGuestLinkPanel />
 

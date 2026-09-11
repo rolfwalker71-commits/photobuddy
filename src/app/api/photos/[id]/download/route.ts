@@ -3,6 +3,7 @@ import { stat } from "node:fs/promises";
 import { Readable } from "node:stream";
 import { HttpError, jsonError, requirePhotoAccess } from "@/lib/auth/request";
 import { resolvePhotoPath } from "@/lib/files";
+import { extFromMime } from "@/lib/mime";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -18,8 +19,12 @@ export async function GET(request: Request, ctx: Ctx) {
     const info = await stat(absolute).catch(() => null);
     if (!info?.isFile()) throw new HttpError(404, "Datei nicht gefunden.");
 
-    const base = safeFilename(photo.title?.trim() || `foto-${photo.id.slice(0, 8)}`);
-    const filename = base.toLowerCase().endsWith(".jpg") ? base : `${base}.jpg`;
+    const base = safeFilename(
+      photo.title?.trim() ||
+        `${photo.kind === "video" ? "video" : "foto"}-${photo.id.slice(0, 8)}`,
+    );
+    const ext = `.${extFromMime(photo.mime_type, photo.kind === "video" ? "mp4" : "jpg")}`;
+    const filename = base.toLowerCase().endsWith(ext) ? base : `${base}${ext}`;
     const stream = Readable.toWeb(createReadStream(absolute)) as ReadableStream;
 
     return new Response(stream, {

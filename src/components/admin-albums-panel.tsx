@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BookImage, Copy, RefreshCw } from "lucide-react";
+import { ShareQr } from "@/components/share-qr";
 import { albumSubtitle } from "@/lib/album-label";
 import { api } from "@/lib/api";
 import { getSiteUrl } from "@/lib/env";
@@ -497,7 +498,10 @@ export function AdminAlbumsPanel() {
                 <div className="space-y-2 rounded-2xl bg-background p-3 ring-1 ring-border">
                   <p className="text-sm font-medium">Gäste-Link</p>
                   {href ? (
-                    <p className="break-all text-xs text-muted-foreground">{href}</p>
+                    <>
+                      <p className="break-all text-xs text-muted-foreground">{href}</p>
+                      <ShareQr url={href} label="QR-Code Gäste-Link — zum Ausdrucken" />
+                    </>
                   ) : (
                     <p className="text-sm text-muted-foreground">Noch kein Link.</p>
                   )}

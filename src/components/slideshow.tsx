@@ -72,7 +72,14 @@ export function Slideshow({ photos, open, onClose }: SlideshowProps) {
 
   if (!open || !photo) return null;
 
-  const src = publicPhotoUrl(photo.storage_path);
+  const src =
+    photo.kind === "video"
+      ? photo.thumbnail_path
+        ? publicPhotoUrl(photo.thumbnail_path)
+        : ""
+      : publicPhotoUrl(photo.storage_path);
+  const videoSrc =
+    photo.kind === "video" ? publicPhotoUrl(photo.storage_path) : "";
   const label = photo.title?.trim() || "Diashow";
   const when = formatAppDateTime(photo.taken_at ?? photo.created_at);
 
@@ -83,7 +90,18 @@ export function Slideshow({ photos, open, onClose }: SlideshowProps) {
       aria-label="Heute Abend — Diashow"
       className="fixed inset-0 z-[80] bg-neutral-950 text-white"
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {videoSrc ? (
+        <video
+          src={videoSrc}
+          poster={src || undefined}
+          autoPlay
+          muted
+          playsInline
+          className="absolute inset-0 size-full object-contain"
+          onClick={() => setPaused((value) => !value)}
+        />
+      ) : (
+      // eslint-disable-next-line @next/next/no-img-element
       <img
         src={src}
         alt={label}
@@ -110,6 +128,7 @@ export function Slideshow({ photos, open, onClose }: SlideshowProps) {
           go(dx < 0 ? 1 : -1);
         }}
       />
+      )}
 
       <div className="pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-black/70 to-transparent px-3 pb-10 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <div className="pointer-events-auto mx-auto flex max-w-5xl items-start justify-between gap-3">

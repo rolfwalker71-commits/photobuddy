@@ -13,6 +13,7 @@ import {
   listAlbums,
   listAlbumsForUser,
   listDayNotes,
+  listDayVoiceNotes,
   listPhotosForGrid,
   listProfiles,
   listTags,
@@ -43,20 +44,21 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const guestSessionId = url.searchParams.get("guestSessionId");
 
-    const [photos, profiles, tags, stamp, dayNotes, visit] = current
+    const [photos, profiles, tags, stamp, dayNotes, voiceNotes, visit] = current
       ? await Promise.all([
           listPhotosForGrid(current.id),
           listProfiles(),
           listTags(),
           getPhotosUpdatedStamp(current.id),
           listDayNotes(current.id),
+          listDayVoiceNotes(current.id),
           getAlbumVisit({
             albumId: current.id,
             userId: viewer.mode === "teilnehmer" ? viewer.user.id : null,
             guestSessionId: viewer.mode === "guest" ? guestSessionId : null,
           }),
         ])
-      : [[], [], [], "empty", [], null];
+      : [[], [], [], "empty", [], [], null];
 
     const shareLabel =
       viewer.mode === "guest" && viewer.shareKey
@@ -73,6 +75,7 @@ export async function GET(request: Request) {
         albums: visible,
         currentAlbum: current,
         dayNotes,
+        voiceNotes,
         lastSeenAt: visit?.last_seen_at
           ? new Date(visit.last_seen_at).toISOString()
           : null,

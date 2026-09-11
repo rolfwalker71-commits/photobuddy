@@ -9,7 +9,7 @@ export function withShareKey(path: string, key: string | null) {
 export function appHref(
   mode: ViewerMode,
   key: string | null,
-  route: "gallery" | "map" | "timeline" | "camera" | "settings" | "photo",
+  route: "gallery" | "map" | "timeline" | "camera" | "settings" | "photo" | "recap" | "trash",
   photoId?: string,
 ) {
   if (mode === "guest") {
@@ -18,9 +18,11 @@ export function appHref(
     }
     if (route === "map") return withShareKey("/gallery/share/map", key);
     if (route === "timeline") return withShareKey("/gallery/share/timeline", key);
+    if (route === "recap") return withShareKey("/gallery/share/recap", key);
     return withShareKey("/gallery/share", key);
   }
   if (route === "photo" && photoId) return `/photos/${photoId}`;
   if (route === "gallery") return "/gallery";
+  if (route === "trash") return "/settings/trash";
   return `/${route}`;
 }

@@ -13,7 +13,7 @@ type PhotoStageProps = {
   next: PhotoNeighbor | null;
   onPrev: () => void;
   onNext: () => void;
-  imageRef: RefObject<HTMLImageElement | null>;
+  imageRef: RefObject<HTMLElement | null>;
 };
 
 function isTextEntryTarget(target: EventTarget | null) {
@@ -94,14 +94,30 @@ export function PhotoStage({
         start.current = null;
       }}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        ref={imageRef}
-        src={publicPhotoUrl(photo.storage_path)}
-        alt={photo.title || photo.description || "Reise-Foto"}
-        className="max-h-[80vh] w-full select-none object-contain"
-        draggable={false}
-      />
+      {photo.kind === "video" ? (
+        <video
+          ref={imageRef as RefObject<HTMLVideoElement | null>}
+          src={publicPhotoUrl(photo.storage_path)}
+          poster={
+            photo.thumbnail_path ? publicPhotoUrl(photo.thumbnail_path) : undefined
+          }
+          controls
+          playsInline
+          preload="metadata"
+          className="max-h-[80vh] w-full bg-black object-contain"
+        >
+          Video
+        </video>
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          ref={imageRef as RefObject<HTMLImageElement | null>}
+          src={publicPhotoUrl(photo.storage_path)}
+          alt={photo.title || photo.description || "Reise-Foto"}
+          className="max-h-[80vh] w-full select-none object-contain"
+          draggable={false}
+        />
+      )}
       <button
         type="button"
         aria-label="Vorheriges Foto"

@@ -29,6 +29,8 @@ export type PhotoReactionSummary = {
   names: string[];
 };
 
+export type MediaKind = "photo" | "video";
+
 export type Photo = {
   id: string;
   album_id: string;
@@ -46,11 +48,35 @@ export type Photo = {
   mime_type: string | null;
   file_size: number | null;
   is_highlight: boolean;
+  kind: MediaKind;
+  duration_ms: number | null;
+  weather_temp_c: number | null;
+  weather_code: number | null;
+  deleted_at: string | null;
+  content_hash: string | null;
   created_at: string;
   updated_at: string;
   comment_count?: number;
   reactions?: PhotoReactionSummary[];
   tags?: PhotoTag[];
+};
+
+export type DayVoiceNote = {
+  id: string;
+  album_id: string;
+  note_date: string;
+  author_id: string;
+  author_display_name: string | null;
+  storage_path: string;
+  duration_ms: number;
+  mime_type: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DuplicateHint = {
+  photo_id: string;
+  author_name: string;
 };
 
 export type Comment = {

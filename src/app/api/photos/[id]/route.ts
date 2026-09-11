@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
 import { HttpError, jsonError, requirePhotoAccess, requirePhotoEditor } from "@/lib/auth/request";
 import {
-  deletePhoto,
   getAlbumPhotoNeighbors,
   listProfiles,
   listTagsForPhoto,
+  softDeletePhotos,
   updatePhoto,
 } from "@/lib/db/queries";
-import { removePhotoFiles } from "@/lib/files";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -69,9 +68,8 @@ export async function DELETE(request: Request, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
     const { photo } = await requirePhotoEditor(request, id);
-    await deletePhoto(id);
-    await removePhotoFiles([photo.storage_path, photo.thumbnail_path]);
-    return NextResponse.json({ ok: true });
+    await softDeletePhotos([photo.id]);
+    return NextResponse.json({ ok: true, trashed: true });
   } catch (err) {
     return jsonError(err);
   }

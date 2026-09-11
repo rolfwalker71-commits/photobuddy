@@ -3,6 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, ImagePlus, LoaderCircle, MapPin, Upload } from "lucide-react";
+import {
+  MAX_VIDEO_BYTES,
+  MAX_VIDEO_MS,
+  readVideoMeta,
+  videoPosterBlob,
+} from "@/lib/media";
+import type { DuplicateHint } from "@/lib/types";
 import { AlbumPicker } from "@/components/album-picker";
 import { api } from "@/lib/api";
 import type { Album } from "@/lib/types";
@@ -35,6 +42,8 @@ type Draft = {
   tags: string;
   fromCamera: boolean;
   geoSource: "exif" | "device" | "none";
+  kind: "photo" | "video";
+  durationMs: number | null;
 };
 
 function revokeDrafts(items: Draft[]) {
@@ -87,10 +96,25 @@ function draftPlaceholder(file: File, fromCamera: boolean): Draft {
     tags: "",
     fromCamera,
     geoSource: "none",
+    kind: file.type.startsWith("video/") ? "video" : "photo",
+    durationMs: null,
   };
 }
 
 async function enrichDraft(draft: Draft, fallback: GeoCoords | null): Promise<Draft> {
+  if (draft.kind === "video") {
+    const meta = await readVideoMeta(draft.file);
+    if (meta.durationMs > MAX_VIDEO_MS + 500) {
+      throw new Error("Video darf höchstens 15 Sekunden lang sein.");
+    }
+    if (draft.file.size > MAX_VIDEO_BYTES) {
+      throw new Error("Video ist grösser als 40 MB.");
+    }
+    return {
+      ...draft,
+      durationMs: meta.durationMs,
+    };
+  }
   const exif = await readPhotoExif(draft.file);
   const hasExif = exif.latitude != null && exif.longitude != null;
   const next: Draft = {
@@ -128,12 +152,10 @@ async function postPhoto(
   draft: Draft,
   shared: { title: string; description: string },
   albumId: string,
+  keepDuplicate = false,
 ) {
-  const prepared = await prepareUploadFiles(draft.file);
   const form = new FormData();
   form.append("albumId", albumId);
-  form.append("file", prepared.full, "photo.jpg");
-  form.append("thumb", prepared.thumb, "thumb.jpg");
   form.append("title", shared.title);
   form.append("description", shared.description);
   form.append("tags", draft.tags);
@@ -141,12 +163,52 @@ async function postPhoto(
   form.append("latitude", isGeotaggingEnabled() ? draft.latitude : "");
   form.append("longitude", isGeotaggingEnabled() ? draft.longitude : "");
   form.append("locationName", draft.locationName.trim());
-  form.append("width", String(prepared.width));
-  form.append("height", String(prepared.height));
-  return api<{ photo: { id: string } }>("/api/photos", {
+  if (keepDuplicate) form.append("keepDuplicate", "1");
+
+  if (draft.kind === "video") {
+    const ext = draft.file.type.includes("mp4") ? "mp4" : "webm";
+    form.append("kind", "video");
+    form.append("file", draft.file, `clip.${ext}`);
+    form.append("durationMs", String(draft.durationMs ?? 0));
+    const poster = await videoPosterBlob(draft.file);
+    if (poster) form.append("thumb", poster, "thumb.jpg");
+    const meta = await readVideoMeta(draft.file);
+    form.append("width", String(meta.width));
+    form.append("height", String(meta.height));
+    if (!draft.durationMs) {
+      form.set("durationMs", String(meta.durationMs));
+    }
+  } else {
+    const prepared = await prepareUploadFiles(draft.file);
+    form.append("file", prepared.full, "photo.jpg");
+    form.append("thumb", prepared.thumb, "thumb.jpg");
+    form.append("width", String(prepared.width));
+    form.append("height", String(prepared.height));
+  }
+
+  const res = await fetch("/api/photos", {
     method: "POST",
     body: form,
+    credentials: "include",
   });
+  const data = (await res.json().catch(() => ({}))) as {
+    photo?: { id: string };
+    error?: string;
+    duplicate?: DuplicateHint;
+  };
+  if (res.status === 409 && data.duplicate) {
+    const keep = window.confirm(
+      `${data.error || "Ähnliches Foto schon vorhanden."}\n\nTrotzdem behalten?`,
+    );
+    if (!keep) {
+      throw new Error("Übersprungen — ähnliches Foto schon vorhanden.");
+    }
+    return postPhoto(draft, shared, albumId, true);
+  }
+  if (!res.ok) {
+    throw new Error(data.error || "Upload fehlgeschlagen.");
+  }
+  return data as { photo: { id: string } };
 }
 
 type UploadFormProps = {
@@ -577,12 +639,12 @@ export function UploadForm({ albumId, albums, onAlbumChange }: UploadFormProps) 
           <ImagePlus className="size-6" />
           <span className="text-sm font-medium leading-snug">Aus Galerie</span>
           <span className="text-[0.7rem] text-muted-foreground leading-snug">
-            Mehrere möglich
+            Fotos oder Videos bis 15 s
           </span>
           <input
             ref={galleryInputRef}
             type="file"
-            accept="image/*,image/heic,image/heif,.heic,.heif"
+            accept="image/*,image/heic,image/heif,.heic,.heif,video/*,.mp4,.webm,.mov"
             multiple
             className="sr-only"
             disabled={busy}
@@ -631,7 +693,7 @@ export function UploadForm({ albumId, albums, onAlbumChange }: UploadFormProps) 
           className="space-y-4 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border"
         >
           <p className="text-sm font-medium leading-snug">
-            {batch.length} Foto{batch.length === 1 ? "" : "s"} ausgewählt
+            {batch.length} Aufnahme{batch.length === 1 ? "" : "n"} ausgewählt
           </p>
           <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4">
             {batch.map((item, index) => (
@@ -750,6 +812,9 @@ export function UploadForm({ albumId, albums, onAlbumChange }: UploadFormProps) 
               value={draft.takenAt}
               onChange={(e) => setDraft({ ...draft, takenAt: e.target.value })}
             />
+            <span className="block text-[0.7rem] leading-snug text-muted-foreground">
+              Kommt aus EXIF DateTimeOriginal, sonst von Gerät oder Upload.
+            </span>
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="block space-y-1.5">
@@ -843,9 +908,10 @@ export function UploadForm({ albumId, albums, onAlbumChange }: UploadFormProps) 
 
       {!draft && batch.length === 0 ? (
         <p className="text-sm text-muted-foreground leading-snug">
-          Aus der Galerie kannst du mehrere Fotos auf einmal wählen. Jedes Bild
-          behält sein eigenes EXIF-GPS. Titel und Bemerkung oben gelten für alle
-          — leer lassen, wenn keins soll.
+          Aus der Galerie kannst du mehrere Fotos — oder kurze Videos bis
+          15&nbsp;Sekunden — auf einmal wählen. Jedes Bild behält sein eigenes
+          EXIF-GPS. Titel und Bemerkung oben gelten für alle — leer lassen, wenn
+          keins soll.
         </p>
       ) : null}
     </div>

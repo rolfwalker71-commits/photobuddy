@@ -1,5 +1,6 @@
-import { MapPin, MessageCircle, Sparkles } from "lucide-react";
-import { formatAppDate, formatAppTime } from "@/lib/format-date";
+import { Copy, MapPin, MessageCircle, Sparkles } from "lucide-react";
+import { WeatherChip } from "@/components/weather-chip";
+import { formatOverlayWhen } from "@/lib/format-date";
 import { isPhotoNew } from "@/lib/last-seen";
 import type { Photo } from "@/lib/types";
 
@@ -17,15 +18,8 @@ type PhotoImageOverlayProps = {
   authorName: string;
   compact?: boolean;
   lastSeenAt?: string | null;
+  duplicate?: boolean;
 };
-
-/** Overlay stamp: `10.09.2026` + `22:01` on two lines so the pill never ellipsizes. */
-function formatOverlayWhenParts(photo: Photo) {
-  const stamp = photo.taken_at ?? photo.created_at;
-  const day = formatAppDate(stamp) || stamp;
-  const time = formatAppTime(stamp);
-  return { day, time: time || null };
-}
 
 function photoHasGps(photo: Photo) {
   return photo.latitude != null && photo.longitude != null;
@@ -36,9 +30,10 @@ export function PhotoImageOverlay({
   authorName,
   compact = false,
   lastSeenAt = null,
+  duplicate = false,
 }: PhotoImageOverlayProps) {
   const stamp = photo.taken_at ?? photo.created_at;
-  const when = formatOverlayWhenParts(photo);
+  const when = formatOverlayWhen(stamp);
   const hasGeo = photoHasGps(photo);
   const tags = photo.tags ?? [];
   const reactions = photo.reactions ?? [];
@@ -78,6 +73,11 @@ export function PhotoImageOverlay({
               <span className="sr-only">Highlight</span>
             </span>
           ) : null}
+          <WeatherChip
+            code={photo.weather_code}
+            tempC={photo.weather_temp_c}
+            compact={compact}
+          />
           <time
             dateTime={stamp}
             className={`inline-flex w-max shrink-0 flex-col items-center justify-center rounded-lg bg-neutral-900/65 font-medium leading-tight text-white backdrop-blur-sm ${
@@ -90,7 +90,25 @@ export function PhotoImageOverlay({
             {when.time ? (
               <span className="whitespace-nowrap tabular-nums">{when.time}</span>
             ) : null}
+            {when.zurichTime ? (
+              <span className="whitespace-nowrap tabular-nums text-white/80">
+                {when.zurichTime} ZH
+              </span>
+            ) : null}
           </time>
+          {duplicate ? (
+            <span
+              className={`inline-flex items-center gap-0.5 rounded-full bg-neutral-900/45 font-medium text-white/80 backdrop-blur-sm ${
+                compact
+                  ? "px-1 py-0.5 text-[0.5rem]"
+                  : "px-1.5 py-0.5 text-[0.625rem]"
+              }`}
+              title="Ähnliches Foto im Album"
+            >
+              <Copy className={compact ? "size-2.5" : "size-3"} aria-hidden />
+              Doppelt
+            </span>
+          ) : null}
         </div>
         {hasGeo ? (
           <span
