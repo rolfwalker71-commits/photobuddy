@@ -55,10 +55,11 @@ export default function PhotoLocationMap({
   accentColor = "#0f766e",
 }: PhotoLocationMapProps) {
   const place = humanLocationName(locationName);
-  const coords = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
 
   return (
-    <div className="relative h-full w-full [&_.leaflet-bottom]:bottom-8">
+    <div
+      className={`relative h-full w-full ${place ? "[&_.leaflet-bottom]:bottom-8" : ""}`}
+    >
       <MapContainer
         center={[latitude, longitude]}
         zoom={15}
@@ -81,11 +82,13 @@ export default function PhotoLocationMap({
             <span className="sr-only">Standort</span>
           </span>
         </div>
-        <div className="absolute inset-x-0 bottom-0">
-          <span className="block bg-white/70 px-2 py-1.5 text-center text-xs font-medium leading-snug text-neutral-900 backdrop-blur-sm">
-            <span className="line-clamp-2 break-words">{place ?? coords}</span>
-          </span>
-        </div>
+        {place ? (
+          <div className="absolute inset-x-0 bottom-0">
+            <span className="block bg-white/70 px-2 py-1.5 text-center text-xs font-medium leading-snug text-neutral-900 backdrop-blur-sm">
+              <span className="line-clamp-2 break-words">{place}</span>
+            </span>
+          </div>
+        ) : null}
       </div>
     </div>
   );

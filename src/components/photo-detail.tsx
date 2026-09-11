@@ -17,7 +17,7 @@ import {
   parseCoordPair,
   toValidCoordPair,
 } from "@/lib/coords";
-import { formatAppDateTimeWithZurich } from "@/lib/format-date";
+import { formatAppDateTime } from "@/lib/format-date";
 import { WeatherChip } from "@/components/weather-chip";
 import { hasGuestName, storeGuestName } from "@/lib/guest";
 import { humanLocationName } from "@/lib/image";
@@ -343,7 +343,7 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
   }
 
   const taken = photo.taken_at ?? photo.created_at;
-  const when = formatAppDateTimeWithZurich(taken) || taken;
+  const when = formatAppDateTime(taken) || taken;
 
   const resolvedMapCoords = mapCoords();
   const canSuggestPlace = validInputCoords() != null;
@@ -351,11 +351,6 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
     ? locationName.trim() || photo.location_name
     : photo.location_name;
   const displayPlace = humanLocationName(photo.location_name);
-  const locationLine =
-    displayPlace ||
-    (resolvedMapCoords
-      ? formatCoordPair(resolvedMapCoords.latitude, resolvedMapCoords.longitude)
-      : null);
 
   return (
     <article className="mx-auto max-w-3xl space-y-3 pb-8">
@@ -587,14 +582,10 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
             tempC={photo.weather_temp_c}
           />
         </p>
-        <p className="text-[0.7rem] leading-snug text-muted-foreground">
-          Aufnahmezeit kommt aus EXIF DateTimeOriginal, sonst von Gerät oder
-          Upload. ZH = Europe/Zurich, nur wenn die Uhren abweichen.
-        </p>
-        {locationLine ? (
+        {displayPlace ? (
           <p className="flex items-start gap-1 text-xs text-muted-foreground sm:text-sm">
             <MapPin className="mt-0.5 size-3.5 shrink-0 sm:size-4" />
-            <span className="break-words">{locationLine}</span>
+            <span className="break-words">{displayPlace}</span>
           </p>
         ) : null}
 
