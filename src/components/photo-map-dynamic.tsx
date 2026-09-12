@@ -18,6 +18,7 @@ export function PhotoMapDynamic(props: {
   mode: ViewerMode;
   shareKey: string | null;
   lastSeenAt?: string | null;
+  viewerId?: string | null;
   focusDay?: string | null;
 }) {
   return <PhotoMap {...props} />;

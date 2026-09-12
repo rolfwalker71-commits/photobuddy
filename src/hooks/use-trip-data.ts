@@ -85,7 +85,13 @@ export function useTripData(
         setLastSeenAt(data.lastSeenAt ?? null);
         stampRef.current = data.stamp ?? `${data.photos.length}`;
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Laden fehlgeschlagen.");
+        setError(
+          err instanceof TypeError
+            ? "Keine Verbindung. Die Galerie lädt, sobald wieder Netz da ist."
+            : err instanceof Error
+              ? err.message
+              : "Laden fehlgeschlagen.",
+        );
       } finally {
         loadingRef.current = false;
         setLoading(false);
@@ -105,7 +111,8 @@ export function useTripData(
         { cache: "no-store" },
       );
       if (stampRef.current == null) {
-        stampRef.current = data.stamp;
+        // Never loaded (e.g. opened offline): the server is back, so load now.
+        await load({ silent: true });
         return;
       }
       if (data.stamp !== stampRef.current) {
@@ -132,9 +139,11 @@ export function useTripData(
     };
 
     const onVisible = () => refreshIfNeeded();
+    const onOnline = () => void load({ silent: true });
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("pageshow", onVisible);
     window.addEventListener("focus", onVisible);
+    window.addEventListener("online", onOnline);
 
     const unsubscribe = subscribePhotosChanged(() => {
       void load({ silent: true });
@@ -152,6 +161,7 @@ export function useTripData(
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("pageshow", onVisible);
       window.removeEventListener("focus", onVisible);
+      window.removeEventListener("online", onOnline);
       unsubscribe();
       window.clearInterval(timer);
     };

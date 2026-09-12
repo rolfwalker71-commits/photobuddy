@@ -8,10 +8,11 @@ import {
 import {
   addTagToPhoto,
   findDuplicateInAlbum,
+  findPhotoByClientUploadId,
   insertPhoto,
   updatePhotoWeather,
 } from "@/lib/db/queries";
-import { joinPhotoPath, savePhotoFile } from "@/lib/files";
+import { joinPhotoPath, removePhotoFiles, savePhotoFile } from "@/lib/files";
 import { mediaContentHash } from "@/lib/hash";
 import { extFromMime, isVideoMime } from "@/lib/mime";
 import { notifyNewPhoto } from "@/lib/push";
@@ -20,6 +21,7 @@ import { fetchArchiveWeather } from "@/lib/weather";
 const MAX_PHOTO_BYTES = 15 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 40 * 1024 * 1024;
 const MAX_VIDEO_MS = 15_500;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function numOrNull(value: FormDataEntryValue | null) {
   if (typeof value !== "string" || !value) return null;
@@ -40,6 +42,15 @@ export async function POST(request: Request) {
       albumId,
       { upload: true },
     );
+    const rawClientId = String(form.get("clientUploadId") ?? "").trim();
+    const clientUploadId = UUID.test(rawClientId) ? rawClientId : null;
+    if (clientUploadId) {
+      // The upload queue retries after lost responses; answer with the first result.
+      const existing = await findPhotoByClientUploadId(user.id, clientUploadId);
+      if (existing) {
+        return NextResponse.json({ photo: existing, duplicate: null, replayed: true });
+      }
+    }
     const full = form.get("file");
     const thumb = form.get("thumb");
     if (!(full instanceof File)) {
@@ -113,7 +124,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const photo = await insertPhoto({
+    const insert = insertPhoto({
       albumId,
       uploadedBy: user.id,
       storagePath,
@@ -133,7 +144,22 @@ export async function POST(request: Request) {
       weatherTempC,
       weatherCode,
       contentHash,
+      clientUploadId,
     });
+    let photo;
+    try {
+      photo = await insert;
+    } catch (err) {
+      // Two retries of the same queue item raced; keep the one that won.
+      if ((err as { code?: string }).code === "23505" && clientUploadId) {
+        await removePhotoFiles([storagePath, thumbnailPath]);
+        const existing = await findPhotoByClientUploadId(user.id, clientUploadId);
+        if (existing) {
+          return NextResponse.json({ photo: existing, duplicate: null, replayed: true });
+        }
+      }
+      throw err;
+    }
 
     if (photo.weather_code == null && weatherCode != null) {
       await updatePhotoWeather(photo.id, {

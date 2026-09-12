@@ -17,14 +17,20 @@ export function AdminNavLinks({ compact = false }: { compact?: boolean }) {
 
   if (!isAdmin) return null;
 
+  // Compact lives in the page header. Phones hide it: with the enlarged root
+  // type even icon buttons squeeze the title, and every admin page already
+  // links back to /settings, whose cards lead to the same places.
   const itemClass = compact
-    ? "inline-flex h-11 items-center justify-center rounded-2xl bg-muted px-3 text-sm font-medium"
+    ? "inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-muted px-3 text-sm font-medium"
     : "inline-flex h-11 items-center gap-2 rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground";
 
   return (
-    <nav aria-label="Administration" className="flex flex-wrap items-center gap-2">
+    <nav
+      aria-label="Administration"
+      className={`${compact ? "hidden md:flex" : "flex"} flex-wrap items-center gap-2`}
+    >
       <Link href="/settings/users" className={itemClass}>
-        <Users className="size-4" aria-hidden />
+        <Users className="size-4 shrink-0" aria-hidden />
         Teilnehmer
       </Link>
       <Link
@@ -35,11 +41,11 @@ export function AdminNavLinks({ compact = false }: { compact?: boolean }) {
             : "inline-flex h-11 items-center gap-2 rounded-2xl bg-muted px-4 text-sm font-medium"
         }
       >
-        <BookImage className="size-4" aria-hidden />
+        <BookImage className="size-4 shrink-0" aria-hidden />
         Alben
       </Link>
       <Link href="/settings/map" className={itemClass}>
-        <MapIcon className="size-4" aria-hidden />
+        <MapIcon className="size-4 shrink-0" aria-hidden />
         Karte
       </Link>
     </nav>

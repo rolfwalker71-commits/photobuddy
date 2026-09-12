@@ -9,7 +9,10 @@
     "prebuild": "node scripts/generate-icons.mjs",
     "build": "next build",
     "start": "next start -p 3388",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "browser-image-compression": "^2.0.2",
@@ -42,6 +45,7 @@
     "eslint-config-next": "^15.2.4",
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.17",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "vitest": "^3.2.7"
   }
 }

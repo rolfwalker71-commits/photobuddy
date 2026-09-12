@@ -4,13 +4,28 @@ import {
   assertCanAccessAlbum,
   jsonError,
   requireViewer,
+  type Viewer,
 } from "@/lib/auth/request";
 import {
   deletePushSubscriptionByEndpoint,
+  getPushSubscriptionByEndpoint,
   hasPushSubscription,
+  setPushSubscriptionMode,
   upsertPushSubscription,
+  type PushSubscriptionRow,
 } from "@/lib/db/queries";
+import { getDigestSettings } from "@/lib/digest";
 import { getVapidPublicKey } from "@/lib/push";
+import type { NotifyMode } from "@/lib/types";
+
+function parseNotifyMode(value: unknown): NotifyMode | null {
+  return value === "instant" || value === "daily" ? value : null;
+}
+
+function ownsSubscription(viewer: Viewer, sub: PushSubscriptionRow) {
+  if (viewer.mode === "teilnehmer") return sub.user_id === viewer.user.id;
+  return !sub.user_id && sub.album_id === viewer.albumId;
+}
 
 export async function GET(request: Request) {
   try {
@@ -22,6 +37,19 @@ export async function GET(request: Request) {
     if (viewer.mode === "guest" && albumId) {
       await assertCanAccessAlbum(viewer, albumId);
     }
+    const { hour: digestHour } = await getDigestSettings();
+    // With this device's endpoint we can answer exactly, including its mode.
+    const endpoint = url.searchParams.get("endpoint");
+    if (endpoint) {
+      const sub = await getPushSubscriptionByEndpoint(endpoint);
+      const owned = sub && ownsSubscription(viewer, sub) ? sub : null;
+      return NextResponse.json({
+        subscribed: Boolean(owned),
+        notify_mode: owned?.notify_mode ?? null,
+        digest_hour: digestHour,
+        publicKey: getVapidPublicKey(),
+      });
+    }
     const subscribed = await hasPushSubscription({
       userId: viewer.mode === "teilnehmer" ? viewer.user.id : null,
       guestSessionId: viewer.mode === "guest" ? guestSessionId : null,
@@ -29,6 +57,8 @@ export async function GET(request: Request) {
     });
     return NextResponse.json({
       subscribed,
+      notify_mode: null,
+      digest_hour: digestHour,
       publicKey: getVapidPublicKey(),
     });
   } catch (err) {
@@ -44,6 +74,7 @@ export async function POST(request: Request) {
       keys?: { p256dh?: string; auth?: string };
       guest_session_id?: string;
       album_id?: string;
+      notify_mode?: string;
     };
     const endpoint = body.endpoint?.trim() ?? "";
     const p256dh = body.keys?.p256dh?.trim() ?? "";
@@ -61,8 +92,30 @@ export async function POST(request: Request) {
       guestSessionId:
         viewer.mode === "guest" ? body.guest_session_id ?? null : null,
       albumId,
+      notifyMode: parseNotifyMode(body.notify_mode),
     });
     return NextResponse.json({ ok: true, publicKey: getVapidPublicKey() });
+  } catch (err) {
+    return jsonError(err);
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const viewer = await requireViewer(request);
+    const body = (await request.json()) as {
+      endpoint?: string;
+      notify_mode?: string;
+    };
+    const endpoint = body.endpoint?.trim() ?? "";
+    const mode = parseNotifyMode(body.notify_mode);
+    if (!endpoint || !mode) throw new HttpError(400, "Endpoint oder Modus fehlt.");
+    const sub = await getPushSubscriptionByEndpoint(endpoint);
+    if (!sub || !ownsSubscription(viewer, sub)) {
+      throw new HttpError(404, "Push-Abo nicht gefunden.");
+    }
+    await setPushSubscriptionMode(endpoint, mode);
+    return NextResponse.json({ ok: true, notify_mode: mode });
   } catch (err) {
     return jsonError(err);
   }

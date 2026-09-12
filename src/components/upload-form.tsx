@@ -9,7 +9,6 @@ import {
   readVideoMeta,
   videoPosterBlob,
 } from "@/lib/media";
-import type { DuplicateHint } from "@/lib/types";
 import { AlbumPicker } from "@/components/album-picker";
 import { api } from "@/lib/api";
 import type { Album } from "@/lib/types";
@@ -29,6 +28,14 @@ import {
   toDatetimeLocalValue,
 } from "@/lib/image";
 import { notifyPhotosChanged } from "@/lib/photos-sync";
+import {
+  discardUpload,
+  enqueueUpload,
+  keepDuplicateUpload,
+  waitForUpload,
+  type NewUpload,
+  type WaitResult,
+} from "@/lib/upload-queue";
 
 type Draft = {
   file: File;
@@ -148,67 +155,65 @@ async function draftFromFile(
   return enrichDraft(draftPlaceholder(file, fromCamera), fallback);
 }
 
-async function postPhoto(
+/** Compress now so the queue only stores small, ready-to-send files. */
+async function prepareUpload(
   draft: Draft,
   shared: { title: string; description: string },
   albumId: string,
-  keepDuplicate = false,
-) {
-  const form = new FormData();
-  form.append("albumId", albumId);
-  form.append("title", shared.title);
-  form.append("description", shared.description);
-  form.append("tags", draft.tags);
-  form.append("takenAt", draft.takenAt ? new Date(draft.takenAt).toISOString() : "");
-  form.append("latitude", isGeotaggingEnabled() ? draft.latitude : "");
-  form.append("longitude", isGeotaggingEnabled() ? draft.longitude : "");
-  form.append("locationName", draft.locationName.trim());
-  if (keepDuplicate) form.append("keepDuplicate", "1");
+): Promise<NewUpload> {
+  const geotag = isGeotaggingEnabled();
+  const fields = {
+    albumId,
+    title: shared.title,
+    description: shared.description,
+    tags: draft.tags,
+    takenAt: draft.takenAt ? new Date(draft.takenAt).toISOString() : "",
+    latitude: geotag ? draft.latitude : "",
+    longitude: geotag ? draft.longitude : "",
+    locationName: draft.locationName.trim(),
+    kind: draft.kind,
+    width: "",
+    height: "",
+    durationMs: "",
+  };
 
   if (draft.kind === "video") {
     const ext = draft.file.type.includes("mp4") ? "mp4" : "webm";
-    form.append("kind", "video");
-    form.append("file", draft.file, `clip.${ext}`);
-    form.append("durationMs", String(draft.durationMs ?? 0));
-    const poster = await videoPosterBlob(draft.file);
-    if (poster) form.append("thumb", poster, "thumb.jpg");
-    const meta = await readVideoMeta(draft.file);
-    form.append("width", String(meta.width));
-    form.append("height", String(meta.height));
-    if (!draft.durationMs) {
-      form.set("durationMs", String(meta.durationMs));
-    }
-  } else {
-    const prepared = await prepareUploadFiles(draft.file);
-    form.append("file", prepared.full, "photo.jpg");
-    form.append("thumb", prepared.thumb, "thumb.jpg");
-    form.append("width", String(prepared.width));
-    form.append("height", String(prepared.height));
+    const [poster, meta] = await Promise.all([
+      videoPosterBlob(draft.file),
+      readVideoMeta(draft.file),
+    ]);
+    return {
+      fields: {
+        ...fields,
+        width: String(meta.width),
+        height: String(meta.height),
+        durationMs: String(draft.durationMs || meta.durationMs),
+      },
+      file: draft.file,
+      fileName: `clip.${ext}`,
+      thumb: poster,
+    };
   }
 
-  const res = await fetch("/api/photos", {
-    method: "POST",
-    body: form,
-    credentials: "include",
-  });
-  const data = (await res.json().catch(() => ({}))) as {
-    photo?: { id: string };
-    error?: string;
-    duplicate?: DuplicateHint;
+  const prepared = await prepareUploadFiles(draft.file);
+  return {
+    fields: {
+      ...fields,
+      width: String(prepared.width),
+      height: String(prepared.height),
+    },
+    file: prepared.full,
+    fileName: "photo.jpg",
+    thumb: prepared.thumb,
   };
-  if (res.status === 409 && data.duplicate) {
-    const keep = window.confirm(
-      `${data.error || "Ähnliches Foto schon vorhanden."}\n\nTrotzdem behalten?`,
-    );
-    if (!keep) {
-      throw new Error("Übersprungen — ähnliches Foto schon vorhanden.");
-    }
-    return postPhoto(draft, shared, albumId, true);
+}
+
+function queueErrorMessage(err: unknown) {
+  if (err instanceof DOMException && err.name === "QuotaExceededError") {
+    return "Kein Speicher mehr frei auf dem Gerät — bitte zuerst die Warteschlange hochladen.";
   }
-  if (!res.ok) {
-    throw new Error(data.error || "Upload fehlgeschlagen.");
-  }
-  return data as { photo: { id: string } };
+  return err instanceof Error ? err.message : "Upload fehlgeschlagen.";
 }
 
 type UploadFormProps = {
@@ -231,11 +236,10 @@ export function UploadForm({ albumId, albums, onAlbumChange }: UploadFormProps) 
     null,
   );
   const [status, setStatus] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [geotag, setGeotag] = useState(true);
   const [locating, setLocating] = useState(false);
-  const [failedDrafts, setFailedDrafts] = useState<Draft[]>([]);
-  const [continueDrafts, setContinueDrafts] = useState<Draft[]>([]);
   const [geocoding, setGeocoding] = useState(false);
 
   useEffect(() => {
@@ -305,6 +309,7 @@ export function UploadForm({ albumId, albums, onAlbumChange }: UploadFormProps) 
     pickGen.current += 1;
     clearDevicePositionCache();
     setError(null);
+    setNotice(null);
     revokeDrafts(batch);
     setBatch([]);
     if (draft) revokeDrafts([draft]);
@@ -323,6 +328,7 @@ export function UploadForm({ albumId, albums, onAlbumChange }: UploadFormProps) 
     const gen = ++pickGen.current;
     clearDevicePositionCache();
     setError(null);
+    setNotice(null);
     if (draft) revokeDrafts([draft]);
     setDraft(null);
     revokeDrafts(batch);
@@ -378,16 +384,15 @@ export function UploadForm({ albumId, albums, onAlbumChange }: UploadFormProps) 
     }
     setBusy(true);
     setError(null);
+    setNotice(null);
     setStatus("Bild wird komprimiert…");
     try {
-      await api("/api/auth/me");
       let ready = draft;
       if (isGeotaggingEnabled() && (!ready.latitude || !ready.longitude)) {
         ready = await fillMissingGps(ready);
         setDraft(ready);
       }
-      setStatus("Upload läuft…");
-      const data = await postPhoto(
+      const upload = await prepareUpload(
         ready,
         {
           title: ready.title.trim(),
@@ -395,112 +400,87 @@ export function UploadForm({ albumId, albums, onAlbumChange }: UploadFormProps) 
         },
         albumId,
       );
-      notifyPhotosChanged();
-      router.refresh();
-      router.push(`/photos/${data.photo.id}`);
+      const id = await enqueueUpload(upload);
+      const leaveDraft = (message: string) => {
+        revokeDrafts([ready]);
+        setDraft(null);
+        setNotice(message);
+      };
+      if (!navigator.onLine) {
+        leaveDraft("Offline gespeichert — geht automatisch hoch, sobald wieder Netz da ist.");
+        return;
+      }
+      setStatus("Upload läuft…");
+      let result: WaitResult = await waitForUpload(id);
+      if (result.type === "duplicate") {
+        const keep = window.confirm(`${result.message}\n\nTrotzdem behalten?`);
+        if (!keep) {
+          await discardUpload(id);
+          setError("Übersprungen — ähnliches Foto schon vorhanden.");
+          return;
+        }
+        await keepDuplicateUpload(id);
+        result = await waitForUpload(id);
+      }
+      if (result.type === "done") {
+        revokeDrafts([ready]);
+        notifyPhotosChanged();
+        router.refresh();
+        router.push(`/photos/${result.photoId}`);
+        return;
+      }
+      if (result.type === "queued") {
+        leaveDraft("In der Warteschlange — wird automatisch hochgeladen.");
+        return;
+      }
+      if (result.type === "duplicate") return;
+      leaveDraft(result.message);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload fehlgeschlagen.");
+      setError(queueErrorMessage(err));
     } finally {
       setBusy(false);
       setStatus(null);
     }
-  }
-
-  async function uploadDraftQueue(queue: Draft[], labelTotal: number, offset = 0) {
-    if (!albumId) {
-      setError("Du bist keinem Album zugeordnet.");
-      return false;
-    }
-    const title = sharedTitle.trim();
-    const description = sharedRemark.trim();
-    await api("/api/auth/me");
-    const failures: Draft[] = [];
-    let stopIndex = -1;
-    for (let i = 0; i < queue.length; i += 1) {
-      setProgress({ done: offset + i, total: labelTotal });
-      setStatus(`Foto ${offset + i + 1} von ${labelTotal} wird komprimiert…`);
-      try {
-        await postPhoto(queue[i], { title, description }, albumId);
-      } catch (err) {
-        failures.push(queue[i]);
-        stopIndex = i;
-        setError(err instanceof Error ? err.message : "Upload fehlgeschlagen.");
-        break;
-      }
-    }
-    const uploadedCount = stopIndex === -1 ? queue.length : stopIndex;
-    if (uploadedCount > 0) notifyPhotosChanged();
-    if (stopIndex === -1) {
-      setFailedDrafts([]);
-      setContinueDrafts([]);
-      return true;
-    }
-    setFailedDrafts(failures);
-    setContinueDrafts(queue.slice(stopIndex + 1));
-    if (uploadedCount > 0) {
-      setError(
-        (prev) =>
-          `${prev ?? "Upload fehlgeschlagen."} (${offset + uploadedCount} von ${labelTotal} gespeichert.)`,
-      );
-    }
-    return false;
   }
 
   async function uploadBatch() {
     if (!batch.length) return;
-    setBusy(true);
-    setError(null);
-    setFailedDrafts([]);
-    setContinueDrafts([]);
-    try {
-      const ok = await uploadDraftQueue(batch, batch.length, 0);
-      if (ok) {
-        setProgress({ done: batch.length, total: batch.length });
-        router.refresh();
-        router.push("/gallery");
-      }
-    } finally {
-      setBusy(false);
-      setStatus(null);
-      setProgress(null);
+    if (!albumId) {
+      setError("Du bist keinem Album zugeordnet.");
+      return;
     }
-  }
-
-  async function retryFailed() {
-    if (!failedDrafts.length) return;
     setBusy(true);
     setError(null);
+    setNotice(null);
+    const title = sharedTitle.trim();
+    const description = sharedRemark.trim();
+    const failed: Draft[] = [];
+    let lastError: string | null = null;
     try {
-      const ok = await uploadDraftQueue(failedDrafts, failedDrafts.length, 0);
-      if (ok) {
-        revokeDrafts(failedDrafts);
-        setFailedDrafts([]);
-        if (!continueDrafts.length) {
-          router.refresh();
-          router.push("/gallery");
+      // Each photo is queued as soon as it is compressed, so sending starts
+      // while the rest is still being prepared.
+      for (let i = 0; i < batch.length; i += 1) {
+        setProgress({ done: i, total: batch.length });
+        setStatus(`Foto ${i + 1} von ${batch.length} wird vorbereitet…`);
+        try {
+          await enqueueUpload(
+            await prepareUpload(batch[i], { title, description }, albumId),
+          );
+        } catch (err) {
+          failed.push(batch[i]);
+          lastError = queueErrorMessage(err);
         }
       }
-    } finally {
-      setBusy(false);
-      setStatus(null);
-      setProgress(null);
-    }
-  }
-
-  async function continueRest() {
-    if (!continueDrafts.length) return;
-    setBusy(true);
-    setError(null);
-    const queue = continueDrafts;
-    setContinueDrafts([]);
-    try {
-      const ok = await uploadDraftQueue(queue, queue.length, 0);
-      if (ok) {
-        revokeDrafts(queue);
-        setFailedDrafts([]);
-        router.refresh();
-        router.push("/gallery");
+      revokeDrafts(batch.filter((item) => !failed.includes(item)));
+      if (failed.length > 0) {
+        setBatch(failed);
+        setError(
+          `${failed.length} von ${batch.length} konnten nicht vorbereitet werden: ${lastError}`,
+        );
+        return;
       }
+      setBatch([]);
+      router.push("/gallery");
     } finally {
       setBusy(false);
       setStatus(null);
@@ -572,7 +552,7 @@ export function UploadForm({ albumId, albums, onAlbumChange }: UploadFormProps) 
 
   function saveLabel() {
     if (busy) {
-      if (progress) return `${progress.done}/${progress.total} gespeichert…`;
+      if (progress) return `${progress.done}/${progress.total} vorbereitet…`;
       return "Bitte warten…";
     }
     if (batch.length === 1) return "Foto speichern";
@@ -613,6 +593,14 @@ export function UploadForm({ albumId, albums, onAlbumChange }: UploadFormProps) 
             : "Noch keinem Album zugeordnet — ein Admin kann dich unter Einstellungen → Alben hinzufügen."}
         </p>
       </div>
+      {notice ? (
+        <p
+          className="rounded-2xl bg-primary/10 px-4 py-3 text-sm leading-snug text-foreground ring-1 ring-primary/20"
+          role="status"
+        >
+          {notice}
+        </p>
+      ) : null}
       {shared}
 
       <div className="grid grid-cols-2 gap-3">
@@ -718,33 +706,11 @@ export function UploadForm({ albumId, albums, onAlbumChange }: UploadFormProps) 
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
               <LoaderCircle className="size-4 animate-spin" />
               {progress
-                ? `${progress.done}/${progress.total} — ${status ?? "Upload läuft…"}`
+                ? `${progress.done}/${progress.total} — ${status ?? "Wird vorbereitet…"}`
                 : status}
             </p>
           ) : null}
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
-          {failedDrafts.length > 0 ? (
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void retryFailed()}
-                className="inline-flex h-11 flex-1 items-center justify-center rounded-2xl bg-primary text-sm font-medium text-primary-foreground disabled:opacity-60"
-              >
-                Fehlgeschlagene erneut versuchen ({failedDrafts.length})
-              </button>
-              {continueDrafts.length > 0 ? (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void continueRest()}
-                  className="inline-flex h-11 flex-1 items-center justify-center rounded-2xl bg-muted text-sm font-medium disabled:opacity-60"
-                >
-                  Rest fortsetzen ({continueDrafts.length})
-                </button>
-              ) : null}
-            </div>
-          ) : null}
           <div className="hidden md:block">
             <SaveButton />
           </div>

@@ -19,6 +19,7 @@ type PhotoImageOverlayProps = {
   authorName: string;
   compact?: boolean;
   lastSeenAt?: string | null;
+  viewerId?: string | null;
   duplicate?: boolean;
   /** Leave room for the interactive favorite star on the same row. */
   favoriteSlot?: boolean;
@@ -33,6 +34,7 @@ export function PhotoImageOverlay({
   authorName,
   compact = false,
   lastSeenAt = null,
+  viewerId = null,
   duplicate = false,
   favoriteSlot = false,
 }: PhotoImageOverlayProps) {
@@ -45,7 +47,7 @@ export function PhotoImageOverlay({
   const commentCount = photo.comment_count ?? 0;
   const visibleTags = tags.slice(0, compact ? 1 : 3);
   const visibleReactions = reactions.slice(0, compact ? 1 : 3);
-  const isNew = isPhotoNew(photo.created_at, lastSeenAt);
+  const isNew = isPhotoNew(photo, lastSeenAt, viewerId);
   const hasMeta =
     visibleTags.length > 0 || commentCount > 0 || visibleReactions.length > 0;
   const showHighlight = photo.is_highlight && !favoriteSlot;

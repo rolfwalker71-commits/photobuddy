@@ -5,7 +5,7 @@ import { Bell, BellOff } from "lucide-react";
 import { api, withKey } from "@/lib/api";
 import { getPublicEnv } from "@/lib/env";
 import { getGuestSessionId } from "@/lib/guest";
-import type { ViewerMode } from "@/lib/types";
+import type { NotifyMode, ViewerMode } from "@/lib/types";
 
 function urlBase64ToUint8Array(base64: string) {
   const padding = "=".repeat((4 - (base64.length % 4)) % 4);
@@ -18,6 +18,16 @@ function urlBase64ToUint8Array(base64: string) {
 function isIos() {
   if (typeof navigator === "undefined") return false;
   return /iPad|iPhone|iPod/.test(navigator.userAgent);
+}
+
+async function currentEndpoint() {
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = await reg?.pushManager.getSubscription();
+    return sub?.endpoint ?? null;
+  } catch {
+    return null;
+  }
 }
 
 function isStandalone() {
@@ -45,6 +55,10 @@ export function PushEnable({
   const [subscribed, setSubscribed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [notifyMode, setNotifyMode] = useState<NotifyMode>(
+    mode === "guest" ? "daily" : "instant",
+  );
+  const [digestHour, setDigestHour] = useState(20);
   const iosHint = isIos() && !isStandalone();
 
   useEffect(() => {
@@ -58,18 +72,24 @@ export function PushEnable({
 
     const load = async () => {
       try {
-        const guestSessionId = mode === "guest" ? getGuestSessionId() : "";
+        const search = new URLSearchParams();
+        if (mode === "guest") search.set("guestSessionId", getGuestSessionId());
+        const endpoint = await currentEndpoint();
+        if (endpoint) search.set("endpoint", endpoint);
+        const query = search.toString();
         const path = withKey(
-          `/api/push/subscribe${
-            guestSessionId
-              ? `?guestSessionId=${encodeURIComponent(guestSessionId)}`
-              : ""
-          }`,
+          `/api/push/subscribe${query ? `?${query}` : ""}`,
           shareKey,
           mode === "guest" ? null : albumId,
         );
-        const data = await api<{ subscribed: boolean }>(path);
+        const data = await api<{
+          subscribed: boolean;
+          notify_mode: NotifyMode | null;
+          digest_hour: number;
+        }>(path);
         setSubscribed(data.subscribed);
+        if (data.notify_mode) setNotifyMode(data.notify_mode);
+        if (typeof data.digest_hour === "number") setDigestHour(data.digest_hour);
       } catch {
         /* keep default */
       }
@@ -117,6 +137,7 @@ export function PushEnable({
           keys: json.keys,
           guest_session_id: mode === "guest" ? getGuestSessionId() : undefined,
           album_id: mode === "guest" ? undefined : albumId,
+          notify_mode: notifyMode,
         }),
       });
       setSubscribed(true);
@@ -125,6 +146,27 @@ export function PushEnable({
       setStatus(
         err instanceof Error ? err.message : "Aktivieren fehlgeschlagen.",
       );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function changeMode(next: NotifyMode) {
+    if (next === notifyMode || busy) return;
+    const previous = notifyMode;
+    setNotifyMode(next);
+    setBusy(true);
+    setStatus(null);
+    try {
+      const endpoint = await currentEndpoint();
+      if (!endpoint) throw new Error("Auf diesem Gerät ist kein Push-Abo aktiv.");
+      await api(withKey("/api/push/subscribe", shareKey), {
+        method: "PATCH",
+        body: JSON.stringify({ endpoint, notify_mode: next }),
+      });
+    } catch (err) {
+      setNotifyMode(previous);
+      setStatus(err instanceof Error ? err.message : "Speichern fehlgeschlagen.");
     } finally {
       setBusy(false);
     }
@@ -181,6 +223,36 @@ export function PushEnable({
           ? "Benachrichtigungen aus"
           : "Benachrichtigungen aktivieren"}
       </button>
+      {subscribed ? (
+        <div
+          className="flex h-10 min-h-10 rounded-full bg-muted p-0.5"
+          role="radiogroup"
+          aria-label="Wie oft benachrichtigen"
+        >
+          {(
+            [
+              ["instant", "Bei jedem Foto"],
+              ["daily", `Abends um ${digestHour} Uhr`],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={notifyMode === value}
+              disabled={busy}
+              onClick={() => void changeMode(value)}
+              className={`h-full min-h-0 flex-1 self-stretch rounded-full px-3 text-xs font-medium leading-none ${
+                notifyMode === value
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {iosHint ? (
         <p className="text-sm text-muted-foreground leading-snug">
           iPhone: zuerst über Safari „Zum Home-Bildschirm“, dann in der App
