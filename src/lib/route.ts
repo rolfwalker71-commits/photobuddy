@@ -77,6 +77,41 @@ export function buildDayRoutes<T extends RoutePhoto>(
   });
 }
 
+export type DayBridge = {
+  fromDay: string;
+  toDay: string;
+  color: string;
+  points: [[number, number], [number, number]];
+  distanceKm: number;
+};
+
+/**
+ * The hop between days: last photo of one day to the first of the next. Drawn
+ * dashed on the map, because nobody photographed that stretch — it closes the
+ * gap the per-day lines leave open. Carries the arriving day's colour, so a
+ * bridge points at where the next day begins. Days without any located photo
+ * are skipped rather than breaking the chain.
+ */
+export function buildDayBridges(routes: DayRoute[]): DayBridge[] {
+  const located = routes.filter((route) => route.points.length > 0);
+  const bridges: DayBridge[] = [];
+  for (let i = 1; i < located.length; i += 1) {
+    const from = located[i - 1];
+    const to = located[i];
+    const start = from.points[from.points.length - 1];
+    const end = to.points[0];
+    if (start[0] === end[0] && start[1] === end[1]) continue;
+    bridges.push({
+      fromDay: from.day,
+      toDay: to.day,
+      color: to.color,
+      points: [start, end],
+      distanceKm: haversineKm(start, end),
+    });
+  }
+  return bridges;
+}
+
 export function formatKm(km: number) {
   if (km < 1) return `${Math.round(km * 1000)} m`;
   return `${new Intl.NumberFormat("de-CH", {

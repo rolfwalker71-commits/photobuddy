@@ -139,6 +139,25 @@ body {
   transform: scale(1.08);
 }
 
+/* Direction arrows sitting on the route lines. */
+.leaflet-marker-icon.route-arrow {
+  background: none;
+  border: 0;
+}
+
+.route-arrow__head {
+  display: block;
+  width: 0;
+  height: 0;
+  margin: 2px;
+  border-bottom: 12px solid hsl(var(--primary));
+  border-right: 6px solid transparent;
+  border-left: 6px solid transparent;
+  /* A white halo, so the arrow reads on satellite tiles as well as on paper
+     styles. The tip points up at 0deg; the icon is rotated per segment. */
+  filter: drop-shadow(0 0 1.5px rgb(255 255 255 / 0.95));
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

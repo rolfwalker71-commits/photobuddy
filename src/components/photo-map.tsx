@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CircleMarker, MapContainer, Marker, Polyline, Popup, useMap } from "react-leaflet";
+import {
+  CircleMarker,
+  MapContainer,
+  Marker,
+  Polyline,
+  Popup,
+  useMap,
+  useMapEvents,
+} from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import Link from "next/link";
@@ -11,7 +19,7 @@ import { PhotoImageOverlay } from "@/components/photo-image-overlay";
 import { groupPhotosByDay, photoDayKey } from "@/lib/chapters";
 import { humanLocationName } from "@/lib/image";
 import { appHref } from "@/lib/paths";
-import { buildDayRoutes, formatKm } from "@/lib/route";
+import { buildDayBridges, buildDayRoutes, formatKm } from "@/lib/route";
 import { previewPhotoUrl } from "@/lib/storage";
 import type { Photo, Profile, ViewerMode } from "@/lib/types";
 
@@ -136,6 +144,95 @@ function photoPinIcon(src: string, color: string, isVideo: boolean) {
   });
 }
 
+/** Below this a segment is too short on screen to carry a readable arrow. */
+const MIN_ARROW_PX = 46;
+/**
+ * Web Mercator is conformal and scales uniformly, so a bearing never changes
+ * with zoom — only the on-screen length does. Icons can therefore be reused.
+ */
+const arrowIcons = new Map<string, L.DivIcon>();
+
+function arrowIcon(angle: number, color: string) {
+  const key = `${angle}|${color}`;
+  const cached = arrowIcons.get(key);
+  if (cached) return cached;
+  const icon = L.divIcon({
+    className: "route-arrow",
+    html:
+      `<span class="route-arrow__head" style="transform:rotate(${angle}deg);` +
+      `border-bottom-color:${escapeHtml(color)}"></span>`,
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
+  });
+  arrowIcons.set(key, icon);
+  return icon;
+}
+
+type ArrowSegment = { key: string; points: [number, number][]; color: string };
+
+type Arrow = {
+  key: string;
+  position: [number, number];
+  angle: number;
+  color: string;
+  length0: number;
+};
+
+/**
+ * One arrow per segment, at its midpoint, pointing the way the day ran.
+ * Segments too short to read at the current zoom are left bare, so a dense
+ * cluster of photos does not turn into a smudge of arrowheads.
+ */
+function RouteArrows({ segments }: { segments: ArrowSegment[] }) {
+  const map = useMap();
+  const [zoom, setZoom] = useState(() => map.getZoom());
+  useMapEvents({ zoomend: (event) => setZoom(event.target.getZoom()) });
+
+  // Measured in the zoom-0 world, then scaled — no reprojection per zoom step.
+  const candidates = useMemo(() => {
+    const out: Arrow[] = [];
+    for (const segment of segments) {
+      for (let i = 1; i < segment.points.length; i += 1) {
+        const from = map.project(segment.points[i - 1], 0);
+        const to = map.project(segment.points[i], 0);
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+        const length0 = Math.hypot(dx, dy);
+        if (length0 === 0) continue;
+        // The line is straight in projected space, so the midpoint must be too.
+        const mid = map.unproject(L.point((from.x + to.x) / 2, (from.y + to.y) / 2), 0);
+        out.push({
+          key: `${segment.key}-${i}`,
+          position: [mid.lat, mid.lng],
+          // Screen bearing: 0° is up, growing clockwise like CSS rotate().
+          angle: Math.round((Math.atan2(dx, -dy) * 180) / Math.PI),
+          color: segment.color,
+          length0,
+        });
+      }
+    }
+    return out;
+  }, [map, segments]);
+
+  const scale = 2 ** zoom;
+  return (
+    <>
+      {candidates
+        .filter((arrow) => arrow.length0 * scale >= MIN_ARROW_PX)
+        .map((arrow) => (
+          <Marker
+            key={arrow.key}
+            position={arrow.position}
+            icon={arrowIcon(arrow.angle, arrow.color)}
+            interactive={false}
+            keyboard={false}
+            zIndexOffset={-1000}
+          />
+        ))}
+    </>
+  );
+}
+
 export default function PhotoMap({
   photos,
   profiles,
@@ -186,8 +283,13 @@ export default function PhotoMap({
     () => new Map(routes.map((route) => [route.day, route])),
     [routes],
   );
-  const drawnRoutes = routes.filter((route) => route.points.length >= 2);
+  const drawnRoutes = useMemo(
+    () => routes.filter((route) => route.points.length >= 2),
+    [routes],
+  );
+  const bridges = useMemo(() => buildDayBridges(routes), [routes]);
   const totalKm = drawnRoutes.reduce((sum, route) => sum + route.distanceKm, 0);
+  const bridgeKm = bridges.reduce((sum, bridge) => sum + bridge.distanceKm, 0);
   const headingByDay = useMemo(
     () => new Map(chapters.map((chapter) => [chapter.day, chapter.heading])),
     [chapters],
@@ -228,6 +330,43 @@ export default function PhotoMap({
         (a, b) => Number(a.day === selectedDay) - Number(b.day === selectedDay),
       )
     : [];
+
+  /**
+   * A bridge touching the chosen day stays lit: it shows how that day was
+   * reached and where it led.
+   */
+  const bridgeFaded = (bridge: { fromDay: string; toDay: string }) =>
+    selectedDay !== null &&
+    bridge.fromDay !== selectedDay &&
+    bridge.toDay !== selectedDay;
+
+  const arrowSegments = useMemo<ArrowSegment[]>(() => {
+    if (!showRoute) return [];
+    const segments: ArrowSegment[] = [];
+    for (const route of drawnRoutes) {
+      if (selectedDay !== null && route.day !== selectedDay) continue;
+      segments.push({
+        key: `day-${route.day}`,
+        points: route.points,
+        color: route.color,
+      });
+    }
+    for (const bridge of bridges) {
+      if (
+        selectedDay !== null &&
+        bridge.fromDay !== selectedDay &&
+        bridge.toDay !== selectedDay
+      ) {
+        continue;
+      }
+      segments.push({
+        key: `hop-${bridge.toDay}`,
+        points: bridge.points,
+        color: bridge.color,
+      });
+    }
+    return segments;
+  }, [bridges, drawnRoutes, selectedDay, showRoute]);
 
   if (located.length === 0) {
     return (
@@ -316,6 +455,24 @@ export default function PhotoMap({
       >
         <FitPhotoBounds points={fitPoints} />
         <BasemapLayer />
+        {showRoute
+          ? bridges.map((bridge) => {
+              const faded = bridgeFaded(bridge);
+              return (
+                <Polyline
+                  key={`hop-${bridge.toDay}-${faded ? "f" : "a"}`}
+                  positions={bridge.points}
+                  pathOptions={{
+                    color: bridge.color,
+                    weight: 2,
+                    opacity: faded ? 0.18 : 0.5,
+                    dashArray: "2 8",
+                    lineCap: "round",
+                  }}
+                />
+              );
+            })
+          : null}
         {routeLayers.map((route) => {
           const faded = selectedDay !== null && route.day !== selectedDay;
           return (
@@ -347,6 +504,7 @@ export default function PhotoMap({
               }}
             />
           ))}
+        <RouteArrows segments={arrowSegments} />
         {located.map((photo) => {
           const color = profiles[photo.uploaded_by]?.accent_color ?? "#0f766e";
           const src = previewPhotoUrl(photo);
@@ -404,41 +562,50 @@ export default function PhotoMap({
       </MapContainer>
     </div>
       {showRoute ? (
-        drawnRoutes.length > 0 ? (
+        drawnRoutes.length > 0 || bridges.length > 0 ? (
           <div className="space-y-2 rounded-2xl bg-card p-3 shadow-card ring-1 ring-border">
             <div className="flex items-baseline justify-between gap-3 px-1">
               <p className="text-sm font-medium">Route</p>
               <p className="text-xs text-muted-foreground">
                 ca. {formatKm(totalKm)} Luftlinie
+                {bridgeKm > 0 ? ` · ${formatKm(bridgeKm)} zwischen den Tagen` : ""}
               </p>
             </div>
-            <ul className="flex flex-wrap gap-1.5">
-              {drawnRoutes.map((route) => {
-                const active = selectedDay === route.day;
-                return (
-                  <li key={route.day}>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedDay(active ? null : route.day)}
-                      aria-pressed={active}
-                      className={`inline-flex h-8 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium ${
-                        active ? "bg-foreground text-background" : "bg-muted"
-                      }`}
-                    >
-                      <span
-                        className="h-1 w-4 shrink-0 rounded-full"
-                        style={{ background: route.color }}
-                        aria-hidden
-                      />
-                      {headingByDay.get(route.day) ?? route.day}
-                      <span className={active ? "opacity-75" : "text-muted-foreground"}>
-                        {formatKm(route.distanceKm)}
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+            {bridges.length > 0 ? (
+              <p className="px-1 text-xs leading-snug text-muted-foreground">
+                Gestrichelt: der Weg vom letzten Foto eines Tages zum ersten des
+                nächsten. Die Pfeile zeigen die Richtung.
+              </p>
+            ) : null}
+            {drawnRoutes.length > 0 ? (
+              <ul className="flex flex-wrap gap-1.5">
+                {drawnRoutes.map((route) => {
+                  const active = selectedDay === route.day;
+                  return (
+                    <li key={route.day}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDay(active ? null : route.day)}
+                        aria-pressed={active}
+                        className={`inline-flex h-8 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium ${
+                          active ? "bg-foreground text-background" : "bg-muted"
+                        }`}
+                      >
+                        <span
+                          className="h-1 w-4 shrink-0 rounded-full"
+                          style={{ background: route.color }}
+                          aria-hidden
+                        />
+                        {headingByDay.get(route.day) ?? route.day}
+                        <span className={active ? "opacity-75" : "text-muted-foreground"}>
+                          {formatKm(route.distanceKm)}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
           </div>
         ) : (
           <p className="px-1 text-sm leading-snug text-muted-foreground">

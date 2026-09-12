@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { ROUTE_COLORS, buildDayRoutes, formatKm, haversineKm } from "@/lib/route";
+import {
+  ROUTE_COLORS,
+  buildDayBridges,
+  buildDayRoutes,
+  formatKm,
+  haversineKm,
+} from "@/lib/route";
 
 const photo = (latitude: number, longitude: number, taken_at: string) => ({
   latitude,
@@ -61,6 +67,67 @@ describe("buildDayRoutes", () => {
       day,
     );
     expect(route.points).toHaveLength(2);
+  });
+});
+
+describe("buildDayBridges", () => {
+  const routes = buildDayRoutes(
+    [
+      photo(46.7, 8.6, "2026-09-11T09:00:00Z"),
+      photo(46.8, 8.6, "2026-09-11T18:00:00Z"),
+      photo(46.9, 8.6, "2026-09-12T10:00:00Z"),
+      photo(47.0, 8.6, "2026-09-12T17:00:00Z"),
+    ],
+    day,
+  );
+
+  it("joins the last photo of a day to the first of the next", () => {
+    const [bridge] = buildDayBridges(routes);
+    expect(bridge.points).toEqual([
+      [46.8, 8.6],
+      [46.9, 8.6],
+    ]);
+    expect(bridge.fromDay).toBe("2026-09-11");
+    expect(bridge.toDay).toBe("2026-09-12");
+    expect(bridge.distanceKm).toBeCloseTo(11.1, 1);
+  });
+
+  it("takes the arriving day's colour", () => {
+    expect(buildDayBridges(routes)[0].color).toBe(ROUTE_COLORS[1]);
+  });
+
+  it("needs no second point in a day, so single-photo days still connect", () => {
+    const single = buildDayRoutes(
+      [
+        photo(46.7, 8.6, "2026-09-11T09:00:00Z"),
+        photo(46.9, 8.6, "2026-09-12T10:00:00Z"),
+        photo(47.1, 8.6, "2026-09-13T10:00:00Z"),
+      ],
+      day,
+    );
+    expect(buildDayBridges(single)).toHaveLength(2);
+  });
+
+  it("skips a hop that would have zero length", () => {
+    const sameSpot = buildDayRoutes(
+      [
+        photo(46.7, 8.6, "2026-09-11T09:00:00Z"),
+        photo(46.7, 8.6, "2026-09-12T10:00:00Z"),
+      ],
+      day,
+    );
+    expect(buildDayBridges(sameSpot)).toEqual([]);
+  });
+
+  it("has nothing to bridge on a one-day trip", () => {
+    const oneDay = buildDayRoutes(
+      [
+        photo(46.7, 8.6, "2026-09-11T09:00:00Z"),
+        photo(46.8, 8.6, "2026-09-11T18:00:00Z"),
+      ],
+      day,
+    );
+    expect(buildDayBridges(oneDay)).toEqual([]);
   });
 });
 
