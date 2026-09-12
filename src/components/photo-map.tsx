@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CircleMarker, MapContainer, Marker, Polyline, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -93,7 +93,9 @@ function FitPhotoBounds({ points }: { points: [number, number][] }) {
       return;
     }
     map.fitBounds(L.latLngBounds(points), {
-      padding: [36, 36],
+      // A pin stands 54px above its coordinate, so the top needs more room.
+      paddingTopLeft: [30, 62],
+      paddingBottomRight: [30, 18],
       maxZoom: 16,
     });
     // key captures the coordinate set
@@ -103,15 +105,34 @@ function FitPhotoBounds({ points }: { points: [number, number][] }) {
   return null;
 }
 
-function markerIcon(color: string) {
-  const svg = encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36"><path fill="${color}" stroke="white" stroke-width="2" d="M14 1c7 0 13 6 13 13 0 10-13 21-13 21S1 24 1 14C1 7 7 1 14 1z"/><circle cx="14" cy="14" r="5" fill="white"/></svg>`,
-  );
-  return L.icon({
-    iconUrl: `data:image/svg+xml;charset=UTF-8,${svg}`,
-    iconSize: [28, 36],
-    iconAnchor: [14, 36],
-    popupAnchor: [0, -32],
+/** Uploader colour and preview URL end up in markup, so quote them safely. */
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * The marker is the photo itself: a thumbnail in the uploader's colour with a
+ * tail pointing at the spot. Markers may overlap — the white ring keeps a stack
+ * readable and `riseOnHover` lifts the one under the pointer.
+ */
+function photoPinIcon(src: string, color: string, isVideo: boolean) {
+  const pin = escapeHtml(color);
+  const inner = src
+    ? `<img src="${escapeHtml(src)}" alt="" loading="lazy" decoding="async" />`
+    : `<span class="photo-pin__blank" style="background:${pin}"></span>`;
+  const play = isVideo ? '<span class="photo-pin__play" aria-hidden></span>' : "";
+  return L.divIcon({
+    className: "photo-pin",
+    html:
+      `<span class="photo-pin__frame" style="border-color:${pin}">${inner}${play}</span>` +
+      `<span class="photo-pin__tail" style="border-top-color:${pin}"></span>`,
+    iconSize: [46, 54],
+    iconAnchor: [23, 54],
+    popupAnchor: [0, -50],
   });
 }
 
@@ -124,7 +145,12 @@ export default function PhotoMap({
   viewerId = null,
   focusDay = null,
 }: PhotoMapProps) {
-  const located = photos.filter(isLocated);
+  const located = useMemo(() => photos.filter(isLocated), [photos]);
+  /**
+   * Leaflet replaces the marker DOM whenever the icon object changes, which
+   * would refetch every thumbnail on each render. Keep one icon per preview.
+   */
+  const iconCache = useRef(new Map<string, L.DivIcon>());
   const chapters = useMemo(() => groupPhotosByDay(located), [located]);
   /** null = whole trip. */
   const [selectedDay, setSelectedDay] = useState<string | null>(
@@ -178,6 +204,16 @@ export default function PhotoMap({
       );
     return dayPoints.length > 0 ? dayPoints : points;
   }, [located, points, positions, selectedDay]);
+
+  function pinFor(photo: LocatedPhoto, color: string) {
+    const src = previewPhotoUrl(photo);
+    const key = `${src}|${color}|${photo.kind}`;
+    const cached = iconCache.current.get(key);
+    if (cached) return cached;
+    const icon = photoPinIcon(src, color, photo.kind === "video");
+    iconCache.current.set(key, icon);
+    return icon;
+  }
 
   function toggleRoute() {
     setShowRoute((value) => {
@@ -324,7 +360,11 @@ export default function PhotoMap({
             <Marker
               key={photo.id}
               position={position}
-              icon={markerIcon(color)}
+              icon={pinFor(photo, color)}
+              riseOnHover
+              title={[photo.title?.trim(), humanLocationName(photo.location_name), author]
+                .filter(Boolean)
+                .join(" · ")}
             >
               <Popup>
                 <Link

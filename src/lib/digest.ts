@@ -59,11 +59,13 @@ export async function runDailyDigest(
   let sent = 0;
   for (const album of await listAlbums()) {
     const previous = await getPreviousDigestSentAt(album.id, date);
-    if (!opts.test && !(await claimDigest(album.id, date))) continue;
     const since = previous ?? new Date(now.getTime() - DAY_MS);
     const rows = await listPhotosCreatedBetween(album.id, since, now);
-    if (!opts.test) await setDigestPhotoCount(album.id, date, rows.length);
+    // Nothing yet: leave the day unclaimed so photos arriving later this
+    // evening still get their summary instead of waiting for tomorrow.
     if (rows.length === 0) continue;
+    if (!opts.test && !(await claimDigest(album.id, date))) continue;
+    if (!opts.test) await setDigestPhotoCount(album.id, date, rows.length);
     albums += 1;
 
     const [subs, share] = await Promise.all([
