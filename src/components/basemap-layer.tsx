@@ -15,6 +15,10 @@ function ClampMaxZoom({ maxZoom }: { maxZoom: number }) {
 }
 
 export function BasemapTiles({ style }: { style: MapStyle }) {
+  /** Leaflet defaults to "abc"; handing it `undefined` overwrites that default
+   * and every tile URL then throws in `_getSubdomain`. Only set what we have. */
+  const subdomains = style.subdomains ? { subdomains: style.subdomains } : {};
+
   return (
     <>
       <ClampMaxZoom maxZoom={style.maxZoom} />
@@ -23,7 +27,7 @@ export function BasemapTiles({ style }: { style: MapStyle }) {
         attribution={style.attribution}
         url={style.url}
         maxZoom={style.maxZoom}
-        subdomains={style.subdomains}
+        {...subdomains}
       />
     </>
   );
