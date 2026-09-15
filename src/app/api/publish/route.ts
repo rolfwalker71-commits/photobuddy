@@ -9,6 +9,7 @@ import {
 } from "@/lib/auth/request";
 import { listPhotosByIds } from "@/lib/db/queries";
 import { resolvePhotoPath } from "@/lib/files";
+import { reverseGeocode } from "@/lib/geocode";
 import {
   GRAV_DIARY_ROUTE,
   GRAV_PHOTOS_ROUTE,
@@ -42,14 +43,34 @@ function mediaFilename(photo: Photo) {
   return `photobuddy-${photo.id.slice(0, 8)}.${ext}`;
 }
 
-function mediaMeta(photo: Photo, place: string, extra: PhotoMeta | undefined) {
+/** Place name per photo: its saved name, else looked up from its coordinates (once per spot). */
+function placeResolver() {
+  const cache = new Map<string, Promise<string>>();
+  return (photo: Photo): Promise<string> => {
+    const saved = humanLocationName(photo.location_name);
+    if (saved) return Promise.resolve(saved);
+    if (photo.latitude == null || photo.longitude == null) return Promise.resolve("");
+    const spot = `${photo.latitude.toFixed(3)},${photo.longitude.toFixed(3)}`;
+    let place = cache.get(spot);
+    if (!place) {
+      place = reverseGeocode(photo.latitude, photo.longitude)
+        .then((result) => result.place?.trim() ?? "")
+        .catch(() => "");
+      cache.set(spot, place);
+    }
+    return place;
+  };
+}
+
+function mediaMeta(photo: Photo, where: string, extra: PhotoMeta | undefined) {
   const caption = photo.title?.trim() || "";
   const description = photo.description?.trim() || "";
-  const where = place || humanLocationName(photo.location_name) || "";
   const fields: Record<string, string> = {};
   if (caption || description) fields.bildtext = caption || description;
   const alt = description || caption || (where ? `Foto aus ${where}` : "");
   if (alt) fields.alt = alt;
+  // Place name only: no coordinates in metadata anyone can read on the website.
+  if (where) fields.ort = where.slice(0, 80);
   // Local capture time and chapter let the site's Fotos page sort the photo in.
   if (extra?.datum && MEDIA_DATUM_RE.test(extra.datum)) fields.datum = extra.datum;
   if (extra?.abschnitt && CHAPTER_KEY_RE.test(extra.abschnitt)) {
@@ -103,7 +124,7 @@ type PublishBody = {
   };
 };
 
-async function createPost(post: NonNullable<PublishBody["post"]>) {
+async function createPost(post: NonNullable<PublishBody["post"]>, fallbackOrt: string) {
   const title = post.title?.trim() ?? "";
   if (!title) throw new HttpError(400, "Titel fehlt.");
   const match = LOCAL_DATETIME_RE.exec(post.date ?? "");
@@ -125,7 +146,7 @@ async function createPost(post: NonNullable<PublishBody["post"]>) {
       // Wall-clock time as a quoted string: the site reads it as local time.
       date: `${day} ${time}`,
       autor: post.autor?.trim() || "alle",
-      ort: post.ort?.trim() ?? "",
+      ort: post.ort?.trim() || fallbackOrt,
       intro: post.intro?.trim() ?? "",
       published: post.published === true,
       ...(post.abschnitt && CHAPTER_KEY_RE.test(post.abschnitt)
@@ -158,12 +179,20 @@ export async function POST(request: Request) {
       throw new HttpError(400, "Keine Fotos ausgewählt (Videos werden nicht übertragen).");
     }
 
+    const placeOf = placeResolver();
     const target: PublishTarget = body.target ?? "fotos";
     let route: string = GRAV_PHOTOS_ROUTE;
     let created = false;
     if (target === "new-post") {
       if (!body.post) throw new HttpError(400, "Angaben zum Beitrag fehlen.");
-      route = await createPost(body.post);
+      let fallbackOrt = "";
+      if (!body.post.ort?.trim()) {
+        for (const photo of photos) {
+          fallbackOrt = await placeOf(photo);
+          if (fallbackOrt) break;
+        }
+      }
+      route = await createPost(body.post, fallbackOrt);
       created = true;
     } else if (target === "post") {
       route = `/${String(body.route ?? "").trim().replace(/^\/+|\/+$/g, "")}`;
@@ -182,7 +211,7 @@ export async function POST(request: Request) {
           : "Seite „Fotos“ auf der Webseite nicht gefunden.",
       );
     }
-    const place = isPost ? String(page.header?.ort ?? body.post?.ort ?? "").trim() : "";
+    const postPlace = isPost ? String(page.header?.ort ?? "").trim() : "";
 
     const existing = (await listGravMedia(route)).map((media) => media.filename);
     const present = new Set(existing);
@@ -196,7 +225,7 @@ export async function POST(request: Request) {
         mime: photo.mime_type || mimeFromPath(photo.storage_path, "image/jpeg"),
         data,
       });
-      const fields = mediaMeta(photo, place, body.meta?.[photo.id]);
+      const fields = mediaMeta(photo, (await placeOf(photo)) || postPlace, body.meta?.[photo.id]);
       if (Object.keys(fields).length > 0) {
         await saveGravMediaMeta(route, filename, fields);
       }

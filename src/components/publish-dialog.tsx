@@ -129,6 +129,22 @@ export function PublishDialog({
     setPublished(false);
 
     let cancelled = false;
+    // Photos with coordinates but no saved place name: look the name up for Ort and Titel.
+    const located = place
+      ? null
+      : sorted.find((photo) => photo.latitude != null && photo.longitude != null);
+    if (located) {
+      api<{ place_name: string | null }>(
+        `/api/geocode/reverse?lat=${located.latitude}&lng=${located.longitude}`,
+      )
+        .then((data) => {
+          const name = data.place_name?.trim();
+          if (!name || cancelled) return;
+          setOrt((prev) => prev || name);
+          setTitle((prev) => prev || name.split(",")[0].trim());
+        })
+        .catch(() => {});
+    }
     api<Details>("/api/publish?details=1")
       .then((data) => {
         if (cancelled) return;
