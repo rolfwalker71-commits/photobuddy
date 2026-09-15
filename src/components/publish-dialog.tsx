@@ -90,15 +90,18 @@ export function PublishDialog({
   const chapters = useMemo(() => details?.chapters ?? [], [details]);
 
   const byTimeLabel = useMemo(() => {
-    const found = new Set(
-      images.map((photo) => chapterAt(chapters, localTimes.get(photo.id) ?? "")?.titel ?? ""),
-    );
+    // A new blog post belongs to the chapter of its date; loose photos each to their own.
+    const times =
+      blog && postMode === "new"
+        ? [date]
+        : images.map((photo) => localTimes.get(photo.id) ?? "");
+    const found = new Set(times.map((local) => chapterAt(chapters, local)?.titel ?? ""));
     if (found.size === 1) {
       const only = [...found][0];
       return only ? `Nach Aufnahmezeit (${only})` : "Nach Aufnahmezeit";
     }
     return "Nach Aufnahmezeit (verschiedene Kapitel)";
-  }, [images, chapters, localTimes]);
+  }, [images, chapters, localTimes, blog, postMode, date]);
 
   useEffect(() => {
     if (!open) return;
@@ -180,7 +183,19 @@ export function PublishDialog({
           target,
           ...(target === "post" ? { route } : {}),
           ...(target === "new-post"
-            ? { post: { title, date, autor, ort, intro, text, published } }
+            ? {
+                post: {
+                  title,
+                  date,
+                  autor,
+                  ort,
+                  intro,
+                  text,
+                  published,
+                  abschnitt:
+                    chapter === BY_TIME ? (chapterAt(chapters, date)?.schluessel ?? "") : chapter,
+                },
+              }
             : {}),
         }),
       });

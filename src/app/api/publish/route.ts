@@ -98,6 +98,8 @@ type PublishBody = {
     intro?: string;
     text?: string;
     published?: boolean;
+    /** Chapter key; the site otherwise derives the chapter from the date. */
+    abschnitt?: string;
   };
 };
 
@@ -126,6 +128,9 @@ async function createPost(post: NonNullable<PublishBody["post"]>) {
       ort: post.ort?.trim() ?? "",
       intro: post.intro?.trim() ?? "",
       published: post.published === true,
+      ...(post.abschnitt && CHAPTER_KEY_RE.test(post.abschnitt)
+        ? { abschnitt: post.abschnitt }
+        : {}),
     },
   });
   return route;
