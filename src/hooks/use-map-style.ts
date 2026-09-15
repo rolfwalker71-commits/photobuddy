@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import {
   DEFAULT_MAP_STYLE,
   getMapStyle,
-  isMapStyleId,
+  parseMapStyleId,
   type MapStyle,
   type MapStyleId,
 } from "@/lib/map-styles";
@@ -15,10 +15,10 @@ export function useMapStyle(): MapStyle {
 
   useEffect(() => {
     let cancelled = false;
-    api<{ map_style: string }>("/api/settings")
+    api<{ map_style?: string }>("/api/settings")
       .then((data) => {
-        if (!cancelled && isMapStyleId(data.map_style)) {
-          setId(data.map_style);
+        if (!cancelled) {
+          setId(parseMapStyleId(data?.map_style));
         }
       })
       .catch(() => {

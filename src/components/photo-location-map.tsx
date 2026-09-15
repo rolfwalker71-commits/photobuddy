@@ -15,10 +15,13 @@ type PhotoLocationMapProps = {
   accentColor?: string;
 };
 
+const DETAIL_ZOOM = 15;
+
 function Recenter({ lat, lng }: { lat: number; lng: number }) {
   const map = useMap();
   useEffect(() => {
-    map.setView([lat, lng], 15);
+    const zoom = Math.min(DETAIL_ZOOM, map.getMaxZoom());
+    map.setView([lat, lng], zoom);
   }, [map, lat, lng]);
   return null;
 }
@@ -62,7 +65,7 @@ export default function PhotoLocationMap({
     >
       <MapContainer
         center={[latitude, longitude]}
-        zoom={15}
+        zoom={DETAIL_ZOOM}
         className="z-0 h-full w-full"
         scrollWheelZoom={false}
       >

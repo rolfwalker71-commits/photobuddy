@@ -194,5 +194,22 @@ export function parseMapStyleId(value: unknown): MapStyleId {
 }
 
 export function getMapStyle(id: unknown): MapStyle {
-  return MAP_STYLES[parseMapStyleId(id)];
+  const style = MAP_STYLES[parseMapStyleId(id)];
+  if (style?.url) return style;
+  return MAP_STYLES[DEFAULT_MAP_STYLE];
+}
+
+/** Leaflet overwrites its default `subdomains: "abc"` when the option is `undefined`. */
+export function leafletTileProps(style: MapStyle): {
+  url: string;
+  attribution: string;
+  maxZoom: number;
+  subdomains?: string;
+} {
+  return {
+    url: style.url,
+    attribution: style.attribution,
+    maxZoom: style.maxZoom,
+    ...(style.subdomains ? { subdomains: style.subdomains } : {}),
+  };
 }

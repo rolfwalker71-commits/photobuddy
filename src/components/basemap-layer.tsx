@@ -3,7 +3,12 @@
 import { useEffect } from "react";
 import { TileLayer, useMap } from "react-leaflet";
 import { useMapStyle } from "@/hooks/use-map-style";
-import type { MapStyle } from "@/lib/map-styles";
+import {
+  DEFAULT_MAP_STYLE,
+  getMapStyle,
+  leafletTileProps,
+  type MapStyle,
+} from "@/lib/map-styles";
 
 function ClampMaxZoom({ maxZoom }: { maxZoom: number }) {
   const map = useMap();
@@ -14,21 +19,18 @@ function ClampMaxZoom({ maxZoom }: { maxZoom: number }) {
   return null;
 }
 
-export function BasemapTiles({ style }: { style: MapStyle }) {
-  /** Leaflet defaults to "abc"; handing it `undefined` overwrites that default
-   * and every tile URL then throws in `_getSubdomain`. Only set what we have. */
-  const subdomains = style.subdomains ? { subdomains: style.subdomains } : {};
+function resolveStyle(style: MapStyle | null | undefined): MapStyle {
+  if (style?.url && Number.isFinite(style.maxZoom)) return style;
+  return getMapStyle(DEFAULT_MAP_STYLE);
+}
 
+export function BasemapTiles({ style }: { style: MapStyle }) {
+  const resolved = resolveStyle(style);
+  const tiles = leafletTileProps(resolved);
   return (
     <>
-      <ClampMaxZoom maxZoom={style.maxZoom} />
-      <TileLayer
-        key={style.id}
-        attribution={style.attribution}
-        url={style.url}
-        maxZoom={style.maxZoom}
-        {...subdomains}
-      />
+      <ClampMaxZoom maxZoom={resolved.maxZoom} />
+      <TileLayer key={resolved.id} {...tiles} />
     </>
   );
 }
