@@ -91,3 +91,16 @@ Lokales Image bauen (nur deine Maschine, nicht der Server): `docker compose -f d
 | Fotos hochladen, bearbeiten, löschen | ja | nein |
 | Kommentare & Emoji | ja | ja |
 | Teilnehmer verwalten | nur Admin | nein |
+
+## Fotos auf die Webseite (Grav)
+
+In der Galerie Fotos auswählen → **Auf die Webseite**. Photobuddy legt über die API der Grav-Seite einen Tagebuch-Beitrag an (`/tagebuch/<datum>-<ort>`, standardmässig als Entwurf) oder hängt die Fotos an einen bestehenden Beitrag. Bildtitel und Beschreibung werden zu `bildtext` und `alt`; die Seite **Fotos** sammelt die Bilder automatisch. Schon übertragene Fotos werden übersprungen. Videos bleiben in Photobuddy.
+
+In `.env` (der Schlüssel bleibt auf dem Server, nie im Browser):
+
+```bash
+GRAV_URL=https://ferien2026.rolfwalker.ch
+GRAV_API_KEY=grav_…
+```
+
+Schlüssel auf dem Grav-Server erzeugen: `bin/plugin api keys:generate -u rolf -N photobuddy` (Konto mit `api.pages.write` und `api.media.write`). Ohne diese Variablen erscheint der Button nicht.

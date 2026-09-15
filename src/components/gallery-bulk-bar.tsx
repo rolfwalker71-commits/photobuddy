@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FolderInput, MapPin, Tags, Trash2, X } from "lucide-react";
+import { FolderInput, Globe, MapPin, Tags, Trash2, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { notifyPhotosChanged } from "@/lib/photos-sync";
 import type { Album, Photo } from "@/lib/types";
@@ -13,6 +13,8 @@ type GalleryBulkBarProps = {
   onClear: () => void;
   onSelectAll: () => void;
   onDone: () => void;
+  /** Shown only when the trip website is configured. */
+  onPublish?: () => void;
 };
 
 export function GalleryBulkBar({
@@ -22,6 +24,7 @@ export function GalleryBulkBar({
   onClear,
   onSelectAll,
   onDone,
+  onPublish,
 }: GalleryBulkBarProps) {
   const [tags, setTags] = useState("");
   const [place, setPlace] = useState("");
@@ -172,6 +175,17 @@ export function GalleryBulkBar({
               Verschieben
             </button>
           </div>
+        ) : null}
+        {onPublish ? (
+          <button
+            type="button"
+            disabled={busy || selected.length === 0}
+            onClick={onPublish}
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-sm font-medium text-primary-foreground disabled:opacity-50"
+          >
+            <Globe className="size-4" />
+            Auf die Webseite
+          </button>
         ) : null}
         <button
           type="button"

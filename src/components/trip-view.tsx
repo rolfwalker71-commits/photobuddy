@@ -7,6 +7,7 @@ import { GalleryBulkBar } from "@/components/gallery-bulk-bar";
 import { AlbumPicker } from "@/components/album-picker";
 import { AppHeader } from "@/components/app-header";
 import { DownloadZipDialog } from "@/components/download-zip-dialog";
+import { PublishDialog } from "@/components/publish-dialog";
 import { FloatingDock } from "@/components/floating-dock";
 import { PhotoFiltersSheet } from "@/components/photo-filters";
 import { PhotoGrid } from "@/components/photo-grid";
@@ -69,6 +70,8 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
   const [selecting, setSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [newBannerHidden, setNewBannerHidden] = useState(false);
+  const [publishEnabled, setPublishEnabled] = useState(false);
+  const [publishOpen, setPublishOpen] = useState(false);
   const markedRef = useRef(false);
   const guestDefaulted = useRef(false);
 
@@ -85,6 +88,9 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
     void api<{ user: Profile }>("/api/auth/me")
       .then((data) => setMe(data.user))
       .catch(() => setMe(null));
+    void api<{ configured: boolean }>("/api/publish")
+      .then((data) => setPublishEnabled(data.configured))
+      .catch(() => setPublishEnabled(false));
   }, [mode]);
 
   useEffect(() => {
@@ -572,6 +578,17 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
               setSelecting(false);
               setSelectedIds(new Set());
             }}
+            onPublish={publishEnabled ? () => setPublishOpen(true) : undefined}
+          />
+        ) : null}
+        {mode === "teilnehmer" && currentAlbum ? (
+          <PublishDialog
+            open={publishOpen}
+            albumId={currentAlbum.id}
+            photos={selectedPhotos}
+            profileById={profileById}
+            dayNotes={dayNotes}
+            onClose={() => setPublishOpen(false)}
           />
         ) : null}
       </main>

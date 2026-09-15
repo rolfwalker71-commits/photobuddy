@@ -1,0 +1,320 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { ExternalLink, Loader2, X } from "lucide-react";
+import { api } from "@/lib/api";
+import { dominantPlace, noteForDay, photoDayKey } from "@/lib/chapters";
+import { formatAppDateTime } from "@/lib/format-date";
+import type { DayNote, Photo, Profile } from "@/lib/types";
+
+type Author = { key: string; name: string };
+type Post = { route: string; title: string; date: string | null; published: boolean };
+type Details = { site: string; authors: Author[]; posts: Post[] };
+type Result = {
+  route: string;
+  created: boolean;
+  published: boolean;
+  url: string;
+  panelUrl: string;
+  uploaded: number;
+  skipped: number;
+};
+
+type PublishDialogProps = {
+  open: boolean;
+  albumId: string;
+  photos: Photo[];
+  profileById: Record<string, Profile>;
+  dayNotes: DayNote[];
+  onClose: () => void;
+};
+
+function localInputValue(stamp: string) {
+  const date = new Date(stamp);
+  if (Number.isNaN(date.getTime())) return "";
+  const two = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${two(date.getMonth() + 1)}-${two(date.getDate())}T${two(date.getHours())}:${two(date.getMinutes())}`;
+}
+
+function normalizeKey(value: string) {
+  return value
+    .trim()
+    .split(/\s+/)[0]
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "");
+}
+
+export function PublishDialog({
+  open,
+  albumId,
+  photos,
+  profileById,
+  dayNotes,
+  onClose,
+}: PublishDialogProps) {
+  const [details, setDetails] = useState<Details | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [mode, setMode] = useState<"new" | "existing">("new");
+  const [route, setRoute] = useState("");
+  const [title, setTitle] = useState("");
+  const [date, setDate] = useState("");
+  const [autor, setAutor] = useState("alle");
+  const [ort, setOrt] = useState("");
+  const [intro, setIntro] = useState("");
+  const [text, setText] = useState("");
+  const [published, setPublished] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<Result | null>(null);
+
+  const images = useMemo(() => photos.filter((photo) => photo.kind === "photo"), [photos]);
+  const videoCount = photos.length - images.length;
+
+  useEffect(() => {
+    if (!open) return;
+    setDetails(null);
+    setLoadError(null);
+    setResult(null);
+    setError(null);
+    setBusy(false);
+
+    const sorted = [...images].sort((a, b) =>
+      (a.taken_at ?? a.created_at).localeCompare(b.taken_at ?? b.created_at),
+    );
+    const place = dominantPlace(images) ?? "";
+    const days = new Set(images.map(photoDayKey));
+    const note = days.size === 1 ? noteForDay(dayNotes, [...days][0]) : null;
+    setMode("new");
+    setRoute("");
+    setTitle(place);
+    setOrt(place);
+    setDate(sorted[0] ? localInputValue(sorted[0].taken_at ?? sorted[0].created_at) : "");
+    setIntro("");
+    setText(note?.body ?? "");
+    setPublished(false);
+
+    let cancelled = false;
+    api<Details>("/api/publish?details=1")
+      .then((data) => {
+        if (cancelled) return;
+        setDetails(data);
+        // Author: the one uploader of all selected photos, else everyone.
+        const uploaders = new Set(images.map((photo) => photo.uploaded_by));
+        const only = uploaders.size === 1 ? profileById[[...uploaders][0]] : null;
+        const guess = only ? normalizeKey(only.display_name) : "";
+        setAutor(data.authors.some((a) => a.key === guess) ? guess : "alle");
+        setRoute(data.posts[0]?.route ?? "");
+      })
+      .catch((err) => {
+        if (!cancelled) setLoadError(err instanceof Error ? err.message : "Webseite nicht erreichbar.");
+      });
+    return () => {
+      cancelled = true;
+    };
+    // Reset only when the dialog opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const canSubmit =
+    !busy &&
+    details !== null &&
+    images.length > 0 &&
+    (mode === "existing" ? Boolean(route) : Boolean(title.trim() && date));
+
+  async function submit() {
+    if (!canSubmit) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const data = await api<Result>("/api/publish", {
+        method: "POST",
+        body: JSON.stringify({
+          albumId,
+          photoIds: images.map((photo) => photo.id),
+          ...(mode === "existing"
+            ? { route }
+            : { post: { title, date, autor, ort, intro, text, published } }),
+        }),
+      });
+      setResult(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Übertragen fehlgeschlagen.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!open) return null;
+
+  const field = "h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
+      <button
+        type="button"
+        className="absolute inset-0 bg-foreground/40"
+        aria-label="Schliessen"
+        disabled={busy}
+        onClick={onClose}
+      />
+      <form
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="publish-title"
+        aria-busy={busy}
+        className="relative z-10 flex max-h-[min(44rem,92dvh)] w-full max-w-lg flex-col rounded-t-2xl bg-card p-5 shadow-dock ring-1 ring-border sm:rounded-2xl"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit();
+        }}
+      >
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 id="publish-title" className="text-lg font-semibold leading-snug">
+            Auf die Webseite
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            className="inline-flex size-11 items-center justify-center rounded-2xl bg-muted disabled:opacity-50"
+            aria-label="Schliessen"
+          >
+            <X className="size-5" />
+          </button>
+        </div>
+
+        {result ? (
+          <div className="space-y-4">
+            <p className="text-sm leading-snug">
+              {result.uploaded === 1 ? "1 Foto" : `${result.uploaded} Fotos`} übertragen
+              {result.skipped > 0 ? `, ${result.skipped} waren schon dort` : ""}.
+              {result.published
+                ? " Der Beitrag ist auf der Webseite sichtbar."
+                : " Der Beitrag ist noch ein Entwurf – im Panel Text ergänzen und veröffentlichen."}
+            </p>
+            <a
+              href={result.published ? result.url : result.panelUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-sm font-medium text-primary-foreground"
+            >
+              <ExternalLink className="size-4" />
+              {result.published ? "Beitrag ansehen" : "Panel öffnen"}
+            </a>
+          </div>
+        ) : loadError ? (
+          <p className="text-sm text-destructive">{loadError}</p>
+        ) : !details ? (
+          <p className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" /> Webseite wird geladen…
+          </p>
+        ) : (
+          <>
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
+              <p className="text-sm text-muted-foreground leading-snug">
+                {images.length === 1 ? "1 Foto" : `${images.length} Fotos`} für{" "}
+                {details.site.replace(/^https?:\/\//, "")}
+                {videoCount > 0 ? ` · ${videoCount} Video(s) bleiben hier` : ""}
+              </p>
+
+              <div className="grid grid-cols-2 gap-1 rounded-2xl bg-muted p-1" role="radiogroup">
+                {(
+                  [
+                    ["new", "Neuer Beitrag"],
+                    ["existing", "Bestehender Beitrag"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={mode === value}
+                    disabled={busy || (value === "existing" && details.posts.length === 0)}
+                    onClick={() => setMode(value)}
+                    className={`h-10 rounded-xl text-sm font-medium disabled:opacity-50 ${
+                      mode === value ? "bg-card shadow-card" : ""
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {mode === "existing" ? (
+                <label className="block space-y-1">
+                  <span className="text-sm font-medium">Beitrag</span>
+                  <select className={field} value={route} disabled={busy} onChange={(e) => setRoute(e.target.value)}>
+                    {details.posts.map((post) => (
+                      <option key={post.route} value={post.route}>
+                        {post.title}
+                        {post.date ? ` · ${formatAppDateTime(post.date)}` : ""}
+                        {post.published ? "" : " (Entwurf)"}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <>
+                  <label className="block space-y-1">
+                    <span className="text-sm font-medium">Titel</span>
+                    <input className={field} value={title} disabled={busy} onChange={(e) => setTitle(e.target.value)} required />
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block space-y-1">
+                      <span className="text-sm font-medium">Datum und Zeit</span>
+                      <input type="datetime-local" className={field} value={date} disabled={busy} onChange={(e) => setDate(e.target.value)} required />
+                    </label>
+                    <label className="block space-y-1">
+                      <span className="text-sm font-medium">Ort</span>
+                      <input className={field} value={ort} disabled={busy} onChange={(e) => setOrt(e.target.value)} />
+                    </label>
+                  </div>
+                  <label className="block space-y-1">
+                    <span className="text-sm font-medium">Geschrieben von</span>
+                    <select className={field} value={autor} disabled={busy} onChange={(e) => setAutor(e.target.value)}>
+                      {details.authors.map((author) => (
+                        <option key={author.key} value={author.key}>
+                          {author.name}
+                        </option>
+                      ))}
+                      <option value="alle">Alle</option>
+                    </select>
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-sm font-medium">Kurztext</span>
+                    <textarea className={`${field} h-auto py-2`} rows={2} value={intro} disabled={busy} onChange={(e) => setIntro(e.target.value)} />
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-sm font-medium">Text</span>
+                    <textarea className={`${field} h-auto py-2`} rows={5} value={text} disabled={busy} onChange={(e) => setText(e.target.value)} />
+                  </label>
+                  <label className="flex min-h-11 items-center gap-3 rounded-2xl bg-muted px-3">
+                    <input
+                      type="checkbox"
+                      className="size-5 accent-primary"
+                      checked={published}
+                      disabled={busy}
+                      onChange={(e) => setPublished(e.target.checked)}
+                    />
+                    <span className="text-sm font-medium">Sofort sichtbar (sonst Entwurf)</span>
+                  </label>
+                </>
+              )}
+            </div>
+
+            {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
+            <button
+              type="submit"
+              disabled={!canSubmit}
+              className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-sm font-medium text-primary-foreground disabled:opacity-50"
+            >
+              {busy ? <Loader2 className="size-4 animate-spin" /> : null}
+              {busy ? "Wird übertragen…" : "Übertragen"}
+            </button>
+          </>
+        )}
+      </form>
+    </div>
+  );
+}
