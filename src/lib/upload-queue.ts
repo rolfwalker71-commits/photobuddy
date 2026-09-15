@@ -289,17 +289,35 @@ function buildForm(item: QueuedUpload) {
   return form;
 }
 
+/**
+ * Abort when no upload progress arrives for this long. A fixed total timeout
+ * would kill slow but moving uploads on ship WLAN; a stalled one retries sooner.
+ */
+const STALL_MS = 45_000;
+/** After the last byte the server may still fetch weather before it answers. */
+const RESPONSE_MS = 90_000;
+
 function send(item: QueuedUpload, onProgress: (ratio: number) => void) {
   return new Promise<{ status: number; body: UploadResponseBody }>((resolve) => {
     const xhr = new XMLHttpRequest();
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const arm = (ms: number) => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => xhr.abort(), ms);
+    };
+    const settle = (result: { status: number; body: UploadResponseBody }) => {
+      if (timer) clearTimeout(timer);
+      resolve(result);
+    };
     xhr.open("POST", "/api/photos");
     xhr.withCredentials = true;
-    xhr.timeout = 5 * 60_000;
     xhr.upload.onprogress = (event) => {
+      arm(STALL_MS);
       if (event.lengthComputable && event.total > 0) {
         onProgress(event.loaded / event.total);
       }
     };
+    xhr.upload.onload = () => arm(RESPONSE_MS);
     xhr.onload = () => {
       let body: UploadResponseBody = {};
       try {
@@ -307,12 +325,12 @@ function send(item: QueuedUpload, onProgress: (ratio: number) => void) {
       } catch {
         /* non-JSON error page */
       }
-      resolve({ status: xhr.status, body });
+      settle({ status: xhr.status, body });
     };
-    const fail = () => resolve({ status: 0, body: {} });
+    const fail = () => settle({ status: 0, body: {} });
     xhr.onerror = fail;
-    xhr.ontimeout = fail;
     xhr.onabort = fail;
+    arm(STALL_MS);
     xhr.send(buildForm(item));
   });
 }

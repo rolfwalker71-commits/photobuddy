@@ -111,12 +111,12 @@ async function compress(
 
 export async function prepareUploadFiles(file: File) {
   const full = await compress(file, {
-    maxWidthOrHeight: 1920,
-    maxSizeMB: 1.4,
+    maxWidthOrHeight: 1600,
+    maxSizeMB: 0.8,
   });
   const thumb = await compress(file, {
-    maxWidthOrHeight: 1200,
-    maxSizeMB: 0.55,
+    maxWidthOrHeight: 800,
+    maxSizeMB: 0.2,
   });
   const bitmap = await createImageBitmap(full);
   return {
