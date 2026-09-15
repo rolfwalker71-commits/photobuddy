@@ -62,6 +62,10 @@ function placeResolver() {
   };
 }
 
+function isCoordinate(value: number | null, limit: number): value is number {
+  return value != null && Number.isFinite(value) && Math.abs(value) <= limit;
+}
+
 function mediaMeta(photo: Photo, where: string, extra: PhotoMeta | undefined) {
   const caption = photo.title?.trim() || "";
   const description = photo.description?.trim() || "";
@@ -69,8 +73,12 @@ function mediaMeta(photo: Photo, where: string, extra: PhotoMeta | undefined) {
   if (caption || description) fields.bildtext = caption || description;
   const alt = description || caption || (where ? `Foto aus ${where}` : "");
   if (alt) fields.alt = alt;
-  // Place name only: no coordinates in metadata anyone can read on the website.
   if (where) fields.ort = where.slice(0, 80);
+  // Coordinates as fields, not EXIF: the site shows them per photo and can hide them.
+  if (isCoordinate(photo.latitude, 90) && isCoordinate(photo.longitude, 180)) {
+    fields.lat = photo.latitude.toFixed(5);
+    fields.lon = photo.longitude.toFixed(5);
+  }
   // Local capture time and chapter let the site's Fotos page sort the photo in.
   if (extra?.datum && MEDIA_DATUM_RE.test(extra.datum)) fields.datum = extra.datum;
   if (extra?.abschnitt && CHAPTER_KEY_RE.test(extra.abschnitt)) {
