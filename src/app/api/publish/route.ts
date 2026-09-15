@@ -11,11 +11,13 @@ import { listPhotosByIds } from "@/lib/db/queries";
 import { resolvePhotoPath } from "@/lib/files";
 import {
   GRAV_DIARY_ROUTE,
+  GRAV_PHOTOS_ROUTE,
   createGravPost,
   getGravPage,
   gravConfig,
   gravSlug,
   listGravAuthors,
+  listGravChapters,
   listGravMedia,
   listGravPosts,
   saveGravMediaMeta,
@@ -23,11 +25,16 @@ import {
   uploadGravMedia,
 } from "@/lib/grav";
 import { mimeFromPath } from "@/lib/mime";
+import { humanLocationName } from "@/lib/place";
 import type { Photo } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 const LOCAL_DATETIME_RE = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})$/;
+const MEDIA_DATUM_RE = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
+const CHAPTER_KEY_RE = /^[a-z0-9_-]{1,40}$/;
+
+type PhotoMeta = { datum?: string; abschnitt?: string };
 
 /** Stable per photo, so publishing the same photo twice is detected and skipped. */
 function mediaFilename(photo: Photo) {
@@ -35,17 +42,23 @@ function mediaFilename(photo: Photo) {
   return `photobuddy-${photo.id.slice(0, 8)}.${ext}`;
 }
 
-function mediaMeta(photo: Photo, place: string) {
+function mediaMeta(photo: Photo, place: string, extra: PhotoMeta | undefined) {
   const caption = photo.title?.trim() || "";
   const description = photo.description?.trim() || "";
+  const where = place || humanLocationName(photo.location_name) || "";
   const fields: Record<string, string> = {};
   if (caption || description) fields.bildtext = caption || description;
-  const alt = description || caption || (place ? `Foto aus ${place}` : "");
+  const alt = description || caption || (where ? `Foto aus ${where}` : "");
   if (alt) fields.alt = alt;
+  // Local capture time and chapter let the site's Fotos page sort the photo in.
+  if (extra?.datum && MEDIA_DATUM_RE.test(extra.datum)) fields.datum = extra.datum;
+  if (extra?.abschnitt && CHAPTER_KEY_RE.test(extra.abschnitt)) {
+    fields.abschnitt = extra.abschnitt;
+  }
   return fields;
 }
 
-/** GET: is publishing set up? With ?details=1 also the site's authors and posts. */
+/** GET: is publishing set up? With ?details=1 also the site's authors, posts and chapters. */
 export async function GET(request: Request) {
   try {
     await requireTeilnehmer();
@@ -54,9 +67,13 @@ export async function GET(request: Request) {
     if (new URL(request.url).searchParams.get("details") !== "1") {
       return NextResponse.json({ configured: true, site: config.url });
     }
-    const [authors, posts] = await Promise.all([listGravAuthors(), listGravPosts()]);
+    const [authors, posts, chapters] = await Promise.all([
+      listGravAuthors(),
+      listGravPosts(),
+      listGravChapters(),
+    ]);
     return NextResponse.json(
-      { configured: true, site: config.url, authors, posts },
+      { configured: true, site: config.url, authors, posts, chapters },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (err) {
@@ -64,9 +81,14 @@ export async function GET(request: Request) {
   }
 }
 
+type PublishTarget = "fotos" | "post" | "new-post";
+
 type PublishBody = {
   albumId?: string;
   photoIds?: unknown;
+  /** Per photo id: local capture time and chapter key, computed on the device. */
+  meta?: Record<string, PhotoMeta>;
+  target?: PublishTarget;
   route?: string;
   post?: {
     title?: string;
@@ -127,23 +149,35 @@ export async function POST(request: Request) {
     const photos = (await listPhotosByIds(albumId, ids)).filter(
       (photo) => photo.kind === "photo",
     );
-    if (photos.length === 0) throw new HttpError(400, "Keine Fotos ausgewählt (Videos werden nicht übertragen).");
+    if (photos.length === 0) {
+      throw new HttpError(400, "Keine Fotos ausgewählt (Videos werden nicht übertragen).");
+    }
 
-    let route: string;
+    const target: PublishTarget = body.target ?? "fotos";
+    let route: string = GRAV_PHOTOS_ROUTE;
     let created = false;
-    if (body.post) {
+    if (target === "new-post") {
+      if (!body.post) throw new HttpError(400, "Angaben zum Beitrag fehlen.");
       route = await createPost(body.post);
       created = true;
-    } else {
+    } else if (target === "post") {
       route = `/${String(body.route ?? "").trim().replace(/^\/+|\/+$/g, "")}`;
       if (!route.startsWith(`${GRAV_DIARY_ROUTE}/`)) {
         throw new HttpError(400, "Beitrag fehlt.");
       }
     }
+    const isPost = target !== "fotos";
 
     const page = await getGravPage(route);
-    if (!page) throw new HttpError(404, "Beitrag auf der Webseite nicht gefunden.");
-    const place = String(page.header?.ort ?? body.post?.ort ?? "").trim();
+    if (!page) {
+      throw new HttpError(
+        404,
+        isPost
+          ? "Beitrag auf der Webseite nicht gefunden."
+          : "Seite „Fotos“ auf der Webseite nicht gefunden.",
+      );
+    }
+    const place = isPost ? String(page.header?.ort ?? body.post?.ort ?? "").trim() : "";
 
     const existing = (await listGravMedia(route)).map((media) => media.filename);
     const present = new Set(existing);
@@ -157,7 +191,7 @@ export async function POST(request: Request) {
         mime: photo.mime_type || mimeFromPath(photo.storage_path, "image/jpeg"),
         data,
       });
-      const fields = mediaMeta(photo, place);
+      const fields = mediaMeta(photo, place, body.meta?.[photo.id]);
       if (Object.keys(fields).length > 0) {
         await saveGravMediaMeta(route, filename, fields);
       }
@@ -174,12 +208,13 @@ export async function POST(request: Request) {
       const header: Record<string, unknown> = {
         media_order: [...ordered, ...uploaded.filter((name) => !ordered.includes(name))].join(","),
       };
-      if (!page.header?.titelbild) header.titelbild = ordered[0] ?? uploaded[0];
+      if (isPost && !page.header?.titelbild) header.titelbild = ordered[0] ?? uploaded[0];
       await updateGravHeader(route, header);
     }
 
     const site = gravConfig()!.url;
     return NextResponse.json({
+      target,
       route,
       created,
       published: created ? body.post?.published === true : page.published,

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, CheckSquare, Download, MoonStar, PartyPopper, Sparkles, Trash2, X } from "lucide-react";
+import { Check, CheckSquare, Download, Globe, MoonStar, PartyPopper, Sparkles, Trash2, X } from "lucide-react";
 import { GalleryBulkBar } from "@/components/gallery-bulk-bar";
 import { AlbumPicker } from "@/components/album-picker";
 import { AppHeader } from "@/components/app-header";
@@ -67,7 +67,10 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
   const [zipBusy, setZipBusy] = useState(false);
   const [zipError, setZipError] = useState<string | null>(null);
   const [compareSeen, setCompareSeen] = useState<string | null>(null);
-  const [selecting, setSelecting] = useState(false);
+  /** "edit": bulk edit bar; "publish": pick photos for the website, then the dialog. */
+  const [selectMode, setSelectMode] = useState<"edit" | "publish" | null>(null);
+  const selecting = selectMode !== null;
+  const editing = selectMode === "edit";
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [newBannerHidden, setNewBannerHidden] = useState(false);
   const [publishEnabled, setPublishEnabled] = useState(false);
@@ -353,25 +356,25 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
                   <button
                     type="button"
                     onClick={() => {
-                      setSelecting((prev) => !prev);
+                      setSelectMode((prev) => (prev === "edit" ? null : "edit"));
                       setSelectedIds(new Set());
                     }}
                     className={`${action} ${
-                      selecting
+                      editing
                         ? "bg-primary/15 text-primary"
                         : "bg-muted"
                     }`}
-                    aria-pressed={selecting}
-                    aria-label={selecting ? "Fertig" : "Auswählen"}
-                    title={selecting ? "Fertig" : "Auswählen"}
+                    aria-pressed={editing}
+                    aria-label={editing ? "Fertig" : "Auswählen"}
+                    title={editing ? "Fertig" : "Auswählen"}
                   >
-                    {selecting ? (
+                    {editing ? (
                       <Check className={actionIcon} aria-hidden />
                     ) : (
                       <CheckSquare className={actionIcon} aria-hidden />
                     )}
                     <span className={actionLabel}>
-                      {selecting ? "Fertig" : "Auswählen"}
+                      {editing ? "Fertig" : "Auswählen"}
                     </span>
                   </button>
                   <Link
@@ -386,6 +389,38 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
                 </>
               ) : null}
             </div>
+            {mode === "teilnehmer" && publishEnabled && view === "grid" ? (
+              selectMode === "publish" ? (
+                <div className="flex min-h-11 items-center gap-2 rounded-2xl bg-primary/10 py-1 pl-3 pr-1">
+                  <Globe className="size-5 shrink-0 text-primary" aria-hidden />
+                  <p className="min-w-0 flex-1 text-sm font-medium leading-snug">
+                    Fotos antippen
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectMode(null);
+                      setSelectedIds(new Set());
+                    }}
+                    className="inline-flex h-9 items-center rounded-xl bg-card px-3 text-sm font-medium"
+                  >
+                    Abbrechen
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectMode("publish");
+                    setSelectedIds(new Set());
+                  }}
+                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary/10 text-sm font-medium text-primary"
+                >
+                  <Globe className="size-5" aria-hidden />
+                  Auf die Webseite hochladen
+                </button>
+              )
+            ) : null}
             <div
               className="flex h-10 min-h-10 rounded-full bg-muted p-0.5"
               role="tablist"
@@ -565,7 +600,7 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
             }}
           />
         )}
-        {mode === "teilnehmer" && selecting && currentAlbum ? (
+        {mode === "teilnehmer" && editing && currentAlbum ? (
           <GalleryBulkBar
             albumId={currentAlbum.id}
             albums={albums}
@@ -575,11 +610,39 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
               setSelectedIds(new Set(visible.map((photo) => photo.id)))
             }
             onDone={() => {
-              setSelecting(false);
+              setSelectMode(null);
               setSelectedIds(new Set());
             }}
-            onPublish={publishEnabled ? () => setPublishOpen(true) : undefined}
           />
+        ) : null}
+        {mode === "teilnehmer" && selectMode === "publish" ? (
+          <div
+            className="pointer-events-none fixed inset-x-0 z-[36] px-4"
+            style={{
+              bottom: "calc(4.75rem + max(0.75rem, env(safe-area-inset-bottom)))",
+            }}
+          >
+            <div className="pointer-events-auto mx-auto flex max-w-lg items-center gap-2 rounded-2xl bg-card p-2 pl-4 shadow-dock ring-1 ring-border">
+              <p className="min-w-0 flex-1 text-sm font-medium">
+                {selectedPhotos.length} ausgewählt
+              </p>
+              <button
+                type="button"
+                onClick={() => setSelectedIds(new Set(visible.map((photo) => photo.id)))}
+                className="inline-flex h-11 items-center rounded-xl bg-muted px-3 text-sm font-medium"
+              >
+                Alle
+              </button>
+              <button
+                type="button"
+                disabled={selectedPhotos.length === 0}
+                onClick={() => setPublishOpen(true)}
+                className="inline-flex h-11 items-center rounded-xl bg-primary px-5 text-sm font-medium text-primary-foreground disabled:opacity-50"
+              >
+                Weiter
+              </button>
+            </div>
+          </div>
         ) : null}
         {mode === "teilnehmer" && currentAlbum ? (
           <PublishDialog
@@ -588,7 +651,13 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
             photos={selectedPhotos}
             profileById={profileById}
             dayNotes={dayNotes}
-            onClose={() => setPublishOpen(false)}
+            onClose={(published) => {
+              setPublishOpen(false);
+              if (published) {
+                setSelectMode(null);
+                setSelectedIds(new Set());
+              }
+            }}
           />
         ) : null}
       </main>

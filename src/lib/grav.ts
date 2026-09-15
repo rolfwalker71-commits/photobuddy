@@ -2,6 +2,7 @@ import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { randomBytes } from "node:crypto";
 import { HttpError } from "@/lib/auth/request";
+import { isSiteChapter, type SiteChapter } from "@/lib/site-chapters";
 
 /**
  * Client for the Grav API plugin (`/api/v1`) of the trip website.
@@ -13,6 +14,7 @@ import { HttpError } from "@/lib/auth/request";
  */
 
 export const GRAV_DIARY_ROUTE = "/tagebuch";
+export const GRAV_PHOTOS_ROUTE = "/fotos";
 const GRAV_PEOPLE_ROUTE = "/reisende";
 const TIMEOUT_MS = 120_000;
 
@@ -54,10 +56,15 @@ type GravResponse = { status: number; body: unknown };
 function send(
   method: string,
   path: string,
-  init: { json?: unknown; multipart?: { buffer: Buffer; boundary: string } } = {},
+  init: {
+    json?: unknown;
+    multipart?: { buffer: Buffer; boundary: string };
+    /** Site path outside the API, e.g. `/route.json`. */
+    raw?: boolean;
+  } = {},
 ): Promise<GravResponse> {
   const config = requireConfig();
-  const target = new URL(apiPath(path), config.url);
+  const target = new URL(init.raw ? path : apiPath(path), config.url);
   const headers: Record<string, string> = {
     "X-API-Key": config.apiKey,
     Accept: "application/json",
@@ -165,6 +172,14 @@ export async function listGravAuthors(): Promise<GravAuthor[]> {
       name: String(person.name ?? person.schluessel ?? "").trim(),
     }))
     .filter((person) => person.key);
+}
+
+/** Trip chapters from the site's public `/route.json`; empty while the site has none. */
+export async function listGravChapters(): Promise<SiteChapter[]> {
+  const res = await send("GET", "/route.json", { raw: true });
+  if (res.status !== 200) return [];
+  const list = (res.body as { abschnitte?: unknown } | null)?.abschnitte;
+  return Array.isArray(list) ? list.filter(isSiteChapter) : [];
 }
 
 export async function listGravPosts(): Promise<GravPost[]> {

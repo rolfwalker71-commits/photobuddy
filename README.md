@@ -94,7 +94,7 @@ Lokales Image bauen (nur deine Maschine, nicht der Server): `docker compose -f d
 
 ## Fotos auf die Webseite (Grav)
 
-In der Galerie Fotos auswählen → **Auf die Webseite**. Photobuddy legt über die API der Grav-Seite einen Tagebuch-Beitrag an (`/tagebuch/<datum>-<ort>`, standardmässig als Entwurf) oder hängt die Fotos an einen bestehenden Beitrag. Bildtitel und Beschreibung werden zu `bildtext` und `alt`; die Seite **Fotos** sammelt die Bilder automatisch. Schon übertragene Fotos werden übersprungen. Videos bleiben in Photobuddy.
+In der Galerie oben **Auf die Webseite hochladen** → Fotos antippen → **Weiter**. Im Dialog das Reise-Kapitel wählen (vorausgewählt nach Aufnahmezeit, Liste aus `/route.json` der Webseite) und ob ein Blogeintrag entsteht. Ohne Blogeintrag landen die Fotos auf der Seite **Fotos** (`/fotos`), mit Blogeintrag in einem neuen Tagebuch-Beitrag (`/tagebuch/<datum>-<ort>`, standardmässig Entwurf) oder einem bestehenden. Titel und Beschreibung werden zu `bildtext` und `alt`, dazu `abschnitt` (Kapitel) und `datum` (Aufnahmezeit, Ortszeit). Schon übertragene Fotos werden übersprungen. Videos bleiben in Photobuddy.
 
 In `.env` (der Schlüssel bleibt auf dem Server, nie im Browser):
 
