@@ -15,8 +15,9 @@ __pycache__/
 out/
 dist/
 
-# Docker / local vapid override
-data/
+# Docker / local vapid override — anchored, or it also swallows route
+# directories such as src/app/api/widget/data/
+/data/
 
 # OS and editor
 .DS_Store

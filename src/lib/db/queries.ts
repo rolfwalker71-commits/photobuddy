@@ -89,6 +89,28 @@ export async function updateUserProfile(
   );
 }
 
+export async function findUserByWidgetToken(token: string) {
+  return queryOne<UserRow>(
+    `select * from public.users where widget_token = $1 and is_active is not false limit 1`,
+    [token],
+  );
+}
+
+export async function setWidgetToken(userId: string, token: string) {
+  await query(`update public.users set widget_token = $2 where id = $1`, [
+    userId,
+    token,
+  ]);
+  return token;
+}
+
+export async function setWidgetSettings(userId: string, settings: string) {
+  await query(`update public.users set widget_settings = $2 where id = $1`, [
+    userId,
+    settings,
+  ]);
+}
+
 export async function listProfiles(): Promise<Profile[]> {
   const rows = await query<UserRow>(
     `select ${PROFILE_COLS} from public.users order by display_name`,

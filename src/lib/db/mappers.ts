@@ -37,6 +37,8 @@ export type UserRow = {
   role: UserRole;
   is_active?: boolean;
   accent_color: string;
+  widget_token?: string | null;
+  widget_settings?: string | null;
   created_at: Date | string;
   updated_at: Date | string;
 };

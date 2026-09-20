@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BookImage, Map as MapIcon, MapPin, Trash2, Users } from "lucide-react";
+import { BookImage, LayoutGrid, Map as MapIcon, MapPin, Trash2, Users } from "lucide-react";
 import { AlbumGuestLinkPanel } from "@/components/album-guest-link-panel";
 import { BackupPanel } from "@/components/backup-panel";
 import { DigestSettings } from "@/components/digest-settings";
@@ -122,6 +122,19 @@ export function SettingsPanel() {
           </span>
         </Link>
       )}
+
+      <Link
+        href="/settings/widgets"
+        className="flex min-h-11 items-center gap-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border"
+      >
+        <LayoutGrid className="size-5" aria-hidden />
+        <span className="min-w-0">
+          <span className="block text-base font-semibold">Widgets</span>
+          <span className="block text-sm text-muted-foreground leading-snug">
+            Fotos auf dem Homescreen von iPhone und iPad — Skript für Scriptable.
+          </span>
+        </span>
+      </Link>
 
       <Link
         href="/settings/trash"

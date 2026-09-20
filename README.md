@@ -49,6 +49,22 @@ Push pro Gerät: „Bei jedem Foto“ oder „Abends“ — eine Zusammenfassung
 
 Fotos werden auf dem Gerät zwischengespeichert und gehen automatisch hoch, sobald wieder Netz da ist — auch nach einem Neustart der App. Die Warteschlange steht auf der Kamera-Seite.
 
+### Widgets auf dem Homescreen
+
+**Einstellungen → Widgets** erzeugt ein Skript für [Scriptable](https://scriptable.app) (gratis im App Store). Kopieren, in Scriptable als neues Skript einsetzen, auf dem Homescreen ein Scriptable-Widget anlegen und dort das Skript wählen.
+
+| Widget | Grössen | Zeigt |
+| --- | --- | --- |
+| Letztes Foto | klein, mittel, gross | Neueste Aufnahme vollflächig, mit Ort, Zeit und Wetter |
+| Collage | mittel, gross, iPad | Die 4 / 9 / 12 neuesten Aufnahmen |
+| Reise-Status | klein, mittel | Tag der Reise, Aufnahmen heute, Ort, wer fotografiert |
+| Route | mittel, gross, iPad | Der Weg aus den Foto-Standorten, selbst gezeichnet |
+| Sperrbildschirm | rund, rechteckig, inline | Anzahl heute bzw. Ort und Zeit der letzten Aufnahme |
+
+Album, Titel, Erscheinungsbild und was eingeblendet wird (Ort, Person, Wetter, nur Highlights) stellst du in der App ein — das Widget übernimmt es bei der nächsten Aktualisierung, das Skript muss nicht neu kopiert werden. Mockups aller Grössen: [`docs/widgets/`](docs/widgets).
+
+Im Skript steckt ein persönlicher, nur lesender Link. Nicht weitergeben — und falls doch, in der App **Neuer Link** tippen: alle bisher kopierten Skripte hören dann auf zu funktionieren.
+
 ### Server (gleicher Compose-Stack)
 
 `NEXT_PUBLIC_SITE_URL` = öffentliche App-URL (ohne Slash).
