@@ -6,7 +6,7 @@ import { FloatingDock } from "@/components/floating-dock";
 
 export default function AdminUsersPage() {
   return (
-    <div className="min-h-dvh pb-28">
+    <div className="app-shell">
       <AppHeader
         title="Teilnehmer"
         subtitle="Hier legst du Login-Benutzer an und setzt Passwörter"

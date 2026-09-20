@@ -174,7 +174,7 @@ export function AdminUsersPanel() {
         <label className="block space-y-1.5">
           <span className="text-sm font-medium">Anzeigename</span>
           <input
-            className="h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm"
+            className="h-11 w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 text-sm"
             value={form.display_name}
             onChange={(event) =>
               setForm((prev) => ({ ...prev, display_name: event.target.value }))
@@ -187,7 +187,7 @@ export function AdminUsersPanel() {
           <input
             type="email"
             required
-            className="h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm"
+            className="h-11 w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 text-sm"
             value={form.email}
             onChange={(event) =>
               setForm((prev) => ({ ...prev, email: event.target.value }))
@@ -201,7 +201,7 @@ export function AdminUsersPanel() {
             type="password"
             required
             minLength={4}
-            className="h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm"
+            className="h-11 w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 text-sm"
             value={form.password}
             onChange={(event) =>
               setForm((prev) => ({ ...prev, password: event.target.value }))
@@ -215,7 +215,7 @@ export function AdminUsersPanel() {
             <ul className="space-y-1">
               {albums.map((album) => (
                 <li key={album.id}>
-                  <label className="flex min-h-11 items-center gap-3 rounded-2xl bg-background px-3 ring-1 ring-border">
+                  <label className="flex min-h-11 items-center gap-3 rounded-2xl glass-fill px-3">
                     <input
                       type="checkbox"
                       checked={formAlbums.includes(album.id)}
@@ -239,7 +239,7 @@ export function AdminUsersPanel() {
         <button
           type="submit"
           disabled={busy}
-          className="inline-flex h-11 w-full items-center justify-center rounded-2xl bg-primary text-sm font-medium text-primary-foreground disabled:opacity-60"
+          className="inline-flex h-11 w-full items-center justify-center rounded-2xl glass-accent glass-interactive text-sm font-medium text-primary-foreground disabled:opacity-60"
         >
           Anlegen
         </button>
@@ -283,7 +283,7 @@ export function AdminUsersPanel() {
                     <label className="block space-y-1.5">
                       <span className="text-sm font-medium">Anzeigename</span>
                       <input
-                        className="h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm"
+                        className="h-11 w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 text-sm"
                         value={editName}
                         onChange={(event) => setEditName(event.target.value)}
                       />
@@ -294,7 +294,7 @@ export function AdminUsersPanel() {
                         <ul className="space-y-1">
                           {albums.map((album) => (
                             <li key={album.id}>
-                              <label className="flex min-h-11 items-center gap-3 rounded-2xl bg-background px-3 ring-1 ring-border">
+                              <label className="flex min-h-11 items-center gap-3 rounded-2xl glass-fill px-3">
                                 <input
                                   type="checkbox"
                                   checked={editAlbums.includes(album.id)}
@@ -322,7 +322,7 @@ export function AdminUsersPanel() {
                       <input
                         type="password"
                         minLength={4}
-                        className="h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm"
+                        className="h-11 w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 text-sm"
                         value={editPassword}
                         onChange={(event) => setEditPassword(event.target.value)}
                         autoComplete="new-password"
@@ -333,7 +333,7 @@ export function AdminUsersPanel() {
                         type="button"
                         disabled={busy}
                         onClick={() => void saveEdit(user.id)}
-                        className="inline-flex h-11 items-center rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60"
+                        className="inline-flex h-11 items-center rounded-2xl glass-accent glass-interactive px-4 text-sm font-medium text-primary-foreground disabled:opacity-60"
                       >
                         Speichern
                       </button>

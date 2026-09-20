@@ -141,7 +141,7 @@ export function DownloadZipDialog({
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
       <button
         type="button"
-        className="absolute inset-0 bg-foreground/40"
+        className="glass-scrim animate-glass-fade absolute inset-0"
         aria-label="Download schliessen"
         disabled={busy}
         onClick={onClose}
@@ -151,7 +151,7 @@ export function DownloadZipDialog({
         aria-modal="true"
         aria-labelledby="download-title"
         aria-busy={busy}
-        className="relative z-10 flex max-h-[min(36rem,92dvh)] w-full max-w-lg flex-col rounded-t-2xl bg-card p-5 shadow-dock ring-1 ring-border sm:rounded-2xl"
+        className="relative z-10 flex max-h-[min(36rem,92dvh)] w-full max-w-lg flex-col glass-sheet glass-sheen animate-glass-rise rounded-t-3xl p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:rounded-3xl sm:pb-5"
         onSubmit={(event) => {
           event.preventDefault();
           submit();
@@ -165,7 +165,7 @@ export function DownloadZipDialog({
             type="button"
             onClick={onClose}
             disabled={busy}
-            className="inline-flex size-11 items-center justify-center rounded-2xl bg-muted disabled:opacity-50"
+            className="inline-flex size-11 items-center justify-center rounded-2xl bg-muted glass-interactive disabled:opacity-50"
             aria-label="Schliessen"
           >
             <X className="size-5" />
@@ -225,7 +225,7 @@ export function DownloadZipDialog({
                   type="date"
                   data-empty={dateFrom ? "false" : "true"}
                   disabled={busy || fullRange}
-                  className="date-field h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm disabled:opacity-50"
+                  className="date-field h-11 w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 text-sm disabled:opacity-50"
                   value={dateFrom}
                   onChange={(event) => {
                     setFullRange(false);
@@ -244,7 +244,7 @@ export function DownloadZipDialog({
                   type="date"
                   data-empty={dateTo ? "false" : "true"}
                   disabled={busy || fullRange}
-                  className="date-field h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm disabled:opacity-50"
+                  className="date-field h-11 w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 text-sm disabled:opacity-50"
                   value={dateTo}
                   onChange={(event) => {
                     setFullRange(false);
@@ -281,14 +281,14 @@ export function DownloadZipDialog({
               type="button"
               onClick={onClose}
               disabled={busy}
-              className="inline-flex h-11 flex-1 items-center justify-center rounded-2xl bg-muted text-sm font-medium disabled:opacity-50"
+              className="inline-flex h-11 flex-1 items-center justify-center rounded-2xl bg-muted glass-interactive text-sm font-medium disabled:opacity-50"
             >
               Abbrechen
             </button>
             <button
               type="submit"
               disabled={!canSubmit}
-              className="inline-flex h-11 flex-1 items-center justify-center rounded-2xl bg-primary text-sm font-medium text-primary-foreground disabled:opacity-50"
+              className="inline-flex h-11 flex-1 items-center justify-center rounded-2xl glass-accent glass-interactive text-sm font-medium text-primary-foreground disabled:opacity-50"
             >
               Download
             </button>

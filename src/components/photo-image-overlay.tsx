@@ -62,7 +62,7 @@ export function PhotoImageOverlay({
           <div className="z-[1] flex w-max min-w-0 max-w-[46%] flex-col items-start gap-0.5 max-md:max-w-[78%]">
             <time
               dateTime={stamp}
-              className={`inline-flex w-max max-w-full flex-col items-start rounded-lg bg-neutral-900/65 font-medium leading-snug text-white backdrop-blur-sm ${
+              className={`inline-flex w-max max-w-full flex-col items-start rounded-lg glass-over-media font-medium leading-snug text-white ${
                 compact
                   ? "gap-px px-1 py-0.5 text-[0.625rem] max-md:min-w-[10ch] max-md:px-1.5 max-md:text-[0.5625rem]"
                   : "gap-0.5 px-1.5 py-1 text-xs max-md:min-w-[10ch] max-md:px-2 max-md:text-[0.6875rem]"
@@ -89,7 +89,7 @@ export function PhotoImageOverlay({
             />
             {duplicate ? (
               <span
-                className={`inline-flex max-w-full items-center gap-0.5 rounded-full bg-neutral-900/45 font-medium leading-snug text-white/80 backdrop-blur-sm ${
+                className={`inline-flex max-w-full items-center gap-0.5 rounded-full glass-over-media font-medium leading-snug text-white/80 ${
                   compact
                     ? "px-1 py-0.5 text-[0.625rem]"
                     : "px-1.5 py-0.5 text-[0.625rem]"
@@ -122,7 +122,7 @@ export function PhotoImageOverlay({
             >
               {hasGeo ? (
                 <span
-                  className={`inline-flex shrink-0 items-center justify-center rounded-full bg-neutral-900/65 text-white backdrop-blur-sm ${
+                  className={`inline-flex shrink-0 items-center justify-center rounded-full glass-over-media text-white ${
                     compact ? "size-5" : "size-7"
                   }`}
                 >
@@ -137,7 +137,7 @@ export function PhotoImageOverlay({
               ) : null}
               {showHighlight ? (
                 <span
-                  className={`inline-flex shrink-0 items-center justify-center rounded-full bg-neutral-900/65 text-amber-300 backdrop-blur-sm ${
+                  className={`inline-flex shrink-0 items-center justify-center rounded-full glass-over-media text-amber-300 ${
                     compact ? "size-5" : "size-7"
                   }`}
                 >
@@ -162,7 +162,7 @@ export function PhotoImageOverlay({
             {visibleTags.map((tag) => (
               <span
                 key={tag.tag_id}
-                className={`max-w-full break-words rounded-full bg-neutral-900/65 font-medium leading-snug text-white backdrop-blur-sm ${
+                className={`max-w-full break-words rounded-full glass-over-media font-medium leading-snug text-white ${
                   compact
                     ? "px-1.5 py-0.5 text-[0.625rem]"
                     : "px-2 py-0.5 text-[0.7rem]"
@@ -173,7 +173,7 @@ export function PhotoImageOverlay({
             ))}
             {commentCount > 0 ? (
               <span
-                className={`inline-flex items-center gap-0.5 rounded-full bg-neutral-900/65 font-medium leading-snug text-white backdrop-blur-sm ${
+                className={`inline-flex items-center gap-0.5 rounded-full glass-over-media font-medium leading-snug text-white ${
                   compact
                     ? "px-1.5 py-0.5 text-[0.625rem]"
                     : "px-2 py-0.5 text-[0.7rem]"
@@ -190,7 +190,7 @@ export function PhotoImageOverlay({
             {visibleReactions.map((reaction) => (
               <span
                 key={reaction.emoji}
-                className={`inline-flex max-w-full items-center gap-0.5 break-words rounded-full bg-neutral-900/65 font-medium leading-snug text-white backdrop-blur-sm ${
+                className={`inline-flex max-w-full items-center gap-0.5 break-words rounded-full glass-over-media font-medium leading-snug text-white ${
                   compact
                     ? "px-1.5 py-0.5 text-[0.625rem]"
                     : "px-2 py-0.5 text-[0.7rem]"
@@ -213,7 +213,7 @@ export function PhotoImageOverlay({
           >
             <span
               title={placeName}
-              className={`inline-block max-w-[min(14rem,85%)] rounded-md bg-neutral-900/65 text-right font-medium leading-snug text-white backdrop-blur-sm ${
+              className={`inline-block max-w-[min(14rem,85%)] rounded-md glass-over-media text-right font-medium leading-snug text-white ${
                 compact
                   ? "px-1 py-0.5 text-[0.5625rem]"
                   : "px-1.5 py-0.5 text-[0.625rem]"
@@ -224,7 +224,7 @@ export function PhotoImageOverlay({
           </div>
         ) : null}
         <span
-          className={`block bg-white/70 text-center font-medium leading-snug text-neutral-900 backdrop-blur-sm ${
+          className={`block glass-over-media text-center font-medium leading-snug ${
             compact ? "px-1.5 py-1 text-[0.7rem]" : "px-2 py-1.5 text-xs"
           }`}
         >

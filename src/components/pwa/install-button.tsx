@@ -55,7 +55,7 @@ export function InstallButton({ compact = false }: { compact?: boolean }) {
   return (
     <button
       type="button"
-      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground shadow-card transition hover:opacity-90"
+      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl glass-accent glass-interactive px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90"
       onClick={async () => {
         await deferred.prompt();
         await deferred.userChoice;

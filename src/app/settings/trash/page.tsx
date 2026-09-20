@@ -5,7 +5,7 @@ import { TrashPanel } from "@/components/trash-panel";
 
 export default function TrashPage() {
   return (
-    <div className="min-h-dvh pb-28">
+    <div className="app-shell">
       <AppHeader title="Papierkorb" subtitle="30 Tage wiederherstellbar" />
       <main className="mx-auto max-w-lg px-4 py-4">
         <p className="mb-4">

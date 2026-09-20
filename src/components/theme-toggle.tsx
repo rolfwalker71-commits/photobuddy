@@ -15,7 +15,7 @@ export function ThemeToggle() {
   return (
     <button
       type="button"
-      className="inline-flex size-11 items-center justify-center rounded-2xl bg-muted text-foreground transition hover:bg-muted/80"
+      className="inline-flex size-11 items-center justify-center rounded-2xl bg-muted glass-interactive text-foreground transition hover:bg-muted/80"
       aria-label={dark ? "Hellmodus" : "Dunkelmodus"}
       onClick={() => setTheme(dark ? "light" : "dark")}
     >

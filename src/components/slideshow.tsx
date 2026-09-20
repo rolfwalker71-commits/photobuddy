@@ -145,7 +145,7 @@ export function Slideshow({ photos, open, onClose }: SlideshowProps) {
             ref={closeRef}
             type="button"
             onClick={onClose}
-            className="inline-flex size-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/25"
+            className="inline-flex size-11 shrink-0 items-center justify-center rounded-2xl glass-over-dark"
             aria-label="Diashow beenden"
           >
             <X className="size-5" />
@@ -158,7 +158,7 @@ export function Slideshow({ photos, open, onClose }: SlideshowProps) {
           <button
             type="button"
             onClick={() => go(-1)}
-            className="absolute left-2 top-1/2 hidden size-11 -translate-y-1/2 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/20 sm:inline-flex"
+            className="absolute left-2 top-1/2 hidden size-11 -translate-y-1/2 items-center justify-center rounded-2xl glass-over-dark sm:inline-flex"
             aria-label="Vorheriges Foto"
           >
             <ChevronLeft className="size-6" />
@@ -166,7 +166,7 @@ export function Slideshow({ photos, open, onClose }: SlideshowProps) {
           <button
             type="button"
             onClick={() => go(1)}
-            className="absolute right-2 top-1/2 hidden size-11 -translate-y-1/2 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/20 sm:inline-flex"
+            className="absolute right-2 top-1/2 hidden size-11 -translate-y-1/2 items-center justify-center rounded-2xl glass-over-dark sm:inline-flex"
             aria-label="Nächstes Foto"
           >
             <ChevronRight className="size-6" />
@@ -179,7 +179,7 @@ export function Slideshow({ photos, open, onClose }: SlideshowProps) {
           <button
             type="button"
             onClick={() => setPaused((value) => !value)}
-            className="inline-flex h-11 items-center gap-2 rounded-2xl bg-white/15 px-4 text-sm font-medium ring-1 ring-white/20"
+            className="inline-flex h-11 items-center gap-2 rounded-2xl glass-over-dark px-4 text-sm font-medium"
           >
             {paused ? (
               <Play className="size-4" aria-hidden />

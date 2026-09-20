@@ -8,8 +8,10 @@ export default async function PhotoPage({
 }) {
   const { id } = await params;
   return (
-    <div className="min-h-dvh px-4 py-4 pb-28">
-      <PhotoDetail photoId={id} mode="teilnehmer" shareKey={null} />
+    <div className="app-shell pt-4">
+      <div className="px-4">
+        <PhotoDetail photoId={id} mode="teilnehmer" shareKey={null} />
+      </div>
       <FloatingDock mode="teilnehmer" shareKey={null} />
     </div>
   );

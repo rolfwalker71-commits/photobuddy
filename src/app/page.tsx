@@ -51,7 +51,7 @@ export default function HomePage() {
       <div className="mt-8 flex flex-col gap-3">
         <Link
           href="/login"
-          className="inline-flex h-11 items-center justify-center rounded-2xl bg-primary text-sm font-medium text-primary-foreground"
+          className="inline-flex h-11 items-center justify-center rounded-2xl glass-accent glass-interactive text-sm font-medium text-primary-foreground"
         >
           Als Teilnehmer anmelden
         </Link>

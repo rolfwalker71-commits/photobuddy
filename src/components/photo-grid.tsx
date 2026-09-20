@@ -48,7 +48,7 @@ export function PhotoGrid({
   }
 
   return (
-    <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
+    <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4 2xl:grid-cols-5">
       {photos.map((photo) => {
         const src = previewPhotoUrl(photo);
         const author = profiles[photo.uploaded_by]?.display_name ?? "Unbekannt";
@@ -70,7 +70,7 @@ export function PhotoGrid({
               </div>
             )}
             {isVideo ? (
-              <span className="absolute left-2 bottom-10 z-[1] inline-flex items-center gap-1 rounded-full bg-neutral-900/70 px-2 py-0.5 text-[0.7rem] font-semibold text-white">
+              <span className="absolute left-2 bottom-10 z-[1] inline-flex items-center gap-1 rounded-full glass-over-media px-2 py-0.5 text-[0.7rem] font-semibold text-white">
                 <Play className="size-3 fill-white" aria-hidden />
                 Video
               </span>
@@ -105,8 +105,8 @@ export function PhotoGrid({
                   <span
                     className={`absolute left-2 top-2 z-10 inline-flex size-8 items-center justify-center rounded-full ${
                       selected
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-neutral-900/55 text-white"
+                        ? "glass-accent glass-interactive text-primary-foreground"
+                        : "glass-over-media text-white"
                     }`}
                   >
                     <Check className="size-4" aria-hidden />
@@ -118,7 +118,7 @@ export function PhotoGrid({
               ) : (
                 <Link
                   href={appHref(mode, shareKey, "photo", photo.id)}
-                  className="group relative block overflow-hidden rounded-2xl bg-muted shadow-card ring-1 ring-border"
+                  className="group relative block overflow-hidden rounded-2xl bg-muted glass-interactive shadow-card ring-1 ring-border"
                 >
                   {tile}
                 </Link>
@@ -135,7 +135,7 @@ export function PhotoGrid({
                   }
                   aria-pressed={photo.is_highlight}
                 >
-                  <span className="inline-flex size-7 items-center justify-center rounded-full bg-neutral-900/65 text-white backdrop-blur-sm">
+                  <span className="inline-flex size-7 items-center justify-center rounded-full glass-over-media text-white">
                     <Star
                       className={`size-3.5 ${photo.is_highlight ? "fill-amber-300 text-amber-300" : ""}`}
                     />

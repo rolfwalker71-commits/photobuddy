@@ -79,7 +79,7 @@ export function PhotoTimeline({
             <input
               type="date"
               data-empty={extraDay ? "false" : "true"}
-              className="date-field h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm"
+              className="date-field h-11 w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 text-sm"
               value={extraDay}
               onChange={(event) => setExtraDay(event.target.value)}
             />
@@ -205,7 +205,7 @@ export function PhotoTimeline({
                           </div>
                         )}
                         {isVideo ? (
-                          <span className="absolute left-3 bottom-12 z-[1] inline-flex items-center gap-1 rounded-full bg-neutral-900/70 px-2 py-1 text-xs font-semibold text-white">
+                          <span className="absolute left-3 bottom-12 z-[1] inline-flex items-center gap-1 rounded-full glass-over-media px-2 py-1 text-xs font-semibold text-white">
                             <Play className="size-3 fill-white" aria-hidden />
                             Video
                           </span>
@@ -254,7 +254,7 @@ export function PhotoTimeline({
                         }
                         aria-pressed={photo.is_highlight}
                       >
-                        <span className="inline-flex size-7 items-center justify-center rounded-full bg-neutral-900/65 text-white backdrop-blur-sm">
+                        <span className="inline-flex size-7 items-center justify-center rounded-full glass-over-media text-white">
                           <Star
                             className={`size-3.5 ${photo.is_highlight ? "fill-amber-300 text-amber-300" : ""}`}
                           />

@@ -88,7 +88,7 @@ export function AlbumGuestLinkPanel() {
           <button
             type="button"
             onClick={() => void copyLink()}
-            className="inline-flex h-11 items-center gap-2 rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground"
+            className="inline-flex h-11 items-center gap-2 rounded-2xl glass-accent glass-interactive px-4 text-sm font-medium text-primary-foreground"
           >
             <Copy className="size-4" aria-hidden />
             Link kopieren

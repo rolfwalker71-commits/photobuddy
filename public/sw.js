@@ -1,4 +1,4 @@
-const CACHE_NAME = "photobuddy-v3";
+const CACHE_NAME = "photobuddy-v4";
 const STATIC_CACHE = "photobuddy-static-v1";
 const STATIC_LIMIT = 250;
 const SHELL = ["/", "/offline", "/manifest.webmanifest", "/icons/icon-192.png"];

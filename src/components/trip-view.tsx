@@ -298,7 +298,7 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
   const actionLabel = "sr-only md:not-sr-only";
 
   return (
-    <div className="min-h-dvh pb-28">
+    <div className="app-shell">
       <AppHeader
         title={title}
         titleSlot={
@@ -321,7 +321,7 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
               <button
                 type="button"
                 onClick={() => setSlideshowOpen(true)}
-                className={`${action} bg-primary font-semibold text-primary-foreground`}
+                className={`${action} glass-accent glass-interactive font-semibold text-primary-foreground`}
                 aria-label="Heute Abend"
                 title="Heute Abend"
               >
@@ -335,7 +335,7 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
                   setZipError(null);
                   setZipOpen(true);
                 }}
-                className={`${action} bg-muted disabled:opacity-50`}
+                className={`${action} bg-muted glass-interactive disabled:opacity-50`}
                 aria-label="Download"
                 title="Download"
               >
@@ -344,7 +344,7 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
               </button>
               <Link
                 href={appHref(mode, shareKey, "recap")}
-                className={`${action} bg-muted`}
+                className={`${action} bg-muted glass-interactive`}
                 aria-label="Rückblick"
                 title="Rückblick"
               >
@@ -379,7 +379,7 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
                   </button>
                   <Link
                     href={appHref(mode, shareKey, "trash")}
-                    className={`${action} bg-muted`}
+                    className={`${action} bg-muted glass-interactive`}
                     aria-label="Papierkorb"
                     title="Papierkorb"
                   >
@@ -617,12 +617,12 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
         ) : null}
         {mode === "teilnehmer" && selectMode === "publish" ? (
           <div
-            className="pointer-events-none fixed inset-x-0 z-[36] px-4"
+            className="pointer-events-none fixed inset-x-0 z-[36] px-4 lg:pl-[7.5rem]"
             style={{
               bottom: "calc(4.75rem + max(0.75rem, env(safe-area-inset-bottom)))",
             }}
           >
-            <div className="pointer-events-auto mx-auto flex max-w-lg items-center gap-2 rounded-2xl bg-card p-2 pl-4 shadow-dock ring-1 ring-border">
+            <div className="glass-chrome glass-sheen glass-squircle pointer-events-auto mx-auto flex max-w-lg items-center gap-2 p-2 pl-4">
               <p className="min-w-0 flex-1 text-sm font-medium">
                 {selectedPhotos.length} ausgewählt
               </p>
@@ -637,7 +637,7 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
                 type="button"
                 disabled={selectedPhotos.length === 0}
                 onClick={() => setPublishOpen(true)}
-                className="inline-flex h-11 items-center rounded-xl bg-primary px-5 text-sm font-medium text-primary-foreground disabled:opacity-50"
+                className="inline-flex h-11 items-center rounded-xl glass-accent glass-interactive px-5 text-sm font-medium text-primary-foreground disabled:opacity-50"
               >
                 Weiter
               </button>

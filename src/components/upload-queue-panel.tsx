@@ -91,7 +91,7 @@ export function UploadQueuePanel() {
         <button
           type="button"
           onClick={() => void retryAllUploads()}
-          className={`${button} w-full bg-primary text-primary-foreground`}
+          className={`${button} w-full glass-accent glass-interactive text-primary-foreground`}
         >
           <RotateCcw className="size-3.5" aria-hidden />
           Jetzt versuchen
@@ -133,7 +133,7 @@ export function UploadQueuePanel() {
                           ? keepDuplicateUpload(item.id)
                           : retryUpload(item.id))
                       }
-                      className={`${button} bg-primary text-primary-foreground`}
+                      className={`${button} glass-accent glass-interactive text-primary-foreground`}
                     >
                       {item.status === "duplicate" ? "Trotzdem hochladen" : "Erneut versuchen"}
                     </button>

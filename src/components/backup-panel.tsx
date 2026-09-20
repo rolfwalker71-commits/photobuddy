@@ -18,7 +18,7 @@ export function BackupPanel() {
         per cron auf dem Server.
       </p>
       <div className="flex flex-col gap-2 sm:flex-row">
-        <a href="/api/admin/backup" download className={`${link} bg-primary text-primary-foreground`}>
+        <a href="/api/admin/backup" download className={`${link} glass-accent glass-interactive text-primary-foreground`}>
           Komplett herunterladen
         </a>
         <a href="/api/admin/backup?photos=0" download className={`${link} bg-muted`}>

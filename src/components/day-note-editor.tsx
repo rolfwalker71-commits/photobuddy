@@ -127,7 +127,7 @@ export function DayNoteBlock({
           value={body}
           onChange={(event) => setBody(event.target.value)}
           placeholder="Ein Satz zu diesem Tag — ohne Foto."
-          className="h-auto w-full rounded-xl border border-border bg-background px-2.5 py-1.5 text-sm leading-snug"
+          className="h-auto w-full rounded-xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-2.5 py-1.5 text-sm leading-snug"
         />
       </label>
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
@@ -136,7 +136,7 @@ export function DayNoteBlock({
           type="button"
           disabled={busy || !body.trim()}
           onClick={() => void save()}
-          className="inline-flex h-9 items-center rounded-xl bg-primary px-3 text-xs font-medium text-primary-foreground disabled:opacity-50"
+          className="inline-flex h-9 items-center rounded-xl glass-accent glass-interactive px-3 text-xs font-medium text-primary-foreground disabled:opacity-50"
         >
           Speichern
         </button>

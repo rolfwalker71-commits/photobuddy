@@ -77,12 +77,12 @@ export function GalleryBulkBar({
 
   return (
     <div
-      className="pointer-events-none fixed inset-x-0 z-[36] px-4"
+      className="pointer-events-none fixed inset-x-0 z-[36] px-4 lg:pl-[7.5rem]"
       style={{
         bottom: "calc(4.75rem + max(0.75rem, env(safe-area-inset-bottom)))",
       }}
     >
-      <div className="pointer-events-auto mx-auto max-w-lg space-y-2 rounded-2xl bg-card p-3 shadow-dock ring-1 ring-border">
+      <div className="glass-chrome glass-sheen glass-squircle pointer-events-auto mx-auto max-w-lg space-y-2 p-3">
         <div className="flex items-center justify-between gap-2">
           <p className="text-sm font-medium">
             {selected.length} ausgewählt
@@ -91,21 +91,21 @@ export function GalleryBulkBar({
             <button
               type="button"
               onClick={onSelectAll}
-              className="inline-flex h-9 items-center rounded-xl bg-muted px-2.5 text-xs font-medium"
+              className="inline-flex h-9 items-center rounded-xl bg-muted glass-interactive px-2.5 text-xs font-medium"
             >
               Alle
             </button>
             <button
               type="button"
               onClick={onClear}
-              className="inline-flex h-9 items-center rounded-xl bg-muted px-2.5 text-xs font-medium"
+              className="inline-flex h-9 items-center rounded-xl bg-muted glass-interactive px-2.5 text-xs font-medium"
             >
               Leeren
             </button>
             <button
               type="button"
               onClick={onDone}
-              className="inline-flex size-9 items-center justify-center rounded-xl bg-muted"
+              className="inline-flex size-9 items-center justify-center rounded-xl bg-muted glass-interactive"
               aria-label="Auswahl beenden"
             >
               <X className="size-4" />
@@ -114,7 +114,7 @@ export function GalleryBulkBar({
         </div>
         <div className="flex gap-1.5">
           <input
-            className="h-11 min-w-0 flex-1 rounded-2xl border border-border bg-background px-3 text-sm"
+            className="h-11 min-w-0 flex-1 rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 text-sm"
             placeholder="Tags, kommagetrennt"
             value={tags}
             onChange={(event) => setTags(event.target.value)}
@@ -131,7 +131,7 @@ export function GalleryBulkBar({
         </div>
         <div className="flex gap-1.5">
           <input
-            className="h-11 min-w-0 flex-1 rounded-2xl border border-border bg-background px-3 text-sm"
+            className="h-11 min-w-0 flex-1 rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 text-sm"
             placeholder="Ort setzen"
             value={place}
             onChange={(event) => setPlace(event.target.value)}
@@ -149,7 +149,7 @@ export function GalleryBulkBar({
         {albums.length > 1 ? (
           <div className="flex gap-1.5">
             <select
-              className="h-11 min-w-0 flex-1 rounded-2xl border border-border bg-background px-3 text-sm"
+              className="h-11 min-w-0 flex-1 rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 text-sm"
               value={targetAlbum}
               onChange={(event) => setTargetAlbum(event.target.value)}
             >

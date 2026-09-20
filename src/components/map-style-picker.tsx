@@ -84,11 +84,9 @@ export function MapStylePicker() {
               aria-checked={active}
               disabled={busy || !canEdit}
               onClick={() => void choose(style.id)}
-              className={`min-h-11 rounded-2xl p-3 text-left ring-1 transition ${
-                active
-                  ? "bg-muted ring-2 ring-primary"
-                  : "bg-background ring-border"
-              } ${canEdit && !active ? "hover:bg-muted" : ""}`}
+              className={`glass-fill min-h-11 rounded-2xl p-3 text-left transition ${
+                active ? "ring-2 ring-primary" : ""
+              } ${canEdit && !active ? "glass-interactive" : ""}`}
             >
               <span
                 className="mb-2 flex h-10 overflow-hidden rounded-xl"

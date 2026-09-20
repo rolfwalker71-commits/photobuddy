@@ -70,18 +70,20 @@ export function UploadQueueIndicator() {
 
   return (
     <div
-      className="pointer-events-none fixed inset-x-0 z-[35] flex justify-center px-4"
+      className="pointer-events-none fixed inset-x-0 z-[35] flex justify-center px-4 lg:pl-[7.5rem]"
       style={{ bottom: "calc(4.75rem + max(0.75rem, env(safe-area-inset-bottom)))" }}
     >
       <Link
         href={queue.pausedForAuth ? "/login?next=/camera" : "/camera#warteschlange"}
-        className="pointer-events-auto inline-flex min-h-10 max-w-full items-center gap-2 rounded-full bg-neutral-900/85 px-4 text-sm font-medium text-white shadow-card backdrop-blur-sm"
+        /* Chrome, not media glass: this floats over the app itself, where a
+           dark pane would leave white text sitting on a cream background. */
+        className="glass-chrome glass-interactive pointer-events-auto inline-flex min-h-10 max-w-full items-center gap-2 rounded-full px-4 text-sm font-medium"
         aria-live="polite"
       >
         {icon}
         <span className="truncate">{label}</span>
         {problems > 0 && waiting > 0 ? (
-          <span className="rounded-full bg-destructive px-1.5 text-xs">{problems}</span>
+          <span className="rounded-full bg-destructive px-1.5 text-xs text-white">{problems}</span>
         ) : null}
       </Link>
     </div>

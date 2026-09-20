@@ -10,9 +10,11 @@ function GuestPhotoInner({ photoId }: { photoId: string }) {
   const params = useSearchParams();
   const key = params.get("key");
   return (
-    <div className="min-h-dvh px-4 py-4 pb-28">
+    <div className="app-shell pt-4">
       <GuestNamePrompt />
-      <PhotoDetail photoId={photoId} mode="guest" shareKey={key} />
+      <div className="px-4">
+        <PhotoDetail photoId={photoId} mode="guest" shareKey={key} />
+      </div>
       <FloatingDock mode="guest" shareKey={key} />
     </div>
   );

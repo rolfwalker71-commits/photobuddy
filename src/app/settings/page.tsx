@@ -5,7 +5,7 @@ import { SettingsPanel } from "@/components/settings-panel";
 
 export default function SettingsPage() {
   return (
-    <div className="min-h-dvh pb-28">
+    <div className="app-shell">
       <AppHeader
         title="Einstellungen"
         subtitle="Profil, Darstellung, Alben"

@@ -97,12 +97,12 @@ export function RecapView({
   const title = data?.album?.name || "Reise-Rückblick";
 
   return (
-    <div className="min-h-dvh pb-28">
+    <div className="app-shell">
       <AppHeader title="Reise-Rückblick" subtitle={title} />
       <main className="mx-auto max-w-lg space-y-4 px-4 py-4">
         <Link
           href={appHref(mode, shareKey, "gallery")}
-          className="inline-flex h-11 items-center gap-2 rounded-2xl bg-muted px-3 text-sm font-medium"
+          className="inline-flex h-11 items-center gap-2 rounded-2xl bg-muted glass-interactive px-3 text-sm font-medium"
         >
           <ArrowLeft className="size-4" />
           Zurück zur Galerie
@@ -189,7 +189,7 @@ export function RecapView({
                 {stats.people.map((person) => (
                   <li
                     key={person.user_id}
-                    className="flex items-center justify-between gap-3 rounded-2xl bg-background px-3 py-2 ring-1 ring-border"
+                    className="flex items-center justify-between gap-3 rounded-2xl glass-fill px-3 py-2"
                   >
                     <span className="min-w-0 break-words font-medium">
                       {person.name}
@@ -227,7 +227,7 @@ export function RecapView({
 
 function StatCard({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="rounded-2xl bg-background px-3 py-3 ring-1 ring-border">
+    <div className="rounded-2xl glass-fill px-3 py-3">
       <p className="text-3xl font-semibold tabular-nums leading-none">{value}</p>
       <p className="mt-1 text-sm text-muted-foreground">{label}</p>
     </div>

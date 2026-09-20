@@ -76,7 +76,7 @@ export function DigestSettings() {
     }
   }
 
-  const field = "h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm";
+  const field = "h-11 w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 text-sm";
 
   return (
     <section className="space-y-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border">

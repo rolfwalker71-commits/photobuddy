@@ -80,14 +80,14 @@ export default function PhotoLocationMap({
       </MapContainer>
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute right-1.5 top-1.5">
-          <span className="inline-flex size-6 items-center justify-center rounded-full bg-neutral-900/65 text-white backdrop-blur-sm">
+          <span className="inline-flex size-6 items-center justify-center rounded-full glass-over-media text-white">
             <MapPin className="size-3" aria-hidden />
             <span className="sr-only">Standort</span>
           </span>
         </div>
         {place ? (
           <div className="absolute inset-x-0 bottom-0">
-            <span className="block bg-white/70 px-2 py-1.5 text-center text-xs font-medium leading-snug text-neutral-900 backdrop-blur-sm">
+            <span className="block glass-over-media px-2 py-1.5 text-center text-xs font-medium leading-snug">
               <span className="line-clamp-2 break-words">{place}</span>
             </span>
           </div>

@@ -225,7 +225,7 @@ export function PublishDialog({
 
   if (!open) return null;
 
-  const field = "h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm";
+  const field = "h-11 w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 text-sm";
   const submitLabel =
     target === "fotos"
       ? "Auf die Fotos-Seite hochladen"
@@ -237,7 +237,7 @@ export function PublishDialog({
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
       <button
         type="button"
-        className="absolute inset-0 bg-foreground/40"
+        className="glass-scrim animate-glass-fade absolute inset-0"
         aria-label="Schliessen"
         disabled={busy}
         onClick={close}
@@ -247,7 +247,7 @@ export function PublishDialog({
         aria-modal="true"
         aria-labelledby="publish-title"
         aria-busy={busy}
-        className="relative z-10 flex max-h-[min(46rem,92dvh)] w-full max-w-lg flex-col rounded-t-2xl bg-card p-5 shadow-dock ring-1 ring-border sm:rounded-2xl"
+        className="relative z-10 flex max-h-[min(46rem,92dvh)] w-full max-w-lg flex-col glass-sheet glass-sheen animate-glass-rise rounded-t-3xl p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:rounded-3xl sm:pb-5"
         onSubmit={(event) => {
           event.preventDefault();
           void submit();
@@ -261,7 +261,7 @@ export function PublishDialog({
             type="button"
             onClick={close}
             disabled={busy}
-            className="inline-flex size-11 items-center justify-center rounded-2xl bg-muted disabled:opacity-50"
+            className="inline-flex size-11 items-center justify-center rounded-2xl bg-muted glass-interactive disabled:opacity-50"
             aria-label="Schliessen"
           >
             <X className="size-5" />
@@ -283,7 +283,7 @@ export function PublishDialog({
               href={result.published ? result.url : result.panelUrl}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-sm font-medium text-primary-foreground"
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl glass-accent glass-interactive text-sm font-medium text-primary-foreground"
             >
               <ExternalLink className="size-4" />
               {result.target === "fotos"
@@ -295,7 +295,7 @@ export function PublishDialog({
             <button
               type="button"
               onClick={close}
-              className="inline-flex h-11 w-full items-center justify-center rounded-2xl bg-muted text-sm font-medium"
+              className="inline-flex h-11 w-full items-center justify-center rounded-2xl bg-muted glass-interactive text-sm font-medium"
             >
               Fertig
             </button>
@@ -448,7 +448,7 @@ export function PublishDialog({
             <button
               type="submit"
               disabled={!canSubmit}
-              className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-sm font-medium text-primary-foreground disabled:opacity-50"
+              className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl glass-accent glass-interactive text-sm font-medium text-primary-foreground disabled:opacity-50"
             >
               {busy ? <Loader2 className="size-4 animate-spin" /> : null}
               {busy ? "Wird hochgeladen…" : submitLabel}

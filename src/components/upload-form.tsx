@@ -529,7 +529,7 @@ export function UploadForm({ albumId, albums, onAlbumChange }: UploadFormProps) 
       <label className="block space-y-1.5">
         <span className="text-sm font-medium">Titel für alle</span>
         <input
-          className="h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm"
+          className="h-11 w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 text-sm"
           value={sharedTitle}
           onChange={(e) => setSharedTitle(e.target.value)}
           placeholder="z. B. Wanderung Rigi"
@@ -540,7 +540,7 @@ export function UploadForm({ albumId, albums, onAlbumChange }: UploadFormProps) 
         <span className="text-sm font-medium">Bemerkung für alle</span>
         <textarea
           rows={3}
-          className="w-full rounded-2xl border border-border bg-background px-3 py-2 text-sm"
+          className="w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 py-2 text-sm"
           value={sharedRemark}
           onChange={(e) => setSharedRemark(e.target.value)}
           placeholder="Optional, z. B. Nachmittag am See"
@@ -565,7 +565,7 @@ export function UploadForm({ albumId, albums, onAlbumChange }: UploadFormProps) 
         type="button"
         disabled={busy || batch.length === 0}
         onClick={() => void uploadBatch()}
-        className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-base font-medium text-primary-foreground shadow-card disabled:opacity-60"
+        className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl glass-accent glass-interactive px-4 text-base font-medium text-primary-foreground disabled:opacity-60"
       >
         {busy ? (
           <LoaderCircle className="size-5 animate-spin" aria-hidden />
@@ -746,7 +746,7 @@ export function UploadForm({ albumId, albums, onAlbumChange }: UploadFormProps) 
           <label className="block space-y-1.5">
             <span className="text-sm font-medium">Titel</span>
             <input
-              className="h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm"
+              className="h-11 w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 text-sm"
               value={draft.title}
               onChange={(e) => setDraft({ ...draft, title: e.target.value })}
             />
@@ -755,7 +755,7 @@ export function UploadForm({ albumId, albums, onAlbumChange }: UploadFormProps) 
             <span className="text-sm font-medium">Beschreibung</span>
             <textarea
               rows={3}
-              className="w-full rounded-2xl border border-border bg-background px-3 py-2 text-sm"
+              className="w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 py-2 text-sm"
               value={draft.description}
               onChange={(e) => setDraft({ ...draft, description: e.target.value })}
             />
@@ -763,7 +763,7 @@ export function UploadForm({ albumId, albums, onAlbumChange }: UploadFormProps) 
           <label className="block space-y-1.5">
             <span className="text-sm font-medium">Tags (kommagetrennt)</span>
             <input
-              className="h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm"
+              className="h-11 w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 text-sm"
               placeholder="Strand, Abendessen"
               value={draft.tags}
               onChange={(e) => setDraft({ ...draft, tags: e.target.value })}
@@ -774,7 +774,7 @@ export function UploadForm({ albumId, albums, onAlbumChange }: UploadFormProps) 
             <input
               type="datetime-local"
               data-empty={draft.takenAt ? "false" : "true"}
-              className="date-field h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm"
+              className="date-field h-11 w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 text-sm"
               value={draft.takenAt}
               onChange={(e) => setDraft({ ...draft, takenAt: e.target.value })}
             />
@@ -787,7 +787,7 @@ export function UploadForm({ albumId, albums, onAlbumChange }: UploadFormProps) 
               <span className="text-sm font-medium">Breite</span>
               <input
                 inputMode="decimal"
-                className="h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm"
+                className="h-11 w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 text-sm"
                 value={draft.latitude}
                 onChange={(e) =>
                   setDraft({
@@ -802,7 +802,7 @@ export function UploadForm({ albumId, albums, onAlbumChange }: UploadFormProps) 
               <span className="text-sm font-medium">Länge</span>
               <input
                 inputMode="decimal"
-                className="h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm"
+                className="h-11 w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 text-sm"
                 value={draft.longitude}
                 onChange={(e) =>
                   setDraft({
@@ -817,7 +817,7 @@ export function UploadForm({ albumId, albums, onAlbumChange }: UploadFormProps) 
           <label className="block space-y-1.5">
             <span className="text-sm font-medium">Ort</span>
             <input
-              className="h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm"
+              className="h-11 w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 text-sm"
               value={draft.locationName}
               onChange={(e) => setDraft({ ...draft, locationName: e.target.value })}
             />
@@ -865,7 +865,7 @@ export function UploadForm({ albumId, albums, onAlbumChange }: UploadFormProps) 
             type="button"
             disabled={busy}
             onClick={() => void uploadSingle()}
-            className="inline-flex h-11 w-full items-center justify-center rounded-2xl bg-primary text-sm font-medium text-primary-foreground disabled:opacity-60"
+            className="inline-flex h-11 w-full items-center justify-center rounded-2xl glass-accent glass-interactive text-sm font-medium text-primary-foreground disabled:opacity-60"
           >
             {busy ? "Bitte warten…" : "Hochladen"}
           </button>

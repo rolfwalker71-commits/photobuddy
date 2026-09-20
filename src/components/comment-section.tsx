@@ -117,11 +117,11 @@ export function CommentSection({
   }
 
   const fieldClass = compact
-    ? "w-full rounded-xl border border-border bg-background px-2.5 py-1.5 text-xs sm:text-sm"
-    : "w-full rounded-2xl border border-border bg-background px-3 py-2 text-sm";
+    ? "w-full rounded-xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-2.5 py-1.5 text-xs sm:text-sm"
+    : "w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 py-2 text-sm";
   const btnClass = compact
-    ? "inline-flex h-9 items-center justify-center rounded-xl bg-primary px-3 text-xs font-medium text-primary-foreground disabled:opacity-60"
-    : "inline-flex h-11 items-center justify-center rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60";
+    ? "inline-flex h-9 items-center justify-center rounded-xl glass-accent glass-interactive px-3 text-xs font-medium text-primary-foreground disabled:opacity-60"
+    : "inline-flex h-11 items-center justify-center rounded-2xl glass-accent glass-interactive px-4 text-sm font-medium text-primary-foreground disabled:opacity-60";
 
   return (
     <section className={compact ? "space-y-2" : "space-y-3"}>

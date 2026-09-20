@@ -22,7 +22,7 @@ export function AdminNavLinks({ compact = false }: { compact?: boolean }) {
   // links back to /settings, whose cards lead to the same places.
   const itemClass = compact
     ? "inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-muted px-3 text-sm font-medium"
-    : "inline-flex h-11 items-center gap-2 rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground";
+    : "inline-flex h-11 items-center gap-2 rounded-2xl glass-accent glass-interactive px-4 text-sm font-medium text-primary-foreground";
 
   return (
     <nav

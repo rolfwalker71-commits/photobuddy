@@ -6,7 +6,7 @@ import { FloatingDock } from "@/components/floating-dock";
 
 export default function AdminAlbumsPage() {
   return (
-    <div className="min-h-dvh pb-28">
+    <div className="app-shell">
       <AppHeader
         title="Alben"
         subtitle="Anlegen, Teilnehmer zuordnen, Gäste-Link teilen"

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Filter, SlidersHorizontal } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { InstallButton } from "@/components/pwa/install-button";
@@ -24,9 +25,18 @@ export function AppHeader({
   trailing,
 }: AppHeaderProps) {
   const active = filters ? isFiltered(filters) : false;
+  /* At the top of a page the header has nothing to float over, so it stays
+     clear and only thickens into glass once content has scrolled under it. */
+  const scrolled = useScrolled();
 
   return (
-    <header className="sticky top-0 z-30 border-b border-border/70 bg-background/90 backdrop-blur-md">
+    <header
+      className={`sticky top-0 z-30 transition-[background-color,box-shadow,backdrop-filter] duration-300 ${
+        scrolled
+          ? "glass-chrome rounded-b-2xl"
+          : "border-b border-transparent bg-transparent"
+      }`}
+    >
       <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3">
         <div className="min-w-0 flex-1">
           {titleSlot ?? (
@@ -45,7 +55,7 @@ export function AppHeader({
             <button
               type="button"
               onClick={onOpenFilters}
-              className="relative inline-flex size-11 items-center justify-center rounded-2xl bg-muted text-foreground"
+              className="glass-fill glass-interactive glass-squircle-sm relative inline-flex size-11 items-center justify-center text-foreground"
               aria-label="Filter öffnen"
             >
               {active ? (
@@ -54,7 +64,7 @@ export function AppHeader({
                 <SlidersHorizontal className="size-5" />
               )}
               {active ? (
-                <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-accent" />
+                <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-accent shadow-[0_0_0_2px_var(--glass-tint-chrome)]" />
               ) : null}
             </button>
           ) : null}
@@ -67,4 +77,18 @@ export function AppHeader({
       </div>
     </header>
   );
+}
+
+/** True once the page has scrolled far enough for the header to sit on content. */
+function useScrolled(threshold = 8) {
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > threshold);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [threshold]);
+
+  return scrolled;
 }

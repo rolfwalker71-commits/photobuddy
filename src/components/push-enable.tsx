@@ -211,7 +211,7 @@ export function PushEnable({
         className={`inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl px-4 text-sm font-medium disabled:opacity-60 ${
           subscribed
             ? "bg-muted text-foreground"
-            : "bg-primary text-primary-foreground"
+            : "glass-accent glass-interactive text-primary-foreground"
         }`}
       >
         {subscribed ? (

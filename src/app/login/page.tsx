@@ -49,7 +49,7 @@ function LoginForm() {
             type="email"
             required
             autoComplete="email"
-            className="h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm"
+            className="h-11 w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 text-sm"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
@@ -60,7 +60,7 @@ function LoginForm() {
             type="password"
             required
             autoComplete="current-password"
-            className="h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm"
+            className="h-11 w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 text-sm"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
@@ -69,7 +69,7 @@ function LoginForm() {
         <button
           type="submit"
           disabled={busy}
-          className="inline-flex h-11 w-full items-center justify-center rounded-2xl bg-primary text-sm font-medium text-primary-foreground disabled:opacity-60"
+          className="inline-flex h-11 w-full items-center justify-center rounded-2xl glass-accent glass-interactive text-sm font-medium text-primary-foreground disabled:opacity-60"
         >
           {busy ? "Bitte warten…" : "Anmelden"}
         </button>

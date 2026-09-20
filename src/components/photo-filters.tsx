@@ -47,14 +47,14 @@ export function PhotoFiltersSheet({
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
       <button
         type="button"
-        className="absolute inset-0 bg-foreground/40"
+        className="glass-scrim animate-glass-fade absolute inset-0"
         aria-label="Filter schliessen"
         onClick={onClose}
       />
       <div
         role="dialog"
         aria-labelledby="filter-title"
-        className="relative z-10 w-full max-w-lg rounded-t-2xl bg-card p-5 shadow-dock ring-1 ring-border sm:rounded-2xl"
+        className="relative z-10 w-full max-w-lg glass-sheet glass-sheen animate-glass-rise rounded-t-3xl p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:rounded-3xl sm:pb-5"
       >
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 id="filter-title" className="text-lg font-semibold">
@@ -63,7 +63,7 @@ export function PhotoFiltersSheet({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex size-11 items-center justify-center rounded-2xl bg-muted"
+            className="inline-flex size-11 items-center justify-center rounded-2xl bg-muted glass-interactive"
             aria-label="Schliessen"
           >
             <X className="size-5" />
@@ -74,7 +74,7 @@ export function PhotoFiltersSheet({
           <label className="block space-y-1.5">
             <span className="text-sm font-medium">Teilnehmer</span>
             <select
-              className="h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm"
+              className="h-11 w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 text-sm"
               value={filters.uploaderId}
               onChange={(e) =>
                 onChange({ ...filters, uploaderId: e.target.value })
@@ -95,7 +95,7 @@ export function PhotoFiltersSheet({
               <input
                 type="date"
                 data-empty={filters.dateFrom ? "false" : "true"}
-                className="date-field h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm"
+                className="date-field h-11 w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 text-sm"
                 value={filters.dateFrom}
                 onChange={(e) =>
                   onChange({ ...filters, dateFrom: e.target.value })
@@ -107,7 +107,7 @@ export function PhotoFiltersSheet({
               <input
                 type="date"
                 data-empty={filters.dateTo ? "false" : "true"}
-                className="date-field h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm"
+                className="date-field h-11 w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 text-sm"
                 value={filters.dateTo}
                 onChange={(e) =>
                   onChange({ ...filters, dateTo: e.target.value })
@@ -121,7 +121,7 @@ export function PhotoFiltersSheet({
             <input
               type="search"
               placeholder="z. B. Lissabon"
-              className="h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm"
+              className="h-11 w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 text-sm"
               value={filters.location}
               onChange={(e) =>
                 onChange({ ...filters, location: e.target.value })
@@ -147,7 +147,7 @@ export function PhotoFiltersSheet({
                       onClick={() => toggleTag(name)}
                       className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
                         active
-                          ? "bg-primary text-primary-foreground shadow-sm"
+                          ? "glass-accent glass-interactive text-primary-foreground"
                           : "bg-muted text-foreground"
                       }`}
                     >
@@ -163,14 +163,14 @@ export function PhotoFiltersSheet({
         <div className="mt-5 flex gap-2">
           <button
             type="button"
-            className="inline-flex h-11 flex-1 items-center justify-center rounded-2xl bg-muted text-sm font-medium"
+            className="inline-flex h-11 flex-1 items-center justify-center rounded-2xl bg-muted glass-interactive text-sm font-medium"
             onClick={() => onChange(emptyFilters)}
           >
             Zurücksetzen
           </button>
           <button
             type="button"
-            className="inline-flex h-11 flex-1 items-center justify-center rounded-2xl bg-primary text-sm font-medium text-primary-foreground"
+            className="inline-flex h-11 flex-1 items-center justify-center rounded-2xl glass-accent glass-interactive text-sm font-medium text-primary-foreground"
             onClick={onClose}
           >
             Anwenden

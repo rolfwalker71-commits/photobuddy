@@ -22,11 +22,11 @@ export function GuestNameDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
       {required ? (
-        <div className="absolute inset-0 bg-foreground/40" />
+        <div className="glass-scrim animate-glass-fade absolute inset-0" />
       ) : (
         <button
           type="button"
-          className="absolute inset-0 bg-foreground/40"
+          className="glass-scrim animate-glass-fade absolute inset-0"
           aria-label="Abbrechen"
           onClick={onClose}
         />
@@ -35,7 +35,7 @@ export function GuestNameDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="guest-name-title"
-        className="relative z-10 w-full max-w-md rounded-t-2xl bg-card p-5 shadow-dock ring-1 ring-border sm:rounded-2xl"
+        className="relative z-10 w-full max-w-md glass-sheet glass-sheen animate-glass-rise rounded-t-3xl p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:rounded-3xl sm:pb-5"
         onSubmit={(e) => {
           e.preventDefault();
           const trimmed = name.trim();
@@ -60,7 +60,7 @@ export function GuestNameDialog({
             required
             minLength={2}
             maxLength={80}
-            className="h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm"
+            className="h-11 w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 text-sm"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Tante Maria"
@@ -71,14 +71,14 @@ export function GuestNameDialog({
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-11 flex-1 items-center justify-center rounded-2xl bg-muted text-sm font-medium"
+              className="inline-flex h-11 flex-1 items-center justify-center rounded-2xl bg-muted glass-interactive text-sm font-medium"
             >
               Später
             </button>
           )}
           <button
             type="submit"
-            className="inline-flex h-11 flex-1 items-center justify-center rounded-2xl bg-primary text-sm font-medium text-primary-foreground"
+            className="inline-flex h-11 flex-1 items-center justify-center rounded-2xl glass-accent glass-interactive text-sm font-medium text-primary-foreground"
           >
             Speichern
           </button>

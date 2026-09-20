@@ -276,7 +276,7 @@ export function AdminAlbumsPanel() {
           <span className="text-sm font-medium">Name</span>
           <input
             required
-            className="h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm"
+            className="h-11 w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 text-sm"
             placeholder="z. B. Sommer 2026"
             value={name}
             onChange={(event) => setName(event.target.value)}
@@ -287,7 +287,7 @@ export function AdminAlbumsPanel() {
           <ul className="space-y-1">
             {users.map((user) => (
               <li key={user.id}>
-                <label className="flex min-h-11 items-center gap-3 rounded-2xl bg-background px-3 ring-1 ring-border">
+                <label className="flex min-h-11 items-center gap-3 rounded-2xl glass-fill px-3">
                   <input
                     type="checkbox"
                     checked={createMembers.includes(user.id)}
@@ -313,7 +313,7 @@ export function AdminAlbumsPanel() {
         <button
           type="submit"
           disabled={busy}
-          className="inline-flex h-11 w-full items-center justify-center rounded-2xl bg-primary text-sm font-medium text-primary-foreground disabled:opacity-60"
+          className="inline-flex h-11 w-full items-center justify-center rounded-2xl glass-accent glass-interactive text-sm font-medium text-primary-foreground disabled:opacity-60"
         >
           Album anlegen
         </button>
@@ -333,7 +333,7 @@ export function AdminAlbumsPanel() {
                 {renaming ? (
                   <div className="flex flex-col gap-2">
                     <input
-                      className="h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm"
+                      className="h-11 w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 text-sm"
                       value={renameValue}
                       onChange={(event) => setRenameValue(event.target.value)}
                     />
@@ -342,7 +342,7 @@ export function AdminAlbumsPanel() {
                         type="button"
                         disabled={busy}
                         onClick={() => void saveName(album)}
-                        className="inline-flex h-11 items-center rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground"
+                        className="inline-flex h-11 items-center rounded-2xl glass-accent glass-interactive px-4 text-sm font-medium text-primary-foreground"
                       >
                         Speichern
                       </button>
@@ -399,7 +399,7 @@ export function AdminAlbumsPanel() {
                   </div>
                 )}
 
-                <div className="space-y-2 rounded-2xl bg-background p-3 ring-1 ring-border">
+                <div className="space-y-2 rounded-2xl glass-fill p-3">
                   <p className="text-sm font-medium">Cover und Zeitraum</p>
                   <p className="text-sm text-muted-foreground leading-snug">
                     Cover in der Fotoansicht über das Bild-Plus setzen. Leer =
@@ -472,7 +472,7 @@ export function AdminAlbumsPanel() {
                   <ul className="space-y-1">
                     {users.map((user) => (
                       <li key={user.id}>
-                        <label className="flex min-h-11 items-center gap-3 rounded-2xl bg-background px-3 ring-1 ring-border">
+                        <label className="flex min-h-11 items-center gap-3 rounded-2xl glass-fill px-3">
                           <input
                             type="checkbox"
                             checked={album.member_ids.includes(user.id)}
@@ -495,7 +495,7 @@ export function AdminAlbumsPanel() {
                   </p>
                 </fieldset>
 
-                <div className="space-y-2 rounded-2xl bg-background p-3 ring-1 ring-border">
+                <div className="space-y-2 rounded-2xl glass-fill p-3">
                   <p className="text-sm font-medium">Gäste-Link</p>
                   {href ? (
                     <>

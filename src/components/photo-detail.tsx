@@ -27,7 +27,7 @@ import type { GeocodeHit } from "@/lib/geocode";
 import type { Photo, PhotoTag, Profile, UserRole, ViewerMode } from "@/lib/types";
 
 const compactField =
-  "h-9 w-full rounded-xl border border-border bg-background px-2.5 text-xs sm:text-sm";
+  "h-9 w-full rounded-xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-2.5 text-xs sm:text-sm";
 const compactLabel = "text-xs font-medium text-muted-foreground";
 
 type PhotoDetailProps = {
@@ -495,14 +495,14 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
               </div>
               {placeSearchResults.length > 0 ? (
                 <ul
-                  className="max-h-40 overflow-y-auto rounded-xl border border-border bg-background text-xs shadow-card"
+                  className="max-h-40 overflow-y-auto rounded-xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 text-xs shadow-card"
                   aria-label="Gefundene Orte"
                 >
                   {placeSearchResults.map((hit) => (
                     <li key={`${hit.latitude}-${hit.longitude}-${hit.label}`}>
                       <button
                         type="button"
-                        className="flex w-full flex-col gap-0.5 px-2.5 py-2 text-left hover:bg-muted"
+                        className="flex w-full flex-col gap-0.5 px-2.5 py-2 text-left hover:bg-muted glass-interactive"
                         onClick={() => applyGeocodeHit(hit)}
                       >
                         <span className="font-medium">{hit.label}</span>
@@ -553,7 +553,7 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
               type="button"
               disabled={saving}
               onClick={() => void saveMeta()}
-              className="inline-flex h-9 items-center rounded-xl bg-primary px-3 text-xs font-medium text-primary-foreground"
+              className="inline-flex h-9 items-center rounded-xl glass-accent glass-interactive px-3 text-xs font-medium text-primary-foreground"
             >
               {saving ? "Speichern…" : "Änderungen speichern"}
             </button>

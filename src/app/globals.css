@@ -2,8 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ==========================================================================
+   Liquid Glass
+   --------------------------------------------------------------------------
+   Every surface is one of three materials:
+
+     glass-chrome   navigation that floats over content (header, dock, rail)
+     glass-panel    content cards — also what `bg-card` upgrades to
+     glass-fill     controls inside a panel (chips, buttons, inputs)
+
+   Glass only reads as glass when there is something behind it, so `body`
+   carries a fixed ambient wash (`body::before`) that the blur picks up.
+   `prefers-reduced-transparency` and `prefers-contrast: more` collapse every
+   material back to opaque — the layout never depends on translucency.
+   ========================================================================== */
+
 html {
+  /* Large base size stays on phones; tablets and desktops get their own scale
+     further down, or a 12.9" iPad renders phone-sized type. */
   font-size: 125%;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 :root {
@@ -20,6 +39,35 @@ html {
   --border: 30 18% 84%;
   --ring: 173 72% 26%;
   --destructive: 4 72% 46%;
+
+  /* --- glass materials ------------------------------------------------- */
+  /* Blur is deliberately paired with saturation: iOS glass pulls colour out
+     of what sits behind it, which is what keeps it from looking like frost. */
+  --glass-blur-chrome: saturate(180%) blur(1.5rem);
+  --glass-blur-panel: saturate(150%) blur(1rem);
+
+  --glass-tint-chrome: hsl(40 45% 99% / 0.72);
+  --glass-tint-panel: hsl(40 45% 99% / 0.62);
+  --glass-tint-fill: hsl(30 24% 88% / 0.55);
+  --glass-tint-raised: hsl(40 45% 100% / 0.78);
+
+  /* The lit top edge and the shaded bottom edge — the two lines that make a
+     flat rectangle read as a pane with thickness. */
+  --glass-specular: hsl(0 0% 100% / 0.75);
+  --glass-specular-soft: hsl(0 0% 100% / 0.35);
+  --glass-shade: hsl(200 18% 12% / 0.06);
+  --glass-hairline: hsl(30 18% 70% / 0.45);
+
+  --glass-shadow-chrome: 0 0.5rem 1.75rem hsl(200 18% 12% / 0.14),
+    0 0.0625rem 0.25rem hsl(200 18% 12% / 0.06);
+  --glass-shadow-panel: 0 0.25rem 1rem hsl(200 18% 12% / 0.07),
+    0 0.0625rem 0.1875rem hsl(200 18% 12% / 0.04);
+
+  /* Warm light that the glass refracts — the album's colour world, kept warm
+     so Photobuddy still looks like Photobuddy. */
+  --ambient-one: hsl(173 60% 62% / 0.24);
+  --ambient-two: hsl(18 80% 62% / 0.2);
+  --ambient-three: hsl(42 80% 72% / 0.3);
 }
 
 .dark {
@@ -36,9 +84,32 @@ html {
   --border: 210 12% 22%;
   --ring: 172 55% 42%;
   --destructive: 4 78% 68%;
+
+  --glass-tint-chrome: hsl(210 20% 14% / 0.68);
+  --glass-tint-panel: hsl(210 20% 16% / 0.55);
+  --glass-tint-fill: hsl(210 16% 30% / 0.45);
+  --glass-tint-raised: hsl(210 18% 20% / 0.72);
+
+  /* Dark glass catches much less light, but it needs *some* top edge or the
+     panes disappear into the background. */
+  --glass-specular: hsl(0 0% 100% / 0.16);
+  --glass-specular-soft: hsl(0 0% 100% / 0.08);
+  --glass-shade: hsl(0 0% 0% / 0.3);
+  --glass-hairline: hsl(0 0% 100% / 0.1);
+
+  --glass-shadow-chrome: 0 0.5rem 2rem hsl(0 0% 0% / 0.55),
+    0 0.0625rem 0.25rem hsl(0 0% 0% / 0.3);
+  --glass-shadow-panel: 0 0.25rem 1.25rem hsl(0 0% 0% / 0.35),
+    0 0.0625rem 0.1875rem hsl(0 0% 0% / 0.2);
+
+  --ambient-one: hsl(173 70% 40% / 0.28);
+  --ambient-two: hsl(18 80% 50% / 0.22);
+  --ambient-three: hsl(220 70% 40% / 0.26);
 }
 
 body {
+  position: relative;
+  min-height: 100dvh;
   background: hsl(var(--background));
   color: hsl(var(--foreground));
   font-family:
@@ -50,6 +121,440 @@ body {
     Arial,
     "Noto Sans",
     sans-serif;
+  /* Chrome sits over content and gets dragged around by a bouncing page. */
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* The wash the glass blurs. Fixed, so it stays put while content scrolls
+   past — the panes then appear to move over the light, not with it. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -20% -20% -20% -20%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(45rem 45rem at 12% 8%, var(--ambient-one), transparent 62%),
+    radial-gradient(40rem 40rem at 88% 22%, var(--ambient-two), transparent 60%),
+    radial-gradient(50rem 50rem at 50% 98%, var(--ambient-three), transparent 65%);
+}
+
+@layer base {
+  /* iOS zooms the page when a font under 16px gets focus. */
+  input,
+  select,
+  textarea {
+    font-size: max(1rem, 16px);
+  }
+
+  /* Chrome and labels are furniture — selecting them is never the intent, and
+     on iOS a long press on a button otherwise pops the selection bubble. */
+  button,
+  label,
+  nav,
+  header {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* …but text the user may want to copy stays selectable. */
+  p,
+  h1,
+  h2,
+  h3,
+  li,
+  input,
+  textarea,
+  [data-selectable] {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.25);
+  }
+}
+
+@layer components {
+  /* ---- materials ------------------------------------------------------ */
+
+  .glass-chrome,
+  .glass-panel,
+  .glass-sheet,
+  .glass-raised {
+    position: relative;
+    -webkit-backdrop-filter: var(--glass-blur-panel);
+    backdrop-filter: var(--glass-blur-panel);
+    background-color: var(--glass-tint-panel);
+    border: 1px solid transparent;
+    /* The pane's edges: lit along the top, shaded along the bottom, hairline
+       all round. One box-shadow does all three. */
+    box-shadow:
+      inset 0 1px 0 0 var(--glass-specular),
+      inset 0 -1px 0 0 var(--glass-shade),
+      inset 0 0 0 1px var(--glass-hairline),
+      var(--glass-shadow-panel);
+  }
+
+  .glass-chrome {
+    -webkit-backdrop-filter: var(--glass-blur-chrome);
+    backdrop-filter: var(--glass-blur-chrome);
+    background-color: var(--glass-tint-chrome);
+    box-shadow:
+      inset 0 1px 0 0 var(--glass-specular),
+      inset 0 -1px 0 0 var(--glass-shade),
+      inset 0 0 0 1px var(--glass-hairline),
+      var(--glass-shadow-chrome);
+  }
+
+  .glass-sheet {
+    -webkit-backdrop-filter: var(--glass-blur-chrome);
+    backdrop-filter: var(--glass-blur-chrome);
+    background-color: var(--glass-tint-chrome);
+    box-shadow:
+      inset 0 1px 0 0 var(--glass-specular),
+      inset 0 0 0 1px var(--glass-hairline),
+      0 -0.25rem 3rem hsl(200 18% 12% / 0.22);
+  }
+
+  .glass-raised {
+    background-color: var(--glass-tint-raised);
+  }
+
+  /* A control *inside* glass. No blur of its own: stacking one backdrop
+     filter on another costs a paint and buys nothing, since it can only blur
+     what its parent already flattened. */
+  .glass-fill {
+    background-color: var(--glass-tint-fill);
+    box-shadow:
+      inset 0 1px 0 0 var(--glass-specular-soft),
+      inset 0 0 0 1px var(--glass-hairline);
+  }
+
+  /* Tinted glass for the one primary action on a screen. */
+  .glass-accent {
+    position: relative;
+    background-image: linear-gradient(
+      to bottom,
+      hsl(var(--primary) / 0.95),
+      hsl(var(--primary))
+    );
+    color: hsl(var(--primary-foreground));
+    box-shadow:
+      inset 0 1px 0 0 hsl(0 0% 100% / 0.3),
+      inset 0 -1px 0 0 hsl(0 0% 0% / 0.12),
+      0 0.25rem 0.875rem hsl(var(--primary) / 0.35);
+  }
+
+  .glass-destructive {
+    background-image: linear-gradient(
+      to bottom,
+      hsl(var(--destructive) / 0.95),
+      hsl(var(--destructive))
+    );
+    color: hsl(0 0% 100%);
+    box-shadow:
+      inset 0 1px 0 0 hsl(0 0% 100% / 0.25),
+      0 0.25rem 0.875rem hsl(var(--destructive) / 0.3);
+  }
+
+  /* Glass over photos and maps, where the backdrop is bright and arbitrary:
+     a dark pane, so white text holds up over snow as well as over shadow. */
+  .glass-over-media {
+    -webkit-backdrop-filter: saturate(140%) blur(1.25rem);
+    backdrop-filter: saturate(140%) blur(1.25rem);
+    background-color: hsl(200 18% 8% / 0.42);
+    color: hsl(0 0% 100%);
+    box-shadow:
+      inset 0 1px 0 0 hsl(0 0% 100% / 0.22),
+      inset 0 0 0 1px hsl(0 0% 100% / 0.1);
+  }
+
+  /* Controls on a black stage — the slideshow, the video player. Dark glass
+     would disappear into the backdrop, so this one is light glass instead. */
+  .glass-over-dark {
+    -webkit-backdrop-filter: saturate(140%) blur(1.25rem);
+    backdrop-filter: saturate(140%) blur(1.25rem);
+    background-color: hsl(0 0% 100% / 0.16);
+    color: hsl(0 0% 100%);
+    box-shadow:
+      inset 0 1px 0 0 hsl(0 0% 100% / 0.28),
+      inset 0 0 0 1px hsl(0 0% 100% / 0.14);
+  }
+
+  /* The dimmed backdrop behind a sheet or dialog. */
+  .glass-scrim {
+    -webkit-backdrop-filter: blur(0.5rem) saturate(120%);
+    backdrop-filter: blur(0.5rem) saturate(120%);
+    background-color: hsl(200 18% 8% / 0.32);
+  }
+
+  /* ---- shapes --------------------------------------------------------- */
+
+  /* iOS corners are squircles, not circular arcs. Safari 26 can draw them;
+     everywhere else the plain radius is close enough that nobody notices. */
+  .glass-squircle {
+    border-radius: 1.375rem;
+  }
+
+  @supports (corner-shape: squircle) {
+    .glass-squircle {
+      corner-shape: squircle;
+      border-radius: 1.625rem;
+    }
+
+    .glass-squircle-sm {
+      corner-shape: squircle;
+      border-radius: 1.125rem;
+    }
+  }
+
+  .glass-squircle-sm {
+    border-radius: 0.875rem;
+  }
+
+  /* ---- behaviour ------------------------------------------------------ */
+
+  /* Glass reacts to touch: it compresses slightly and brightens, the way iOS
+     controls do. Pointer-fine devices get the hover, touch gets the press. */
+  .glass-interactive {
+    transition:
+      transform 180ms cubic-bezier(0.2, 0.9, 0.3, 1),
+      background-color 180ms ease-out,
+      box-shadow 180ms ease-out;
+    touch-action: manipulation;
+  }
+
+  .glass-interactive:active {
+    transform: scale(0.97);
+    background-color: var(--glass-tint-raised);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .glass-interactive:hover {
+      background-color: var(--glass-tint-raised);
+    }
+  }
+
+  /* A specular sweep along the top edge, brightest where light would enter.
+     Purely decorative, so it is hidden from assistive tech by being a
+     pseudo-element with no content. */
+  .glass-sheen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(
+      160deg,
+      hsl(0 0% 100% / 0.28) 0%,
+      hsl(0 0% 100% / 0.06) 28%,
+      transparent 55%
+    );
+  }
+
+  .dark .glass-sheen::after {
+    background: linear-gradient(
+      160deg,
+      hsl(0 0% 100% / 0.1) 0%,
+      hsl(0 0% 100% / 0.02) 30%,
+      transparent 55%
+    );
+  }
+
+  /* ---- layout helpers ------------------------------------------------- */
+
+  /* Every page's outer container. The dock and the rail are both
+     `position: fixed`, so nothing else reserves room for them: this does, and
+     it keeps content out of the home indicator and the notch. */
+  .app-shell {
+    min-height: 100dvh;
+    padding-bottom: calc(6.5rem + env(safe-area-inset-bottom));
+    padding-right: env(safe-area-inset-right);
+    padding-left: env(safe-area-inset-left);
+  }
+
+  /* From tablet width the dock becomes a rail on the left, so the bottom
+     clearance goes away and the side clearance appears. */
+  @media (min-width: 64rem) {
+    .app-shell {
+      padding-bottom: 2rem;
+      padding-left: 6.5rem;
+    }
+  }
+
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .px-safe {
+    padding-right: env(safe-area-inset-right);
+    padding-left: env(safe-area-inset-left);
+  }
+}
+
+@layer utilities {
+  /* Existing markup says `bg-card` / `bg-muted` / `ring-border` in ~200
+     places. Rather than touch all of them, the three tokens themselves become
+     glass here — one definition, and the whole app changes material. These
+     sit in the utilities layer after Tailwind's own, so they win. */
+  /* No box-shadow here on purpose: `shadow-card` sits in the same layer and
+     one of the two would silently win. The lit edges live in that shadow
+     (tailwind.config.ts), so `bg-card shadow-card` composes to a full pane. */
+  .bg-card {
+    -webkit-backdrop-filter: var(--glass-blur-panel);
+    backdrop-filter: var(--glass-blur-panel);
+    background-color: var(--glass-tint-panel);
+  }
+
+  .bg-muted {
+    background-color: var(--glass-tint-fill);
+  }
+
+  /* Rings and borders become the pane's hairline rather than a drawn outline:
+     translucent, so it reads as a lit edge instead of a box. */
+  .ring-border {
+    --tw-ring-color: var(--glass-hairline);
+  }
+
+  .border-border {
+    border-color: var(--glass-hairline);
+  }
+
+  /* Images and map tiles keep a solid backing — glass behind a photo is just
+     wasted compositing. */
+  img.bg-muted,
+  .bg-muted:has(> img) {
+    background-color: hsl(var(--muted));
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  /* Momentum scrolling inside panels on iOS. */
+  .scroll-touch {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+}
+
+/* ---- widget preview ---------------------------------------------------- */
+
+/* The palette the Scriptable script uses (src/lib/widget/script.ts). It is
+   deliberately independent of the app's own theme: a widget follows the
+   phone's appearance, or whatever the Teilnehmer pinned it to. */
+.widget-preview {
+  --wg-bg: #f7f3ec;
+  --wg-card: #ffffff;
+  --wg-ink: #19232a;
+  --wg-muted: #5a6871;
+  --wg-accent: #0f766e;
+  --wg-warm: #c65b25;
+  --wg-map: #e7eef0;
+  --wg-hole: #eae3d8;
+  --wg-casing: rgb(255 255 255 / 0.55);
+}
+
+.widget-preview[data-wg-theme="dark"],
+.dark .widget-preview[data-wg-theme="auto"] {
+  --wg-bg: #101418;
+  --wg-card: #1b2127;
+  --wg-ink: #f2ebdf;
+  --wg-muted: #a9b2b8;
+  --wg-accent: #3fb6a6;
+  --wg-warm: #e88a4e;
+  --wg-map: #17202a;
+  --wg-hole: #1b2127;
+  --wg-casing: rgb(0 0 0 / 0.55);
+}
+
+/* ---- no-blur fallback -------------------------------------------------- */
+
+/* Without a backdrop filter the tints are far too thin to carry text — a
+   caption over a snowfield would be white on white. Everything gets denser
+   instead, which is also what a browser without the filter can actually do. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root {
+    --glass-tint-chrome: hsl(40 45% 99% / 0.94);
+    --glass-tint-panel: hsl(40 45% 99% / 0.92);
+    --glass-tint-fill: hsl(30 24% 88% / 0.9);
+    --glass-tint-raised: hsl(40 45% 100% / 0.96);
+  }
+
+  .dark {
+    --glass-tint-chrome: hsl(210 20% 14% / 0.94);
+    --glass-tint-panel: hsl(210 20% 16% / 0.92);
+    --glass-tint-fill: hsl(210 16% 30% / 0.85);
+    --glass-tint-raised: hsl(210 18% 20% / 0.95);
+  }
+
+  .glass-over-media {
+    background-color: hsl(200 18% 8% / 0.68);
+  }
+
+  .glass-over-dark {
+    background-color: hsl(0 0% 100% / 0.22);
+  }
+
+  .glass-scrim {
+    background-color: hsl(200 18% 8% / 0.55);
+  }
+}
+
+/* ---- accessibility fallbacks ------------------------------------------ */
+
+/* Someone who has asked for less transparency, or for more contrast, gets
+   opaque surfaces. Blur and tint are the whole point of the design, so they
+   are also the whole of what gets dropped — no layout shifts. */
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  :root {
+    --glass-tint-chrome: hsl(var(--card));
+    --glass-tint-panel: hsl(var(--card));
+    --glass-tint-fill: hsl(var(--muted));
+    --glass-tint-raised: hsl(var(--muted));
+    --glass-hairline: hsl(var(--border));
+    --glass-blur-chrome: none;
+    --glass-blur-panel: none;
+  }
+
+  body::before {
+    display: none;
+  }
+
+  .glass-over-media,
+  .glass-scrim {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background-color: hsl(200 18% 8% / 0.88);
+  }
+
+  .bg-card,
+  .glass-chrome,
+  .glass-panel,
+  .glass-sheet {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .glass-sheen::after {
+    display: none;
+  }
+}
+
+/* ---- type scale ------------------------------------------------------- */
+
+/* Phone type is set large on purpose (125%). A tablet has the width for a
+   normal scale, and an iPad in landscape reads like a laptop. */
+@media (min-width: 48rem) {
+  html {
+    font-size: 112.5%;
+  }
+}
+
+@media (min-width: 64rem) {
+  html {
+    font-size: 106.25%;
+  }
 }
 
 /* Safari date/time: hide chrome only when empty AND unfocused */
@@ -61,20 +566,50 @@ body {
   color: hsl(var(--foreground));
 }
 
+/* ---- Leaflet --------------------------------------------------------- */
+
 .leaflet-container {
   background: hsl(var(--muted));
   font-family: inherit;
 }
 
+/* Leaflet's own chrome, rebuilt as glass: the attribution and the zoom
+   buttons are the only bits of it the app shows. */
 .leaflet-control-attribution {
-  background: hsl(var(--card) / 0.88) !important;
+  -webkit-backdrop-filter: saturate(140%) blur(0.75rem);
+  backdrop-filter: saturate(140%) blur(0.75rem);
+  background: var(--glass-tint-chrome) !important;
   color: hsl(var(--foreground));
+  border-radius: 0.5rem 0 0 0;
+  box-shadow: inset 0 1px 0 0 var(--glass-specular-soft);
   font-size: 0.625rem;
   line-height: 1.3;
 }
 
 .leaflet-control-attribution a {
   color: hsl(var(--primary));
+}
+
+.leaflet-bar {
+  overflow: hidden;
+  border: 0 !important;
+  border-radius: 0.875rem;
+  box-shadow:
+    inset 0 0 0 1px var(--glass-hairline),
+    var(--glass-shadow-chrome) !important;
+}
+
+.leaflet-bar a,
+.leaflet-bar a:hover {
+  -webkit-backdrop-filter: var(--glass-blur-chrome);
+  backdrop-filter: var(--glass-blur-chrome);
+  background: var(--glass-tint-chrome);
+  border-bottom-color: var(--glass-hairline);
+  color: hsl(var(--foreground));
+}
+
+.leaflet-bar a:hover {
+  background: var(--glass-tint-raised);
 }
 
 /* Map markers are photo previews (src/components/photo-map.tsx). Leaflet's own

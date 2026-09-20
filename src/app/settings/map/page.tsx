@@ -6,7 +6,7 @@ import { MapStylePicker } from "@/components/map-style-picker";
 
 export default function MapStyleSettingsPage() {
   return (
-    <div className="min-h-dvh pb-28">
+    <div className="app-shell">
       <AppHeader
         title="Darstellung"
         subtitle="Kartenstil für Galerie, Foto-Ausschnitt und Gäste-Links"

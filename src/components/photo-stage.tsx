@@ -123,7 +123,7 @@ export function PhotoStage({
         aria-label="Vorheriges Foto"
         disabled={!prev}
         onClick={onPrev}
-        className="absolute left-2 top-1/2 z-10 inline-flex size-11 min-h-11 -translate-y-1/2 items-center justify-center rounded-full bg-neutral-900/65 text-white shadow-card backdrop-blur-sm disabled:pointer-events-none disabled:opacity-30"
+        className="absolute left-2 top-1/2 z-10 inline-flex size-11 min-h-11 -translate-y-1/2 items-center justify-center rounded-full glass-over-media text-white shadow-card disabled:pointer-events-none disabled:opacity-30"
       >
         <ChevronLeft className="size-6" aria-hidden />
       </button>
@@ -132,7 +132,7 @@ export function PhotoStage({
         aria-label="Nächstes Foto"
         disabled={!next}
         onClick={onNext}
-        className="absolute right-2 top-1/2 z-10 inline-flex size-11 min-h-11 -translate-y-1/2 items-center justify-center rounded-full bg-neutral-900/65 text-white shadow-card backdrop-blur-sm disabled:pointer-events-none disabled:opacity-30"
+        className="absolute right-2 top-1/2 z-10 inline-flex size-11 min-h-11 -translate-y-1/2 items-center justify-center rounded-full glass-over-media text-white shadow-card disabled:pointer-events-none disabled:opacity-30"
       >
         <ChevronRight className="size-6" aria-hidden />
       </button>

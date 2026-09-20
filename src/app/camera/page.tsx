@@ -44,7 +44,7 @@ export default function CameraPage() {
   const currentAlbum = albums.find((a) => a.id === albumId) ?? albums[0];
 
   return (
-    <div className="min-h-dvh pb-28">
+    <div className="app-shell">
       <AppHeader
         title="Foto teilen"
         titleSlot={

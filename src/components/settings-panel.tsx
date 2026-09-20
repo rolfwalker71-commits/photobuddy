@@ -146,7 +146,7 @@ export function SettingsPanel() {
         <label className="block space-y-1.5">
           <span className="text-sm font-medium">Anzeigename</span>
           <input
-            className="h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm"
+            className="h-11 w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3 text-sm"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
           />
@@ -155,7 +155,7 @@ export function SettingsPanel() {
           <span className="text-sm font-medium">Kartenfarbe</span>
           <input
             type="color"
-            className="h-11 w-full rounded-2xl border border-border bg-background px-3"
+            className="h-11 w-full rounded-2xl glass-fill outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60 px-3"
             value={accent}
             onChange={(e) => setAccent(e.target.value)}
           />
@@ -163,7 +163,7 @@ export function SettingsPanel() {
         <button
           type="button"
           onClick={() => void saveProfile()}
-          className="inline-flex h-11 items-center rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground"
+          className="inline-flex h-11 items-center rounded-2xl glass-accent glass-interactive px-4 text-sm font-medium text-primary-foreground"
         >
           Speichern
         </button>
@@ -180,7 +180,7 @@ export function SettingsPanel() {
             setGeotaggingEnabled(next);
             setGeotag(next);
           }}
-          className="flex min-h-11 w-full items-center justify-between gap-3 rounded-2xl bg-background px-3 py-3 text-left ring-1 ring-border"
+          className="flex min-h-11 w-full items-center justify-between gap-3 rounded-2xl glass-fill px-3 py-3 text-left"
         >
           <span className="min-w-0">
             <span className="flex items-center gap-2 text-sm font-medium leading-snug">
