@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { NextResponse } from "next/server";
 import {
   SESSION_COOKIE,
@@ -31,9 +31,15 @@ export function jsonError(err: unknown) {
   return NextResponse.json({ error: message }, { status: 500 });
 }
 
+/** Session token from `Authorization: Bearer` (native app) or the session cookie (web). */
+async function sessionTokenFromRequest() {
+  const auth = (await headers()).get("authorization") ?? "";
+  if (auth.startsWith("Bearer ")) return auth.slice(7);
+  return (await cookies()).get(SESSION_COOKIE)?.value;
+}
+
 export async function getSessionUser(): Promise<Profile | null> {
-  const store = await cookies();
-  const token = store.get(SESSION_COOKIE)?.value;
+  const token = await sessionTokenFromRequest();
   const payload = await verifySession(token);
   if (!payload) return null;
   const user = await findUserById(payload.sub);
@@ -42,8 +48,7 @@ export async function getSessionUser(): Promise<Profile | null> {
 }
 
 export async function getSessionUserRow(): Promise<UserRow | null> {
-  const store = await cookies();
-  const token = store.get(SESSION_COOKIE)?.value;
+  const token = await sessionTokenFromRequest();
   const payload = await verifySession(token);
   if (!payload) return null;
   const user = await findUserById(payload.sub);

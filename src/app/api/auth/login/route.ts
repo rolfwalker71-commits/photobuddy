@@ -7,7 +7,7 @@ import { toProfile } from "@/lib/db/mappers";
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as { email?: string; password?: string };
+    const body = (await request.json()) as { email?: string; password?: string; client?: string };
     const email = body.email?.trim() ?? "";
     const password = body.password ?? "";
     if (!email || !password) {
@@ -22,7 +22,10 @@ export async function POST(request: Request) {
     }
     const token = await signSession(user.id);
     const secure = new URL(request.url).protocol === "https:";
-    const res = NextResponse.json({ user: toProfile(user) });
+    const res = NextResponse.json({
+      user: toProfile(user),
+      ...(body.client === "app" ? { token } : {}),
+    });
     res.cookies.set(SESSION_COOKIE, token, sessionCookieOptions(secure));
     return res;
   } catch (err) {

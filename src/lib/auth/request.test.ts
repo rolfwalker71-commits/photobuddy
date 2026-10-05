@@ -3,11 +3,15 @@ import type { UserRow } from "@/lib/db/mappers";
 import type { Photo } from "@/lib/types";
 
 const cookieJar = new Map<string, string>();
+let authHeader = "";
 
 vi.mock("next/headers", () => ({
   cookies: async () => ({
     get: (name: string) =>
       cookieJar.has(name) ? { name, value: cookieJar.get(name) } : undefined,
+  }),
+  headers: async () => ({
+    get: (name: string) => (name === "authorization" ? authHeader : null),
   }),
 }));
 
@@ -81,6 +85,7 @@ async function expectStatus(promise: Promise<unknown>, status: number) {
 beforeEach(() => {
   vi.stubEnv("AUTH_SECRET", "test-secret");
   cookieJar.clear();
+  authHeader = "";
   vi.resetAllMocks();
   findUserById.mockResolvedValue(null);
   getAlbumIdForShareKey.mockImplementation(async (key) =>
@@ -99,6 +104,19 @@ describe("requireViewer", () => {
     const viewer = await requireViewer(req());
     expect(viewer.mode).toBe("teilnehmer");
     expect(viewer.user?.id).toBe("user-anna");
+  });
+
+  it("resolves a native app from a Bearer session token", async () => {
+    const row = userRow();
+    findUserById.mockImplementation(async (id) => (id === row.id ? row : null));
+    authHeader = `Bearer ${await signSession(row.id)}`;
+    const viewer = await requireViewer(req());
+    expect(viewer.mode).toBe("teilnehmer");
+  });
+
+  it("rejects a Bearer token that is not a signed session", async () => {
+    authHeader = "Bearer not-a-session";
+    await expect(requireViewer(req())).rejects.toMatchObject({ status: 401 });
   });
 
   it("prefers the session over a share key", async () => {
