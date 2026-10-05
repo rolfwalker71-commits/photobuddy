@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Download, ImagePlus, MapPin, Search, Star, Trash2 } from "lucide-react";
+import { AiSuggestion } from "@/components/ai-suggestion";
 import { CommentSection } from "@/components/comment-section";
 import { GuestNameDialog } from "@/components/guest-name-dialog";
 import { PhotoLocationMapDynamic } from "@/components/photo-location-map-dynamic";
@@ -619,6 +620,19 @@ export function PhotoDetail({ photoId, mode, shareKey }: PhotoDetailProps) {
         ) : null}
 
         {error ? <p className="text-xs text-destructive">{error}</p> : null}
+
+        {canEdit ? (
+          <AiSuggestion
+            photo={photo}
+            tags={tags}
+            onApplied={(result) => {
+              setPhoto(result.photo);
+              setTitle(result.photo.title ?? "");
+              setDescription(result.photo.description ?? "");
+              setTags(result.tags);
+            }}
+          />
+        ) : null}
       </div>
 
       <ReactionBar

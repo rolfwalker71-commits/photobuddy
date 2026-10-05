@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, CloudSun, MapPin, PartyPopper, Sun } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { FloatingDock } from "@/components/floating-dock";
+import { RecapWriter } from "@/components/recap-writer";
 import { WeatherChip } from "@/components/weather-chip";
 import { getStoredAlbumId } from "@/lib/album";
 import { api, withKey } from "@/lib/api";
@@ -142,6 +143,10 @@ export function RecapView({
                 </p>
               ) : null}
             </section>
+
+            {mode === "teilnehmer" && data?.album ? (
+              <RecapWriter albumId={data.album.id} albumName={data.album.name} />
+            ) : null}
 
             <section className="space-y-3 rounded-2xl bg-card p-5 shadow-card ring-1 ring-border">
               <p className="inline-flex items-center gap-2 text-base font-semibold">
