@@ -55,7 +55,7 @@ export default function PhotoLocationMap({
   latitude,
   longitude,
   locationName,
-  accentColor = "#0f766e",
+  accentColor = "#5B66F5",
 }: PhotoLocationMapProps) {
   const place = humanLocationName(locationName);
 

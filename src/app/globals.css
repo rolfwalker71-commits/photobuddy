@@ -26,19 +26,37 @@ html {
 }
 
 :root {
-  --background: 36 40% 97%;
-  --foreground: 200 18% 12%;
-  --card: 40 45% 99%;
-  --card-foreground: 200 18% 12%;
-  --muted: 32 24% 92%;
-  --muted-foreground: 200 10% 38%;
-  --primary: 173 72% 26%;
-  --primary-foreground: 40 45% 98%;
-  --accent: 18 75% 46%;
-  --accent-foreground: 40 45% 98%;
-  --border: 30 18% 84%;
-  --ring: 173 72% 26%;
+  --background: 232 38% 97%;
+  --foreground: 232 28% 13%;
+  --card: 230 50% 99%;
+  --card-foreground: 232 28% 13%;
+  --muted: 232 26% 92%;
+  --muted-foreground: 232 12% 38%;
+  /* Indigo, with coral as its gradient partner (the iOS app's palette). */
+  --primary: 236 90% 63%;
+  --primary-foreground: 0 0% 100%;
+  --accent: 2 100% 70%;
+  --accent-foreground: 232 28% 13%;
+  --border: 232 20% 85%;
+  --ring: 236 90% 63%;
   --destructive: 4 72% 46%;
+
+  /* The brand hues themselves, for fills and gradients (not text). */
+  --brand-indigo: 236 90% 63%;
+  --brand-coral: 2 100% 70%;
+  --brand-gradient: linear-gradient(
+    135deg,
+    hsl(var(--brand-indigo)),
+    hsl(var(--brand-coral))
+  );
+
+  /* One colour per main section: dock icon, active pill, page wash, accents. */
+  --section-gallery: 236 90% 63%;
+  --section-map: 175 87% 35%;
+  --section-timeline: 29 95% 56%;
+  --section-camera: 335 88% 61%;
+  --section-more: 267 78% 65%;
+  --section: var(--section-gallery);
 
   /* --- glass materials ------------------------------------------------- */
   /* Blur is deliberately paired with saturation: iOS glass pulls colour out
@@ -46,17 +64,17 @@ html {
   --glass-blur-chrome: saturate(180%) blur(1.5rem);
   --glass-blur-panel: saturate(150%) blur(1rem);
 
-  --glass-tint-chrome: hsl(40 45% 99% / 0.72);
-  --glass-tint-panel: hsl(40 45% 99% / 0.62);
-  --glass-tint-fill: hsl(30 24% 88% / 0.55);
-  --glass-tint-raised: hsl(40 45% 100% / 0.78);
+  --glass-tint-chrome: hsl(230 50% 99% / 0.72);
+  --glass-tint-panel: hsl(230 50% 99% / 0.62);
+  --glass-tint-fill: hsl(232 28% 88% / 0.55);
+  --glass-tint-raised: hsl(230 50% 100% / 0.78);
 
   /* The lit top edge and the shaded bottom edge — the two lines that make a
      flat rectangle read as a pane with thickness. */
   --glass-specular: hsl(0 0% 100% / 0.75);
   --glass-specular-soft: hsl(0 0% 100% / 0.35);
-  --glass-shade: hsl(200 18% 12% / 0.06);
-  --glass-hairline: hsl(30 18% 70% / 0.45);
+  --glass-shade: hsl(232 28% 13% / 0.06);
+  --glass-hairline: hsl(232 18% 70% / 0.45);
 
   --glass-shadow-chrome: 0 0.5rem 1.75rem hsl(200 18% 12% / 0.14),
     0 0.0625rem 0.25rem hsl(200 18% 12% / 0.06);
@@ -65,30 +83,36 @@ html {
 
   /* Warm light that the glass refracts — the album's colour world, kept warm
      so Photobuddy still looks like Photobuddy. */
-  --ambient-one: hsl(173 60% 62% / 0.24);
-  --ambient-two: hsl(18 80% 62% / 0.2);
-  --ambient-three: hsl(42 80% 72% / 0.3);
+  --ambient-one: hsl(236 90% 70% / 0.22);
+  --ambient-two: hsl(2 100% 72% / 0.18);
+  --ambient-three: hsl(267 80% 75% / 0.2);
 }
 
 .dark {
-  --background: 210 22% 8%;
-  --foreground: 36 30% 94%;
-  --card: 210 18% 12%;
-  --card-foreground: 36 30% 94%;
-  --muted: 210 14% 18%;
-  --muted-foreground: 30 12% 70%;
-  --primary: 172 55% 42%;
-  --primary-foreground: 210 22% 8%;
-  --accent: 20 80% 58%;
-  --accent-foreground: 210 22% 8%;
-  --border: 210 12% 22%;
-  --ring: 172 55% 42%;
+  --background: 234 26% 8%;
+  --foreground: 230 30% 95%;
+  --card: 234 20% 12%;
+  --card-foreground: 230 30% 95%;
+  --muted: 234 16% 18%;
+  --muted-foreground: 230 14% 72%;
+  --primary: 236 90% 70%;
+  --primary-foreground: 234 30% 8%;
+  --accent: 2 100% 72%;
+  --accent-foreground: 234 30% 8%;
+  --border: 234 14% 23%;
+  --ring: 236 90% 70%;
   --destructive: 4 78% 68%;
 
-  --glass-tint-chrome: hsl(210 20% 14% / 0.68);
-  --glass-tint-panel: hsl(210 20% 16% / 0.55);
-  --glass-tint-fill: hsl(210 16% 30% / 0.45);
-  --glass-tint-raised: hsl(210 18% 20% / 0.72);
+  --section-gallery: 236 90% 70%;
+  --section-map: 175 70% 46%;
+  --section-timeline: 29 95% 60%;
+  --section-camera: 335 88% 66%;
+  --section-more: 267 78% 70%;
+
+  --glass-tint-chrome: hsl(234 22% 14% / 0.68);
+  --glass-tint-panel: hsl(234 22% 16% / 0.55);
+  --glass-tint-fill: hsl(234 18% 30% / 0.45);
+  --glass-tint-raised: hsl(234 20% 20% / 0.72);
 
   /* Dark glass catches much less light, but it needs *some* top edge or the
      panes disappear into the background. */
@@ -102,9 +126,9 @@ html {
   --glass-shadow-panel: 0 0.25rem 1.25rem hsl(0 0% 0% / 0.35),
     0 0.0625rem 0.1875rem hsl(0 0% 0% / 0.2);
 
-  --ambient-one: hsl(173 70% 40% / 0.28);
-  --ambient-two: hsl(18 80% 50% / 0.22);
-  --ambient-three: hsl(220 70% 40% / 0.26);
+  --ambient-one: hsl(236 80% 55% / 0.28);
+  --ambient-two: hsl(2 80% 55% / 0.2);
+  --ambient-three: hsl(267 70% 50% / 0.24);
 }
 
 body {
@@ -240,7 +264,7 @@ body::before {
       hsl(var(--primary) / 0.95),
       hsl(var(--primary))
     );
-    color: hsl(var(--primary-foreground));
+    color: #fff;
     box-shadow:
       inset 0 1px 0 0 hsl(0 0% 100% / 0.3),
       inset 0 -1px 0 0 hsl(0 0% 0% / 0.12),
@@ -468,6 +492,92 @@ body::before {
   --wg-casing: rgb(0 0 0 / 0.55);
 }
 
+/* ---- section colours --------------------------------------------------- */
+
+/* The soft wash a page gets from its section: a gradient fading out over the
+   top half plus one blurred circle, drawn behind the glass. `--section` is set
+   inline by <SectionWash> (rendered by the dock). */
+.section-wash {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+  background: linear-gradient(
+    to bottom,
+    hsl(var(--section) / 0.18),
+    hsl(var(--section) / 0.02) 50%,
+    transparent 50%
+  );
+}
+
+.section-wash::after {
+  content: "";
+  position: absolute;
+  top: -8rem;
+  right: -6rem;
+  width: 22rem;
+  height: 22rem;
+  border-radius: 9999px;
+  background: hsl(var(--section) / 0.22);
+  filter: blur(4.5rem);
+}
+
+.dark .section-wash {
+  background: linear-gradient(
+    to bottom,
+    hsl(var(--section) / 0.22),
+    hsl(var(--section) / 0.03) 50%,
+    transparent 50%
+  );
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .section-wash {
+    display: none;
+  }
+}
+
+/* The hero card: indigo to coral, white type. */
+.brand-hero {
+  position: relative;
+  overflow: hidden;
+  background-image: var(--brand-gradient);
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 0 hsl(0 0% 100% / 0.35),
+    0 0.5rem 1.5rem hsl(var(--brand-indigo) / 0.35);
+}
+
+.brand-hero::before {
+  content: "";
+  position: absolute;
+  right: -3rem;
+  top: -3rem;
+  width: 11rem;
+  height: 11rem;
+  border-radius: 9999px;
+  background: hsl(0 0% 100% / 0.14);
+}
+
+/* Rounded-square icon tile, as in iOS Settings. */
+.icon-tile {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  color: #fff;
+  background-image: linear-gradient(
+    to bottom,
+    hsl(var(--tile) / 0.88),
+    hsl(var(--tile))
+  );
+  box-shadow: inset 0 1px 0 0 hsl(0 0% 100% / 0.3);
+}
+
 /* ---- no-blur fallback -------------------------------------------------- */
 
 /* Without a backdrop filter the tints are far too thin to carry text — a
@@ -475,17 +585,17 @@ body::before {
    instead, which is also what a browser without the filter can actually do. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   :root {
-    --glass-tint-chrome: hsl(40 45% 99% / 0.94);
-    --glass-tint-panel: hsl(40 45% 99% / 0.92);
-    --glass-tint-fill: hsl(30 24% 88% / 0.9);
-    --glass-tint-raised: hsl(40 45% 100% / 0.96);
+    --glass-tint-chrome: hsl(230 50% 99% / 0.94);
+    --glass-tint-panel: hsl(230 50% 99% / 0.92);
+    --glass-tint-fill: hsl(232 28% 88% / 0.9);
+    --glass-tint-raised: hsl(230 50% 100% / 0.96);
   }
 
   .dark {
-    --glass-tint-chrome: hsl(210 20% 14% / 0.94);
-    --glass-tint-panel: hsl(210 20% 16% / 0.92);
-    --glass-tint-fill: hsl(210 16% 30% / 0.85);
-    --glass-tint-raised: hsl(210 18% 20% / 0.95);
+    --glass-tint-chrome: hsl(234 22% 14% / 0.94);
+    --glass-tint-panel: hsl(234 22% 16% / 0.92);
+    --glass-tint-fill: hsl(234 18% 30% / 0.85);
+    --glass-tint-raised: hsl(234 20% 20% / 0.95);
   }
 
   .glass-over-media {

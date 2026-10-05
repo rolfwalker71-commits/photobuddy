@@ -41,6 +41,18 @@ export function dominantPlace(photos: Photo[]) {
   return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? first;
 }
 
+/** The place of the day's earliest located photo, shortened to its first part. */
+export function firstPlace(photos: Photo[]) {
+  const sorted = [...photos].sort((a, b) =>
+    (a.taken_at ?? a.created_at).localeCompare(b.taken_at ?? b.created_at),
+  );
+  for (const photo of sorted) {
+    const name = shortPlace(photo.location_name);
+    if (name) return name;
+  }
+  return null;
+}
+
 export function chapterHeading(dayKey: string, photos: Photo[]) {
   const place = dominantPlace(photos);
   let dateLabel = dayKey;

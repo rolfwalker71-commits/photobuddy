@@ -2,14 +2,14 @@
 
 /** Distinct, readable on light and satellite tiles; cycles after eight days. */
 export const ROUTE_COLORS = [
-  "#0f766e",
-  "#c2410c",
-  "#7c3aed",
-  "#be123c",
-  "#0369a1",
-  "#a16207",
-  "#15803d",
-  "#db2777",
+  "#5B66F5",
+  "#FF6B66",
+  "#0DA89E",
+  "#FA8C26",
+  "#F24D8C",
+  "#9E61EB",
+  "#2F9E44",
+  "#0369A1",
 ] as const;
 
 type RoutePhoto = {

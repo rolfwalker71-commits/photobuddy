@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BookImage, LayoutGrid, Map as MapIcon, MapPin, Trash2, Users } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { BellRing, BookImage, ChevronRight, Smartphone, UserRound, HelpCircle, LayoutGrid, Map as MapIcon, MapPin, Trash2, Users } from "lucide-react";
 import { AlbumGuestLinkPanel } from "@/components/album-guest-link-panel";
 import { BackupPanel } from "@/components/backup-panel";
 import { DigestSettings } from "@/components/digest-settings";
@@ -17,11 +18,60 @@ import {
 } from "@/lib/geotag";
 import type { Profile } from "@/lib/types";
 
+/** HSL triples, as the `--tile` custom property of `.icon-tile` expects. */
+const TILE = {
+  indigo: "236 90% 63%",
+  teal: "175 87% 35%",
+  orange: "29 95% 56%",
+  pink: "335 88% 61%",
+  purple: "267 78% 65%",
+  red: "4 80% 58%",
+  gray: "232 10% 52%",
+} as const;
+
+/** A settings row like in iOS Settings: coloured tile, title, hint, chevron. */
+function SettingsRow({
+  href,
+  icon: Icon,
+  tile,
+  title,
+  hint,
+  id,
+}: {
+  href: string;
+  icon: LucideIcon;
+  tile: keyof typeof TILE;
+  title: string;
+  hint: string;
+  id?: string;
+}) {
+  return (
+    <Link
+      href={href}
+      id={id}
+      className="glass-interactive flex min-h-11 scroll-mt-24 items-center gap-3 rounded-2xl bg-card p-3 shadow-card ring-1 ring-border"
+    >
+      <span
+        className="icon-tile size-10 rounded-xl"
+        style={{ "--tile": TILE[tile] } as React.CSSProperties}
+        aria-hidden
+      >
+        <Icon className="size-5" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-base font-semibold leading-snug">{title}</span>
+        <span className="block text-sm leading-snug text-muted-foreground">{hint}</span>
+      </span>
+      <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+    </Link>
+  );
+}
+
 export function SettingsPanel() {
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [displayName, setDisplayName] = useState("");
-  const [accent, setAccent] = useState("#0f766e");
+  const [accent, setAccent] = useState("#5B66F5");
   const [status, setStatus] = useState<string | null>(null);
   const [geotag, setGeotag] = useState(true);
 
@@ -66,93 +116,74 @@ export function SettingsPanel() {
         <section className="space-y-3">
           <h2 className="px-1 text-base font-semibold">Verwaltung</h2>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Link
+            <SettingsRow
               href="/settings/users"
-              className="flex min-h-11 flex-col justify-center gap-1 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border"
-            >
-              <span className="inline-flex items-center gap-2 text-base font-semibold">
-                <Users className="size-4" aria-hidden />
-                Teilnehmer
-              </span>
-              <span className="text-sm text-muted-foreground leading-snug">
-                Benutzer anlegen, Passwort setzen, Konten bearbeiten.
-              </span>
-            </Link>
-            <Link
+              icon={Users}
+              tile="indigo"
+              title="Teilnehmer"
+              hint="Benutzer anlegen, Passwort setzen, Konten bearbeiten."
+            />
+            <SettingsRow
               href="/settings/albums"
-              className="flex min-h-11 flex-col justify-center gap-1 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border"
-            >
-              <span className="inline-flex items-center gap-2 text-base font-semibold">
-                <BookImage className="size-4" aria-hidden />
-                Alben
-              </span>
-              <span className="text-sm text-muted-foreground leading-snug">
-                Alben anlegen, Teilnehmer zuordnen, Gäste-Links teilen.
-              </span>
-            </Link>
-            <Link
+              icon={BookImage}
+              tile="pink"
+              title="Alben"
+              hint="Alben anlegen, Teilnehmer zuordnen, Gäste-Links teilen."
+            />
+            <SettingsRow
               href="/settings/map"
               id="darstellung"
-              className="flex min-h-11 scroll-mt-24 flex-col justify-center gap-1 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border"
-            >
-              <span className="inline-flex items-center gap-2 text-base font-semibold">
-                <MapIcon className="size-4" aria-hidden />
-                Darstellung
-              </span>
-              <span className="text-sm text-muted-foreground leading-snug">
-                Karte — Voyager, Satellit, Topo und weitere Stile.
-              </span>
-            </Link>
+              icon={MapIcon}
+              tile="teal"
+              title="Darstellung"
+              hint="Karte — Voyager, Satellit, Topo und weitere Stile."
+            />
           </div>
           <DigestSettings />
           <BackupPanel />
         </section>
       ) : (
-        <Link
+        <SettingsRow
           href="/settings/map"
           id="darstellung"
-          className="flex min-h-11 scroll-mt-24 items-center gap-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border"
-        >
-          <MapIcon className="size-5 shrink-0" aria-hidden />
-          <span className="min-w-0">
-            <span className="block text-base font-semibold">Darstellung</span>
-            <span className="block text-sm text-muted-foreground leading-snug">
-              Karte — aktueller Stil sichtbar. Wechseln können nur Admins.
-            </span>
-          </span>
-        </Link>
+          icon={MapIcon}
+          tile="teal"
+          title="Darstellung"
+          hint="Karte — aktueller Stil sichtbar. Wechseln können nur Admins."
+        />
       )}
 
-      <Link
+      <SettingsRow
         href="/settings/widgets"
-        className="flex min-h-11 items-center gap-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border"
-      >
-        <LayoutGrid className="size-5" aria-hidden />
-        <span className="min-w-0">
-          <span className="block text-base font-semibold">Widgets</span>
-          <span className="block text-sm text-muted-foreground leading-snug">
-            Fotos auf dem Homescreen von iPhone und iPad — Skript für Scriptable.
-          </span>
-        </span>
-      </Link>
-
-      <Link
+        icon={LayoutGrid}
+        tile="orange"
+        title="Widgets"
+        hint="Fotos auf dem Homescreen von iPhone und iPad — Skript für Scriptable."
+      />
+      <SettingsRow
         href="/settings/trash"
-        className="flex min-h-11 items-center gap-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border"
-      >
-        <Trash2 className="size-5" aria-hidden />
-        <span className="min-w-0">
-          <span className="block text-base font-semibold">Papierkorb</span>
-          <span className="block text-sm text-muted-foreground leading-snug">
-            Gelöschte Fotos 30 Tage wiederherstellen.
-          </span>
-        </span>
-      </Link>
+        icon={Trash2}
+        tile="red"
+        title="Papierkorb"
+        hint="Gelöschte Fotos 30 Tage wiederherstellen."
+      />
+      <SettingsRow
+        href="/settings/help"
+        icon={HelpCircle}
+        tile="purple"
+        title="Hilfe"
+        hint="Upload, Karte, Timeline, KI und Widgets kurz erklärt."
+      />
 
       <AlbumGuestLinkPanel />
 
       <section className="space-y-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border">
-        <h2 className="text-base font-semibold">Profil</h2>
+        <h2 className="flex items-center gap-2.5 text-base font-semibold">
+          <span className="icon-tile" style={{ "--tile": TILE.indigo } as React.CSSProperties} aria-hidden>
+            <UserRound className="size-4" />
+          </span>
+          Profil
+        </h2>
         {profile?.email ? (
           <p className="break-all text-sm text-muted-foreground">{profile.email}</p>
         ) : null}
@@ -183,7 +214,12 @@ export function SettingsPanel() {
       </section>
 
       <section className="space-y-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border">
-        <h2 className="text-base font-semibold">Standort</h2>
+        <h2 className="flex items-center gap-2.5 text-base font-semibold">
+          <span className="icon-tile" style={{ "--tile": TILE.teal } as React.CSSProperties} aria-hidden>
+            <MapPin className="size-4" />
+          </span>
+          Standort
+        </h2>
         <button
           type="button"
           role="switch"
@@ -226,7 +262,12 @@ export function SettingsPanel() {
       </section>
 
       <section className="space-y-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border">
-        <h2 className="text-base font-semibold">Benachrichtigungen</h2>
+        <h2 className="flex items-center gap-2.5 text-base font-semibold">
+          <span className="icon-tile" style={{ "--tile": TILE.red } as React.CSSProperties} aria-hidden>
+            <BellRing className="size-4" />
+          </span>
+          Benachrichtigungen
+        </h2>
         <p className="text-sm text-muted-foreground leading-snug">
           Ein Tipp — neue Fotos und Kommentare kommen als Hinweis. Kein extra
           Konto, nur diese Erlaubnis. Fotos wahlweise sofort oder gesammelt am
@@ -236,7 +277,12 @@ export function SettingsPanel() {
       </section>
 
       <section className="space-y-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border">
-        <h2 className="text-base font-semibold">App</h2>
+        <h2 className="flex items-center gap-2.5 text-base font-semibold">
+          <span className="icon-tile" style={{ "--tile": TILE.gray } as React.CSSProperties} aria-hidden>
+            <Smartphone className="size-4" />
+          </span>
+          App
+        </h2>
         <InstallButton />
       </section>
 

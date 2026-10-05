@@ -1,5 +1,8 @@
 "use client";
 
+import { formatPrettyDate } from "@/lib/pretty-date";
+import { RouteArt } from "@/components/illustrations";
+import { InfoCard } from "@/components/info-card";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CircleMarker,
@@ -16,7 +19,7 @@ import Link from "next/link";
 import { Route } from "lucide-react";
 import { BasemapLayer } from "@/components/basemap-layer";
 import { PhotoImageOverlay } from "@/components/photo-image-overlay";
-import { groupPhotosByDay, photoDayKey } from "@/lib/chapters";
+import { firstPlace, groupPhotosByDay, photoDayKey } from "@/lib/chapters";
 import { humanLocationName } from "@/lib/image";
 import { appHref } from "@/lib/paths";
 import { buildDayBridges, buildDayRoutes, formatKm } from "@/lib/route";
@@ -370,12 +373,14 @@ export default function PhotoMap({
 
   if (located.length === 0) {
     return (
-      <div className="rounded-2xl bg-card p-8 text-center shadow-card ring-1 ring-border">
-        <p className="font-medium">Keine GPS-Daten</p>
-        <p className="mt-1 text-sm text-muted-foreground leading-snug">
-          Fotos mit Standort erscheinen als Markierungen auf der Karte.
-        </p>
-      </div>
+      <InfoCard
+        centered
+        section="map"
+        illustration={<RouteArt />}
+        title="Keine GPS-Daten"
+      >
+        <p>Fotos mit Standort erscheinen als Markierungen auf der Karte.</p>
+      </InfoCard>
     );
   }
 
@@ -384,48 +389,43 @@ export default function PhotoMap({
       {chapters.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2">
           <div
-            className="flex h-10 min-h-10 min-w-0 flex-1 overflow-x-auto rounded-full bg-muted p-0.5"
-            role="tablist"
+            className="-mx-4 flex min-w-0 basis-full snap-x gap-2 overflow-x-auto px-4 pb-1"
+            role="group"
             aria-label="Tag wählen"
           >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={selectedDay === null}
-              onClick={() => setSelectedDay(null)}
-              className={`h-full min-h-0 shrink-0 self-stretch rounded-full px-3 text-xs font-medium leading-none ${
-                selectedDay === null
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground"
-              }`}
-            >
-              Ganze Reise
-            </button>
-            {chapters.map((chapter) => {
+            {[...chapters].reverse().map((chapter) => {
               const active = selectedDay === chapter.day;
+              const route = routeByDay.get(chapter.day);
+              const place = firstPlace(chapter.photos);
               return (
                 <button
                   key={chapter.day}
                   type="button"
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => setSelectedDay(chapter.day)}
-                  className={`h-full min-h-0 shrink-0 self-stretch rounded-full px-3 text-xs font-medium leading-none ${
-                    active
-                      ? "bg-card text-foreground shadow-sm"
-                      : "text-muted-foreground"
+                  aria-pressed={active}
+                  onClick={() => setSelectedDay(active ? null : chapter.day)}
+                  className={`glass-panel glass-interactive glass-squircle-sm min-w-[8.5rem] max-w-[12rem] shrink-0 snap-start space-y-0.5 px-3 py-2 text-left ${
+                    active ? "ring-2 ring-section-map" : ""
                   }`}
+                  style={
+                    active ? { backgroundColor: "hsl(var(--section-map) / 0.16)" } : undefined
+                  }
                 >
-                  <span className="inline-flex items-center gap-1.5">
-                    {showRoute && routeByDay.get(chapter.day) ? (
-                      <span
-                        className="size-2 shrink-0 rounded-full"
-                        style={{ background: routeByDay.get(chapter.day)?.color }}
-                        aria-hidden
-                      />
-                    ) : null}
-                    {chapter.heading}
+                  <span className="flex items-center gap-1.5 text-xs font-semibold leading-snug">
+                    <span
+                      className="size-2.5 shrink-0 rounded-full"
+                      style={{
+                        background: route?.color ?? "hsl(var(--section-map))",
+                      }}
+                      aria-hidden
+                    />
+                    {formatPrettyDate(chapter.day) ?? chapter.day}
                   </span>
+                  <span className="block text-xs leading-snug text-muted-foreground">
+                    {chapter.photos.length} Aufnahme{chapter.photos.length === 1 ? "" : "n"}
+                  </span>
+                  {place ? (
+                    <span className="block truncate text-xs leading-snug">{place}</span>
+                  ) : null}
                 </button>
               );
             })}
@@ -506,7 +506,7 @@ export default function PhotoMap({
           ))}
         <RouteArrows segments={arrowSegments} />
         {located.map((photo) => {
-          const color = profiles[photo.uploaded_by]?.accent_color ?? "#0f766e";
+          const color = profiles[photo.uploaded_by]?.accent_color ?? "#5B66F5";
           const src = previewPhotoUrl(photo);
           const author =
             profiles[photo.uploaded_by]?.display_name ?? "Unbekannt";

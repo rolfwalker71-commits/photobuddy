@@ -50,8 +50,8 @@ export default function MapStylesPreviewGrid() {
                   center={[COMPARE_CENTER.lat, COMPARE_CENTER.lng]}
                   radius={6}
                   pathOptions={{
-                    color: "#0f766e",
-                    fillColor: "#0f766e",
+                    color: "#5B66F5",
+                    fillColor: "#5B66F5",
                     fillOpacity: 0.85,
                     weight: 2,
                   }}

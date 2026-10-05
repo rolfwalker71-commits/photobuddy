@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CalendarRange, Camera, Images, MapPinned, Settings } from "lucide-react";
 import { appHref } from "@/lib/paths";
+import { sectionColorVar, sectionForPath, type Section } from "@/lib/sections";
 import type { ViewerMode } from "@/lib/types";
 
 type FloatingDockProps = {
@@ -25,6 +26,7 @@ export function FloatingDock({ mode, shareKey }: FloatingDockProps) {
       href: appHref(mode, shareKey, "gallery"),
       label: "Galerie",
       icon: Images,
+      section: "gallery" as Section,
       match: (path: string) =>
         path === "/gallery" || path === "/gallery/share",
     },
@@ -32,12 +34,14 @@ export function FloatingDock({ mode, shareKey }: FloatingDockProps) {
       href: appHref(mode, shareKey, "map"),
       label: "Karte",
       icon: MapPinned,
+      section: "map" as Section,
       match: (path: string) => path.includes("/map"),
     },
     {
       href: appHref(mode, shareKey, "timeline"),
       label: "Timeline",
       icon: CalendarRange,
+      section: "timeline" as Section,
       match: (path: string) => path.includes("/timeline"),
     },
     ...(mode === "teilnehmer"
@@ -46,12 +50,14 @@ export function FloatingDock({ mode, shareKey }: FloatingDockProps) {
             href: appHref(mode, shareKey, "camera"),
             label: "Kamera",
             icon: Camera,
+            section: "camera" as Section,
             match: (path: string) => path.startsWith("/camera"),
           },
           {
             href: appHref(mode, shareKey, "settings"),
             label: "Mehr",
             icon: Settings,
+            section: "more" as Section,
             match: (path: string) => path.startsWith("/settings"),
           },
         ]
@@ -59,6 +65,7 @@ export function FloatingDock({ mode, shareKey }: FloatingDockProps) {
   ];
 
   const activeIndex = items.findIndex((item) => item.match(pathname));
+  const wash = sectionForPath(pathname);
   /* The lens is absolutely positioned, so its percentage width resolves
      against the bar's padding box — subtract the padding (2 × 0.375rem) to get
      one slot, and the slots then tile exactly. */
@@ -67,6 +74,11 @@ export function FloatingDock({ mode, shareKey }: FloatingDockProps) {
 
   return (
     <>
+      <div
+        aria-hidden
+        className="section-wash"
+        style={{ "--section": `var(${sectionColorVar(wash)})` } as React.CSSProperties}
+      />
       {/* Phones and portrait tablets: a bar at the bottom edge. */}
       <nav
         aria-label="Hauptnavigation"
@@ -80,10 +92,11 @@ export function FloatingDock({ mode, shareKey }: FloatingDockProps) {
           {activeIndex >= 0 ? (
             <span
               aria-hidden
-              className="glass-fill glass-squircle-sm absolute inset-y-1.5 left-1.5 transition-transform duration-300 ease-glass"
+              className="glass-fill glass-squircle-sm absolute inset-y-1.5 left-1.5 transition-[transform,background-color] duration-300 ease-glass"
               style={{
                 width: lensWidth,
                 transform: `translateX(${activeIndex * 100}%)`,
+                backgroundColor: `hsl(var(${sectionColorVar(items[activeIndex].section)}) / 0.16)`,
               }}
             />
           ) : null}
@@ -96,10 +109,15 @@ export function FloatingDock({ mode, shareKey }: FloatingDockProps) {
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={`relative z-[1] flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 text-[0.7rem] leading-none transition-colors duration-200 ${
-                  active ? "text-primary" : "text-muted-foreground"
+                  active ? "font-semibold" : "text-muted-foreground"
                 }`}
+                style={active ? { color: `hsl(var(${sectionColorVar(item.section)}))` } : undefined}
               >
-                <Icon className="size-5" aria-hidden />
+                <Icon
+                  className="size-5"
+                  style={{ color: `hsl(var(${sectionColorVar(item.section)}))` }}
+                  aria-hidden
+                />
                 <span className="break-words text-center">{item.label}</span>
               </Link>
             );
@@ -117,8 +135,11 @@ export function FloatingDock({ mode, shareKey }: FloatingDockProps) {
           {activeIndex >= 0 ? (
             <span
               aria-hidden
-              className="glass-fill glass-squircle-sm absolute inset-x-1.5 top-1.5 h-16 transition-transform duration-300 ease-glass"
-              style={{ transform: `translateY(calc(${activeIndex} * ${RAIL_SLOT}))` }}
+              className="glass-fill glass-squircle-sm absolute inset-x-1.5 top-1.5 h-16 transition-[transform,background-color] duration-300 ease-glass"
+              style={{
+                transform: `translateY(calc(${activeIndex} * ${RAIL_SLOT}))`,
+                backgroundColor: `hsl(var(${sectionColorVar(items[activeIndex].section)}) / 0.16)`,
+              }}
             />
           ) : null}
           {items.map((item, index) => {
@@ -130,10 +151,15 @@ export function FloatingDock({ mode, shareKey }: FloatingDockProps) {
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={`relative z-[1] flex size-16 flex-col items-center justify-center gap-1 text-[0.65rem] leading-none transition-colors duration-200 ${
-                  active ? "text-primary" : "text-muted-foreground"
+                  active ? "font-semibold" : "text-muted-foreground"
                 } ${index > 0 ? "mt-1.5" : ""}`}
+                style={active ? { color: `hsl(var(${sectionColorVar(item.section)}))` } : undefined}
               >
-                <Icon className="size-5" aria-hidden />
+                <Icon
+                  className="size-5"
+                  style={{ color: `hsl(var(${sectionColorVar(item.section)}))` }}
+                  aria-hidden
+                />
                 <span className="text-center">{item.label}</span>
               </Link>
             );

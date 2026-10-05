@@ -55,6 +55,18 @@ In `.env` (oder `/secrets/keys.env`) setzen: `APNS_KEY_ID`, `APNS_TEAM_ID` und d
 
 Für die iOS-App: `POST /api/ai/describe` (Titel, Beschreibung, Tags zu einem Foto), `/api/ai/search` (Fotosuche im Album) und `/api/ai/recap` (Reisegeschichte). Der Schlüssel bleibt auf dem Server: `OPENAI_API_KEY` setzen, optional `OPENAI_MODEL` (Standard `gpt-4.1-mini`). Ohne Schlüssel antworten die Routen mit 503. Pro Person sind 30 Anfragen in 10 Minuten erlaubt.
 
+### Neues Design & KI
+
+Das Aussehen folgt der iOS-App: Indigo (`#5B66F5`) mit Koralle (`#FF6B66`) als Verlaufspartner, dazu eine Farbe pro Bereich (Galerie Indigo, Karte Türkis, Timeline Orange, Kamera Pink, Mehr Violett). Die Farben stehen als CSS-Variablen in `src/app/globals.css` (`--section-*`); Dock-Icons, aktive Markierung und der sanfte Farbverlauf am Seitenanfang nutzen sie. Die Galerie beginnt mit einer Album-Karte (Zeitraum, Zahlen, Mitglieder), die Karte zeigt Tageskarten zum Filtern, und leere Ansichten haben kleine Illustrationen. Unter Einstellungen → Hilfe ist alles kurz erklärt.
+
+Mit gesetztem `OPENAI_API_KEY` (siehe oben) bietet die Web-App dieselben KI-Funktionen wie die iOS-App:
+
+- **Foto:** «KI-Vorschlag» liefert Titel, Beschreibung und Tags; «Übernehmen» speichert sie.
+- **Galerie:** Das Suchfeld filtert beim Tippen sofort nach Titel, Beschreibung, Ort und Tags. Enter (ab 3 Zeichen) startet die KI-Suche; der Chip «KI-Suche: … · N Treffer» lässt sich wieder entfernen.
+- **Rückblick:** «Reisebericht schreiben» erzeugt einen Text zum Kopieren oder Teilen.
+
+Fehlt der Schlüssel, zeigt die Oberfläche die Meldung des Servers und bleibt sonst unverändert. Die App-Icons erzeugt `scripts/generate-icons.mjs` beim Build.
+
 ### Offline hochladen
 
 Fotos werden auf dem Gerät zwischengespeichert und gehen automatisch hoch, sobald wieder Netz da ist — auch nach einem Neustart der App. Die Warteschlange steht auf der Kamera-Seite.

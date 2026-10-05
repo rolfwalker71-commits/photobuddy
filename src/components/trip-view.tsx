@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, CheckSquare, Download, Globe, MoonStar, PartyPopper, Sparkles, Trash2, X } from "lucide-react";
+import { Check, CheckSquare, Download, Globe, Loader2, MoonStar, PartyPopper, Search, Sparkles, Trash2, X } from "lucide-react";
+import { AlbumHeaderCard } from "@/components/album-header-card";
 import { GalleryBulkBar } from "@/components/gallery-bulk-bar";
 import { AlbumPicker } from "@/components/album-picker";
 import { AppHeader } from "@/components/app-header";
@@ -17,9 +18,17 @@ import { PushEnable } from "@/components/push-enable";
 import { Slideshow, slideshowPhotos } from "@/components/slideshow";
 import { useTripData } from "@/hooks/use-trip-data";
 import { getStoredAlbumId, pickAlbumId, storeAlbumId } from "@/lib/album";
+import {
+  AiError,
+  aiSearchChipLabel,
+  applyGallerySearch,
+  canRunAiSearch,
+  searchPhotoIds,
+  type GallerySearch,
+} from "@/lib/ai-client";
 import { api, withKey } from "@/lib/api";
 import { formatDateRange } from "@/lib/album-label";
-import { emptyFilters, filterPhotos } from "@/lib/filters";
+import { emptyFilters, filterPhotos, isFiltered } from "@/lib/filters";
 import { formatAppDate, formatAppDateTime } from "@/lib/format-date";
 import { appHref } from "@/lib/paths";
 import { photoDayKey } from "@/lib/chapters";
@@ -73,6 +82,10 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
   const editing = selectMode === "edit";
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [newBannerHidden, setNewBannerHidden] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const [aiSearch, setAiSearch] = useState<GallerySearch | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiMessage, setAiMessage] = useState<string | null>(null);
   const [publishEnabled, setPublishEnabled] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const markedRef = useRef(false);
@@ -101,6 +114,9 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
     markedRef.current = false;
     setNewBannerHidden(false);
     setFilters(emptyFilters);
+    setSearchText("");
+    setAiSearch(null);
+    setAiMessage(null);
   }, [currentAlbum?.id]);
 
   useEffect(() => {
@@ -159,9 +175,32 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
 
   const viewerId = mode === "teilnehmer" ? (me?.id ?? null) : null;
   const visible = useMemo(
-    () => filterPhotos(photos, filters, { lastSeenAt: compareSeen, viewerId }),
-    [photos, filters, compareSeen, viewerId],
+    () =>
+      applyGallerySearch(
+        filterPhotos(photos, filters, { lastSeenAt: compareSeen, viewerId }),
+        searchText,
+        aiSearch,
+      ),
+    [photos, filters, compareSeen, viewerId, searchText, aiSearch],
   );
+  const searching = searchText.trim() !== "" || aiSearch !== null;
+
+  async function runAiSearch() {
+    const query = searchText.trim();
+    if (mode !== "teilnehmer" || !currentAlbum || aiBusy || !canRunAiSearch(query)) return;
+    setAiBusy(true);
+    setAiMessage(null);
+    try {
+      const ids = await searchPhotoIds(currentAlbum.id, query);
+      setAiSearch({ query, ids: new Set(ids) });
+      setSearchText("");
+    } catch (err) {
+      /* the live text filter stays; say why the AI search did not run */
+      setAiMessage(err instanceof AiError ? err.message : "KI-Suche fehlgeschlagen.");
+    } finally {
+      setAiBusy(false);
+    }
+  }
 
   const newCount = useMemo(
     () => photos.filter((photo) => isPhotoNew(photo, compareSeen, viewerId)).length,
@@ -315,6 +354,13 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
         onOpenFilters={() => setOpenFilters(true)}
       />
       <main className="mx-auto max-w-5xl space-y-4 px-4 py-4">
+        {view === "grid" && currentAlbum && !loading && !error ? (
+          <AlbumHeaderCard
+            album={currentAlbum}
+            photos={photos}
+            profileById={profileById}
+          />
+        ) : null}
         {currentAlbum && photos.length > 0 ? (
           <div className="space-y-3">
             <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto md:flex-wrap md:overflow-visible md:gap-2">
@@ -421,6 +467,56 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
                 </button>
               )
             ) : null}
+            <div className="space-y-1.5">
+              <div className="glass-fill glass-squircle-sm flex h-11 items-center gap-2 px-3">
+                {aiBusy ? (
+                  <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" aria-hidden />
+                ) : (
+                  <Search className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                )}
+                <input
+                  type="search"
+                  value={searchText}
+                  onChange={(event) => {
+                    setSearchText(event.target.value);
+                    setAiMessage(null);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      void runAiSearch();
+                    }
+                  }}
+                  placeholder={
+                    mode === "teilnehmer"
+                      ? "Suchen — Enter startet die KI-Suche"
+                      : "Suchen"
+                  }
+                  aria-label="Fotos suchen"
+                  enterKeyHint="search"
+                  className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                />
+              </div>
+              {aiSearch ? (
+                <div className="flex">
+                  <button
+                    type="button"
+                    onClick={() => setAiSearch(null)}
+                    className="inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-full bg-primary/15 py-1 pl-3 pr-2 text-xs font-medium text-primary"
+                    aria-label={`${aiSearchChipLabel(aiSearch.query, aiSearch.ids?.size ?? 0)} — entfernen`}
+                  >
+                    <Sparkles className="size-3.5 shrink-0" aria-hidden />
+                    <span className="min-w-0 break-words text-left">
+                      {aiSearchChipLabel(aiSearch.query, visible.length)}
+                    </span>
+                    <X className="size-3.5 shrink-0" aria-hidden />
+                  </button>
+                </div>
+              ) : null}
+              {aiMessage ? (
+                <p className="px-1 text-xs leading-snug text-muted-foreground">{aiMessage}</p>
+              ) : null}
+            </div>
             <div
               className="flex h-10 min-h-10 rounded-full bg-muted p-0.5"
               role="tablist"
@@ -588,6 +684,7 @@ export function TripView({ mode, shareKey, view }: TripViewProps) {
             viewerId={viewerId}
             onToggleHighlight={toggleHighlight}
             selecting={mode === "teilnehmer" && selecting}
+            filtered={searching || isFiltered(filters)}
             selectedIds={selectedIds}
             duplicateIds={duplicateIds}
             onToggleSelect={(photo) => {

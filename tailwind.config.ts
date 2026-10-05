@@ -19,6 +19,13 @@ const config: Config = {
         ring: "hsl(var(--ring))",
         border: "hsl(var(--border))",
         destructive: "hsl(var(--destructive))",
+        coral: "hsl(var(--brand-coral))",
+        section: "hsl(var(--section) / <alpha-value>)",
+        "section-gallery": "hsl(var(--section-gallery) / <alpha-value>)",
+        "section-map": "hsl(var(--section-map) / <alpha-value>)",
+        "section-timeline": "hsl(var(--section-timeline) / <alpha-value>)",
+        "section-camera": "hsl(var(--section-camera) / <alpha-value>)",
+        "section-more": "hsl(var(--section-more) / <alpha-value>)",
       },
       borderRadius: {
         xl: "1rem",
