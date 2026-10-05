@@ -1668,3 +1668,54 @@ export async function listPhotosCreatedBetween(
     [albumId, since.toISOString(), until.toISOString()],
   );
 }
+
+export type ApnsDeviceRow = {
+  id: string;
+  user_id: string;
+  token: string;
+  environment: "sandbox" | "production";
+  album_id: string | null;
+  notify_mode: NotifyMode;
+};
+
+export async function upsertApnsDevice(input: {
+  userId: string;
+  token: string;
+  environment: "sandbox" | "production";
+  albumId: string | null;
+  notifyMode: NotifyMode | null;
+}) {
+  await query(
+    `insert into public.apns_devices (user_id, token, environment, album_id, notify_mode)
+     values ($1, $2, $3, $4, coalesce($5, 'instant'))
+     on conflict (token) do update
+       set user_id = excluded.user_id,
+           environment = excluded.environment,
+           album_id = excluded.album_id,
+           notify_mode = coalesce($5, public.apns_devices.notify_mode),
+           updated_at = now()`,
+    [input.userId, input.token, input.environment, input.albumId, input.notifyMode],
+  );
+}
+
+export async function deleteApnsDeviceByToken(token: string, userId?: string) {
+  await query(
+    `delete from public.apns_devices where token = $1 and ($2::uuid is null or user_id = $2)`,
+    [token, userId ?? null],
+  );
+}
+
+export async function listApnsDevicesForAlbumNotify(albumId: string) {
+  return query<ApnsDeviceRow>(
+    `select d.id, d.user_id, d.token, d.environment, d.album_id, d.notify_mode
+     from public.apns_devices d
+     where d.album_id = $1
+        or d.user_id in (
+          select user_id from public.album_members where album_id = $1
+        )
+        or d.user_id in (
+          select id from public.users where role = 'admin'
+        )`,
+    [albumId],
+  );
+}

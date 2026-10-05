@@ -45,6 +45,16 @@ Cloud-Dashboard, Storage-Bucket, VAPID von Hand. Schema, Admin-Konto und Gäste-
 
 Push pro Gerät: „Bei jedem Foto“ oder „Abends“ — eine Zusammenfassung pro Album („Heute 23 neue Aufnahmen von Anna und Ben · Altdorf“). Gäste bekommen standardmässig die Abend-Variante. Uhrzeit und Zeitzone: **Einstellungen → Tägliche Zusammenfassung** (Admin).
 
+### Push für die iOS-App (APNs)
+
+Die native iOS-App meldet ihr Gerät über `POST /api/push/apns` an (`{token, environment, albumId?, notifyMode?}`, Abmelden mit `DELETE`). Photobuddy sendet dann dieselben Benachrichtigungen wie per Web-Push (sofort bei neuem Foto, abends die Zusammenfassung) direkt an Apple — ohne zusätzliche Abhängigkeiten.
+
+In `.env` (oder `/secrets/keys.env`) setzen: `APNS_KEY_ID`, `APNS_TEAM_ID` und den Schlüssel als `APNS_KEY_P8` (Inhalt der `.p8`-Datei, Zeilenumbrüche als `\n` erlaubt) oder `APNS_KEY_PATH`. `APNS_TOPIC` ist standardmässig `ch.rolfwalker.photobuddy`. Ohne diese Werte bleibt APNs still aus. Ungültige Geräte-Tokens (410 / `BadDeviceToken`) werden automatisch gelöscht.
+
+### KI-Funktionen (OpenAI)
+
+Für die iOS-App: `POST /api/ai/describe` (Titel, Beschreibung, Tags zu einem Foto), `/api/ai/search` (Fotosuche im Album) und `/api/ai/recap` (Reisegeschichte). Der Schlüssel bleibt auf dem Server: `OPENAI_API_KEY` setzen, optional `OPENAI_MODEL` (Standard `gpt-4.1-mini`). Ohne Schlüssel antworten die Routen mit 503. Pro Person sind 30 Anfragen in 10 Minuten erlaubt.
+
 ### Offline hochladen
 
 Fotos werden auf dem Gerät zwischengespeichert und gehen automatisch hoch, sobald wieder Netz da ist — auch nach einem Neustart der App. Die Warteschlange steht auf der Kamera-Seite.

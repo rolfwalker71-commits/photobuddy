@@ -57,6 +57,13 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       PHOTOS_DIR: /data/photos
       PORT: ${PORT:-3388}
+      APNS_KEY_ID: ${APNS_KEY_ID:-}
+      APNS_TEAM_ID: ${APNS_TEAM_ID:-}
+      APNS_KEY_P8: ${APNS_KEY_P8:-}
+      APNS_KEY_PATH: ${APNS_KEY_PATH:-}
+      APNS_TOPIC: ${APNS_TOPIC:-ch.rolfwalker.photobuddy}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
       GRAV_URL: ${GRAV_URL:-}
       GRAV_API_KEY: ${GRAV_API_KEY:-}
       GRAV_INSECURE_TLS: ${GRAV_INSECURE_TLS:-}

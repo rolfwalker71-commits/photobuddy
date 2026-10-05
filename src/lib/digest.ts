@@ -4,6 +4,7 @@ import {
   getPreviousDigestSentAt,
   getShareLinkForAlbum,
   listAlbums,
+  listApnsDevicesForAlbumNotify,
   listPhotosCreatedBetween,
   listPushSubscriptionsForAlbumNotify,
   setDigestPhotoCount,
@@ -18,6 +19,7 @@ import {
   summarizeDigest,
 } from "@/lib/digest-text";
 import { sendPush } from "@/lib/push";
+import { pushToApnsDevices } from "@/lib/push/apns-notify";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -91,6 +93,22 @@ export async function runDailyDigest(
         tag: `digest-${album.id}`,
       });
       sent += 1;
+    }
+
+    try {
+      const devices = await listApnsDevicesForAlbumNotify(album.id);
+      for (const device of devices) {
+        if (device.notify_mode !== "daily") continue;
+        const summary = summarizeDigest(rows, device.user_id);
+        if (summary.count === 0) continue;
+        sent += await pushToApnsDevices([device], {
+          title: album.name,
+          body: digestBody(summary),
+          albumId: album.id,
+        });
+      }
+    } catch (err) {
+      console.error("apns digest", err);
     }
   }
   return { date, due: true, albums, sent };

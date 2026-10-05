@@ -9,6 +9,7 @@ import {
   listPushSubscriptionsForAlbumNotify,
   listPushSubscriptionsForUser,
 } from "@/lib/db/queries";
+import { notifyNewPhotoApns } from "@/lib/push/apns-notify";
 
 type VapidKeys = {
   publicKey: string;
@@ -124,6 +125,7 @@ export async function notifyNewPhoto(input: {
   uploaderId: string;
   uploaderName: string;
 }) {
+  void notifyNewPhotoApns(input);
   try {
     const album = await getAlbum(input.albumId);
     const albumName = album?.name ?? "Album";
