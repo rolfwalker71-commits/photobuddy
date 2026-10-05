@@ -53,7 +53,9 @@ In `.env` (oder `/secrets/keys.env`) setzen: `APNS_KEY_ID`, `APNS_TEAM_ID` und d
 
 ### KI-Funktionen (OpenAI)
 
-Für die iOS-App: `POST /api/ai/describe` (Titel, Beschreibung, Tags zu einem Foto), `/api/ai/search` (Fotosuche im Album) und `/api/ai/recap` (Reisegeschichte). Der Schlüssel bleibt auf dem Server: `OPENAI_API_KEY` setzen, optional `OPENAI_MODEL` (Standard `gpt-4.1-mini`). Ohne Schlüssel antworten die Routen mit 503. Pro Person sind 30 Anfragen in 10 Minuten erlaubt.
+Für die iOS-App: `POST /api/ai/describe` (Titel, Beschreibung, Tags zu einem Foto), `/api/ai/search` (Fotosuche im Album) und `/api/ai/recap` (Reisegeschichte) und `/api/ai/report`. Der Schlüssel bleibt auf dem Server: `OPENAI_API_KEY` setzen, optional `OPENAI_MODEL` (Standard `gpt-4.1-mini`). Ohne Schlüssel antworten die Routen mit 503. Pro Person sind 30 Anfragen in 10 Minuten erlaubt.
+
+`POST /api/ai/report` entwirft einen kurzen Reisebericht für die Homepage (danach editierbar und über `/api/publish` veröffentlichbar). Body: `{albumId, photoIds: [1–30 IDs], title?, language?: "de"}`. Aus Aufnahmedatum, Ortsname und Bildinhalt (die ersten 12 Fotos als Vorschaubild, der Rest nur mit Metadaten; Videos werden übersprungen) entsteht `{title (≤80), intro (≤300), text (≤1500, 2–4 Absätze), photos: [{id, caption (≤140)}]}`, sortiert nach Aufnahmedatum. Fehler: 400 (Eingabe), 401/403/404, 422 (kein verwendbares Foto), 429, 502 (KI-Fehler), 503 (kein Schlüssel).
 
 ### Neues Design & KI
 

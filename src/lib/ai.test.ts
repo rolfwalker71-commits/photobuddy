@@ -139,3 +139,76 @@ describe("openaiChat", () => {
     delete process.env.OPENAI_MODEL;
   });
 });
+
+describe("report", () => {
+  const ps = [
+    photo("b", { taken_at: "2026-07-02T10:00:00Z", location_name: "Luzern" }),
+    photo("v", { kind: "video" as never }),
+    photo("a", { taken_at: "2026-07-01T10:00:00Z", location_name: "46.8837, 8.6356" }),
+  ];
+  it("skips videos and sorts by capture date", () => {
+    expect(ai.reportPhotos(ps).map((p) => p.id)).toEqual(["a", "b"]);
+  });
+  it("builds input with place and vision marker for the first 12 only", () => {
+    const many = Array.from({ length: 14 }, (_, i) =>
+      photo(`p${i}`, { taken_at: `2026-07-01T10:${String(i).padStart(2, "0")}:00Z` }),
+    );
+    const meta = ai.reportInput(ai.reportPhotos(many), " Ferien ");
+    expect(meta.title).toBe("Ferien");
+    expect(meta.photos[0].image).toBe("angehängt");
+    expect(meta.photos[12].image).toBeUndefined();
+    expect(ai.reportInput(ai.reportPhotos(ps)).photos[0].place).toBeUndefined();
+    expect(ai.reportInput(ai.reportPhotos(ps)).photos[1].place).toBe("Luzern");
+  });
+  it("parses, clamps, drops foreign ids, fills fallbacks, keeps order", () => {
+    const sorted = ai.reportPhotos(ps);
+    const out = ai.parseReport(
+      JSON.stringify({
+        title: "x".repeat(200),
+        intro: "Grüsse ß",
+        text: `Eins.\n\nZwei.\n\n${"y".repeat(2000)}`,
+        photos: [
+          { id: "zzz", caption: "fremd" },
+          { id: "b", caption: "z".repeat(300) },
+        ],
+      }),
+      sorted,
+      "Ferien",
+    );
+    expect(out.title.length).toBe(80);
+    expect(out.intro).toBe("Grüsse ss");
+    expect(out.text.length).toBeLessThanOrEqual(1500);
+    expect(out.text.startsWith("Eins.\n\nZwei.")).toBe(true);
+    expect(out.photos.map((p) => p.id)).toEqual(["a", "b"]);
+    expect(out.photos[0].caption).toBe("Ferien");
+    expect(out.photos[1].caption.length).toBe(140);
+  });
+  it("fallbackCaption uses place and title", () => {
+    expect(ai.fallbackCaption(ps[0], "Ferien")).toBe("Ferien, Luzern");
+    expect(ai.fallbackCaption(ps[2])).toBe("Reisefoto");
+  });
+  it("rejects unparseable output with AiUpstreamError", () => {
+    expect(() => ai.parseReport("nope", ai.reportPhotos(ps))).toThrow(ai.AiUpstreamError);
+    expect(() => ai.parseReport('{"title":"t"}', ai.reportPhotos(ps))).toThrow(ai.AiUpstreamError);
+  });
+  it("writeReport sends strict JSON request and at most 12 images", async () => {
+    const many = Array.from({ length: 14 }, (_, i) =>
+      photo(`p${i}`, { taken_at: `2026-07-01T10:${String(i).padStart(2, "0")}:00Z` }),
+    );
+    const images = new Map(many.map((p) => [p.id, { base64: "AA", mime: "image/jpeg" }]));
+    const fn = vi.fn(async () => JSON.stringify({ title: "T", intro: "I", text: "X", photos: [] }));
+    ai.setAiChat(fn);
+    const out = await ai.writeReport({ photos: many, images });
+    ai.setAiChat(null);
+    const [msgs, opts] = fn.mock.calls[0] as unknown as [
+      Array<{ content: Array<{ type: string }> }>,
+      { json: boolean },
+    ];
+    expect(opts.json).toBe(true);
+    expect(msgs[1].content.filter((c) => c.type === "image_url")).toHaveLength(12);
+    expect(out.photos).toHaveLength(14);
+  });
+  it("answers 503 without key (guard)", async () => {
+    await expect(guard.requireAiUser()).rejects.toMatchObject({ status: 503 });
+  });
+});

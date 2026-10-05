@@ -287,3 +287,124 @@ export async function writeRecap(input: {
   if (!cleaned) throw new AiUpstreamError("Die KI-Antwort war leer.");
   return cleaned;
 }
+
+// --- report (travel-diary draft) ---
+
+export const REPORT_MAX_PHOTOS = 30;
+export const REPORT_VISION_PHOTOS = 12;
+export const REPORT_LIMITS = { title: 80, intro: 300, text: 1500, caption: 140 } as const;
+
+export type ReportPhoto = { id: string; caption: string };
+export type ReportDraft = { title: string; intro: string; text: string; photos: ReportPhoto[] };
+
+const swissSpelling = (s: string) => s.replace(/ß/g, "ss");
+
+/** Only kind=photo, ordered by capture date (created_at when missing), stable for ties. */
+export function reportPhotos(photos: Photo[]): Photo[] {
+  return photos
+    .filter((p) => p.kind === "photo")
+    .map((p, i) => ({ p, i, t: Date.parse(p.taken_at ?? p.created_at) || 0 }))
+    .sort((a, b) => a.t - b.t || a.i - b.i)
+    .map((x) => x.p);
+}
+
+export function reportInput(photos: Photo[], title?: string) {
+  return {
+    title: title?.trim().slice(0, 80) || undefined,
+    photos: photos.map((p, i) => ({
+      id: p.id,
+      date: (p.taken_at ?? p.created_at).slice(0, 10),
+      place: humanLocationName(p.location_name)?.slice(0, 80) ?? undefined,
+      image: i < REPORT_VISION_PHOTOS ? "angehängt" : undefined,
+    })),
+  };
+}
+
+export function reportPrompt() {
+  return (
+    `Du hilfst, einen kurzen Reisetagebuch-Bericht für die Homepage einer Familie zu entwerfen. ` +
+    `Antworte ausschliesslich mit JSON der Form {"title": string, "intro": string, "text": string, ` +
+    `"photos": [{"id": string, "caption": string}]} auf Deutsch (Schweizer Rechtschreibung, «ss» statt «ß»). ` +
+    `title: höchstens ${REPORT_LIMITS.title} Zeichen. intro: ein bis zwei Sätze, höchstens ${REPORT_LIMITS.intro} Zeichen. ` +
+    `text: zwei bis vier kurze, warme Absätze (durch Leerzeile getrennt), höchstens ${REPORT_LIMITS.text} Zeichen, ` +
+    `chronologisch nach Datum. caption: pro Foto höchstens ${REPORT_LIMITS.caption} Zeichen, beschreibt, was sichtbar ist, ` +
+    `und den Ort, ohne Datum. Nutze nur Angaben aus den Daten und was auf den Bildern zu sehen ist; ` +
+    `erfinde keine Namen von Personen oder Orten und keine Ereignisse. Verwende nur die gegebenen Foto-IDs. ` +
+    `Bilder sind in der Reihenfolge der Fotos mit «image: angehängt» beigefügt.`
+  );
+}
+
+export function fallbackCaption(photo: Photo, title?: string) {
+  const place = humanLocationName(photo.location_name);
+  const base = place ?? (title?.trim() || "Reisefoto");
+  return clampText(place && title?.trim() ? `${title.trim()}, ${place}` : base, REPORT_LIMITS.caption);
+}
+
+function clampParagraphs(value: unknown, max: number) {
+  const s =
+    typeof value === "string"
+      ? value
+          .split(/\n\s*\n/)
+          .map((p) => p.replace(/\s+/g, " ").trim())
+          .filter(Boolean)
+          .join("\n\n")
+      : "";
+  return s.length <= max ? s : `${s.slice(0, max - 1).trimEnd()}…`;
+}
+
+/** Validates ids against the requested photos, fills missing captions, keeps `photos` order. */
+export function parseReport(text: string, photos: Photo[], title?: string): ReportDraft {
+  const obj = parseJsonObject(text);
+  if (!obj) throw new AiUpstreamError("Die KI-Antwort war nicht lesbar.");
+  const captions = new Map<string, string>();
+  if (Array.isArray(obj.photos)) {
+    for (const item of obj.photos) {
+      if (!item || typeof item !== "object") continue;
+      const { id, caption } = item as { id?: unknown; caption?: unknown };
+      if (typeof id !== "string" || captions.has(id)) continue;
+      const c = swissSpelling(clampText(caption, REPORT_LIMITS.caption));
+      if (c) captions.set(id, c);
+    }
+  }
+  const draft: ReportDraft = {
+    title: swissSpelling(clampText(obj.title, REPORT_LIMITS.title)),
+    intro: swissSpelling(clampText(obj.intro, REPORT_LIMITS.intro)),
+    text: swissSpelling(clampParagraphs(obj.text, REPORT_LIMITS.text)),
+    photos: photos.map((p) => ({
+      id: p.id,
+      caption: captions.get(p.id) ?? fallbackCaption(p, title),
+    })),
+  };
+  if (!draft.text && !draft.intro) throw new AiUpstreamError("Die KI-Antwort war leer.");
+  if (!draft.title) draft.title = clampText(title?.trim() || "Unser Reisebericht", REPORT_LIMITS.title);
+  return draft;
+}
+
+export async function writeReport(input: {
+  photos: Photo[]; // already filtered/sorted with reportPhotos()
+  images: Map<string, { base64: string; mime: string }>;
+  title?: string;
+}): Promise<ReportDraft> {
+  const meta = reportInput(input.photos, input.title);
+  const parts: Array<
+    | { type: "text"; text: string }
+    | { type: "image_url"; image_url: { url: string; detail: "low" } }
+  > = [{ type: "text", text: `Daten:\n${JSON.stringify(meta)}` }];
+  input.photos.slice(0, REPORT_VISION_PHOTOS).forEach((p) => {
+    const img = input.images.get(p.id);
+    if (!img) return;
+    parts.push({ type: "text", text: `Foto ${p.id}:` });
+    parts.push({
+      type: "image_url",
+      image_url: { url: `data:${img.mime};base64,${img.base64}`, detail: "low" },
+    });
+  });
+  const text = await chat(
+    [
+      { role: "system", content: reportPrompt() },
+      { role: "user", content: parts },
+    ],
+    { json: true, maxTokens: 2000 },
+  );
+  return parseReport(text, input.photos, input.title);
+}
