@@ -1,5 +1,7 @@
 "use client";
 
+import { CalendarArt } from "@/components/illustrations";
+import { InfoCard } from "@/components/info-card";
 import { useState } from "react";
 import Link from "next/link";
 import { MapPin, Play, Star, Video } from "lucide-react";
@@ -62,9 +64,14 @@ export function PhotoTimeline({
 
   if (chapters.length === 0 && mode === "guest") {
     return (
-      <div className="rounded-2xl bg-card p-8 text-center shadow-card ring-1 ring-border">
-        <p className="font-medium">Die Timeline ist noch leer</p>
-      </div>
+      <InfoCard
+        centered
+        section="timeline"
+        illustration={<CalendarArt />}
+        title="Die Timeline ist noch leer"
+      >
+        <p>Sobald Fotos da sind, erscheint hier jeder Reisetag mit Notizen und Sprachmemos.</p>
+      </InfoCard>
     );
   }
 
@@ -87,9 +94,14 @@ export function PhotoTimeline({
         </div>
       ) : null}
       {chapters.length === 0 ? (
-        <div className="rounded-2xl bg-card p-8 text-center shadow-card ring-1 ring-border">
-          <p className="font-medium">Die Timeline ist noch leer</p>
-        </div>
+        <InfoCard
+          centered
+          section="timeline"
+          illustration={<CalendarArt />}
+          title="Die Timeline ist noch leer"
+        >
+          <p>Sobald Fotos da sind, erscheint hier jeder Reisetag mit Notizen und Sprachmemos.</p>
+        </InfoCard>
       ) : null}
       {chapters.map((chapter) => {
         const note = noteForDay(dayNotes, chapter.day);

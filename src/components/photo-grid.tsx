@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { Check, Play, Star, Video } from "lucide-react";
+import { InfoCard } from "@/components/info-card";
+import { PolaroidStack } from "@/components/illustrations";
 import { PhotoImageOverlay } from "@/components/photo-image-overlay";
 import { appHref } from "@/lib/paths";
 import { previewPhotoUrl } from "@/lib/storage";
@@ -19,6 +21,8 @@ type PhotoGridProps = {
   selectedIds?: Set<string>;
   onToggleSelect?: (photo: Photo) => void;
   duplicateIds?: Set<string>;
+  /** True when a filter or search hides photos: the empty state then says so. */
+  filtered?: boolean;
 };
 
 export function PhotoGrid({
@@ -33,17 +37,24 @@ export function PhotoGrid({
   selectedIds,
   onToggleSelect,
   duplicateIds,
+  filtered = false,
 }: PhotoGridProps) {
   if (photos.length === 0) {
     return (
-      <div className="rounded-2xl bg-card p-8 text-center shadow-card ring-1 ring-border">
-        <p className="font-medium">Noch keine Fotos</p>
-        <p className="mt-1 text-sm text-muted-foreground leading-snug">
-          {mode === "teilnehmer"
-            ? "Nimm das erste Foto auf oder lade ein kurzes Video aus der Galerie hoch."
-            : "Sobald die Reisegruppe Fotos teilt, erscheinen sie hier."}
+      <InfoCard
+        centered
+        section="gallery"
+        illustration={<PolaroidStack />}
+        title={filtered ? "Keine Treffer" : "Noch keine Fotos"}
+      >
+        <p>
+          {filtered
+            ? "Zu dieser Suche oder diesem Filter gibt es keine Aufnahmen."
+            : mode === "teilnehmer"
+              ? "Nimm das erste Foto auf oder lade ein kurzes Video aus der Galerie hoch."
+              : "Sobald die Reisegruppe Fotos teilt, erscheinen sie hier."}
         </p>
-      </div>
+      </InfoCard>
     );
   }
 
