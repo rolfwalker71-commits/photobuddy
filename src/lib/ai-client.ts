@@ -165,18 +165,55 @@ export type ReportDraft = {
   places: Record<string, string>;
 };
 
+export type ReportLengthChoice = "kurz" | "mittel" | "ausfuehrlich";
+
+export type ReportDraftOptions = {
+  context?: string;
+  /** First names on all photos unless overridden in `people`. */
+  everyone?: string[];
+  /** Per-photo first names; an entry (even empty) overrides `everyone`. */
+  people?: Record<string, string[]>;
+  length?: ReportLengthChoice;
+};
+
+/** Request body for `POST /api/ai/report`; optional fields are only sent when set. */
+export function reportDraftBody(
+  albumId: string,
+  photoIds: string[],
+  title?: string,
+  options: ReportDraftOptions = {},
+) {
+  const context = options.context?.trim().slice(0, 2000);
+  const everyone = options.everyone?.map((n) => n.trim()).filter(Boolean);
+  const wanted = new Set(photoIds);
+  const people = Object.fromEntries(
+    Object.entries(options.people ?? {})
+      .filter(([id]) => wanted.has(id))
+      .map(([id, names]) => [id, names.map((n) => n.trim()).filter(Boolean)]),
+  );
+  return {
+    albumId,
+    photoIds,
+    language: "de",
+    ...(title?.trim() ? { title: title.trim() } : {}),
+    ...(context ? { context } : {}),
+    ...(everyone?.length ? { everyone } : {}),
+    ...(Object.keys(people).length ? { people } : {}),
+    ...(options.length && options.length !== "mittel" ? { length: options.length } : {}),
+  };
+}
+
 /** Travel-diary draft for the selected photos (`POST /api/ai/report`). */
 export async function writeReportDraft(
   albumId: string,
   photoIds: string[],
   title?: string,
+  options: ReportDraftOptions = {},
 ): Promise<ReportDraft> {
-  const data = await postAi<Partial<ReportDraft>>("/api/ai/report", {
-    albumId,
-    photoIds,
-    language: "de",
-    ...(title?.trim() ? { title: title.trim() } : {}),
-  });
+  const data = await postAi<Partial<ReportDraft>>(
+    "/api/ai/report",
+    reportDraftBody(albumId, photoIds, title, options),
+  );
   return {
     title: data.title?.trim() ?? "",
     intro: data.intro?.trim() ?? "",

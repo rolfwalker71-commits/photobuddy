@@ -15,6 +15,7 @@ import {
   firstDraftPlace,
   matchesTextQuery,
   recapShareText,
+  reportDraftBody,
 } from "@/lib/ai-client";
 import type { Photo } from "@/lib/types";
 
@@ -146,5 +147,34 @@ describe("report draft helpers", () => {
   it("finds changed captions", () => {
     const ps = [photo("a", { description: "x" }), photo("b"), photo("c", { description: "z" })];
     expect(changedCaptions(ps, { a: "x ", b: "neu", c: "y" }).map((p) => p.id)).toEqual(["b", "c"]);
+  });
+});
+
+describe("reportDraftBody", () => {
+  it("sends only the legacy fields without options", () => {
+    expect(reportDraftBody("al", ["a"], " T ")).toEqual({ albumId: "al", photoIds: ["a"], language: "de", title: "T" });
+    expect(reportDraftBody("al", ["a"], undefined, { length: "mittel", context: " ", everyone: [], people: {} })).toEqual({
+      albumId: "al",
+      photoIds: ["a"],
+      language: "de",
+    });
+  });
+  it("adds trimmed options and drops foreign photo ids", () => {
+    expect(
+      reportDraftBody("al", ["a", "b"], undefined, {
+        context: " Hallo ",
+        everyone: [" Anna ", ""],
+        people: { a: ["Tom"], b: [], x: ["Y"] },
+        length: "ausfuehrlich",
+      }),
+    ).toEqual({
+      albumId: "al",
+      photoIds: ["a", "b"],
+      language: "de",
+      context: "Hallo",
+      everyone: ["Anna"],
+      people: { a: ["Tom"], b: [] },
+      length: "ausfuehrlich",
+    });
   });
 });

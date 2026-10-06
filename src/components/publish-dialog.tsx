@@ -9,6 +9,7 @@ import {
   fillEmptyFields,
   firstDraftPlace,
   writeReportDraft,
+  type ReportLengthChoice,
 } from "@/lib/ai-client";
 import { api } from "@/lib/api";
 import { notifyPhotosChanged } from "@/lib/photos-sync";
@@ -95,6 +96,11 @@ export function PublishDialog({
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiUnavailable, setAiUnavailable] = useState(false);
   const [aiDraft, setAiDraft] = useState(false);
+  const [aiContext, setAiContext] = useState("");
+  const [aiEveryone, setAiEveryone] = useState<string[]>([]);
+  // Per-photo override; a missing key inherits "everyone".
+  const [aiPeople, setAiPeople] = useState<Record<string, string[]>>({});
+  const [aiLength, setAiLength] = useState<ReportLengthChoice>("mittel");
 
   const images = useMemo(() => photos.filter((photo) => photo.kind === "photo"), [photos]);
   const chronological = useMemo(
@@ -210,6 +216,7 @@ export function PublishDialog({
         albumId,
         chronological.map((photo) => photo.id),
         target === "new-post" ? title : undefined,
+        { context: aiContext, everyone: aiEveryone, people: aiPeople, length: aiLength },
       );
       const byId = new Map(draft.photos.map((p) => [p.id, p.caption]));
       setCaptions((prev) =>
@@ -501,7 +508,13 @@ export function PublishDialog({
                       </label>
                       <label className="block space-y-1">
                         <span className="text-sm font-medium">Text</span>
-                        <textarea className={`${field} h-auto py-2`} rows={5} value={text} disabled={busy} onChange={(e) => setText(e.target.value)} />
+                        <textarea
+                          className={`${field} h-auto py-2`}
+                          rows={Math.min(24, Math.max(5, text.split("\n").length + Math.ceil(text.length / 60)))}
+                          value={text}
+                          disabled={busy}
+                          onChange={(e) => setText(e.target.value)}
+                        />
                       </label>
                       <label className="flex min-h-11 items-center gap-3 rounded-2xl bg-muted px-3">
                         <input
@@ -527,6 +540,57 @@ export function PublishDialog({
                 style={{ backgroundColor: "hsl(var(--section-more) / 0.1)" }}
                 aria-label="KI-Entwurf"
               >
+                <label className="block space-y-1">
+                  <span className="text-sm font-medium">Kontext für die KI (optional)</span>
+                  <textarea
+                    className="min-h-24 w-full rounded-2xl glass-fill px-3 py-2 text-sm outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60"
+                    rows={4}
+                    maxLength={2000}
+                    placeholder="z. B. Es geht los. Auf dem Weg zum Flughafen mit dem Zug. Grosse Vorfreude. Am Flughafen Lounge, dann Boarding."
+                    value={aiContext}
+                    disabled={busy || aiBusy}
+                    onChange={(e) => setAiContext(e.target.value)}
+                  />
+                </label>
+                {details && details.authors.length > 0 ? (
+                  <div className="space-y-1">
+                    <span className="text-sm font-medium">Wer ist auf den Fotos?</span>
+                    <NameChips
+                      names={details.authors.map((a) => a.name)}
+                      selected={aiEveryone}
+                      disabled={busy || aiBusy}
+                      onChange={setAiEveryone}
+                    />
+                  </div>
+                ) : null}
+                <div className="space-y-1">
+                  <span className="text-sm font-medium">Länge</span>
+                  <div className="grid grid-cols-3 gap-1 rounded-2xl bg-muted p-1" role="radiogroup" aria-label="Länge">
+                    {(
+                      [
+                        ["kurz", "Kurz"],
+                        ["mittel", "Mittel"],
+                        ["ausfuehrlich", "Ausführlich"],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        role="radio"
+                        aria-checked={aiLength === value}
+                        disabled={busy || aiBusy}
+                        onClick={() => setAiLength(value)}
+                        className={`min-h-9 rounded-xl px-2 text-sm font-medium transition-colors disabled:opacity-50 ${
+                          aiLength === value
+                            ? "glass-accent text-primary-foreground"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <button
                   type="button"
                   onClick={() => void draftWithAi()}
@@ -562,18 +626,42 @@ export function PublishDialog({
                           loading="lazy"
                           className="size-14 shrink-0 rounded-xl bg-muted object-cover"
                         />
-                        <textarea
-                          className="min-h-14 w-full rounded-2xl glass-fill px-3 py-2 text-sm outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60"
-                          rows={2}
-                          maxLength={500}
-                          aria-label="Bildtext"
-                          placeholder="Bildtext"
-                          value={captions[photo.id] ?? ""}
-                          disabled={busy}
-                          onChange={(e) =>
-                            setCaptions((prev) => ({ ...prev, [photo.id]: e.target.value }))
-                          }
-                        />
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <textarea
+                            className="min-h-14 w-full rounded-2xl glass-fill px-3 py-2 text-sm outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60"
+                            rows={2}
+                            maxLength={500}
+                            aria-label="Bildtext"
+                            placeholder="Bildtext"
+                            value={captions[photo.id] ?? ""}
+                            disabled={busy}
+                            onChange={(e) =>
+                              setCaptions((prev) => ({ ...prev, [photo.id]: e.target.value }))
+                            }
+                          />
+                          {details && details.authors.length > 0 ? (
+                            <NameChips
+                              small
+                              names={details.authors.map((a) => a.name)}
+                              selected={aiPeople[photo.id] ?? aiEveryone}
+                              inherited={!(photo.id in aiPeople)}
+                              disabled={busy || aiBusy}
+                              onChange={(next) =>
+                                setAiPeople((prev) => ({ ...prev, [photo.id]: next }))
+                              }
+                              onReset={
+                                photo.id in aiPeople
+                                  ? () =>
+                                      setAiPeople((prev) => {
+                                        const { [photo.id]: _removed, ...rest } = prev;
+                                        void _removed;
+                                        return rest;
+                                      })
+                                  : undefined
+                              }
+                            />
+                          ) : null}
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -593,6 +681,60 @@ export function PublishDialog({
           </>
         )}
       </form>
+    </div>
+  );
+}
+
+function NameChips({
+  names,
+  selected,
+  disabled,
+  small,
+  inherited,
+  onChange,
+  onReset,
+}: {
+  names: string[];
+  selected: string[];
+  disabled?: boolean;
+  small?: boolean;
+  inherited?: boolean;
+  onChange: (next: string[]) => void;
+  onReset?: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Personen">
+      {names.map((name) => {
+        const on = selected.includes(name);
+        return (
+          <button
+            key={name}
+            type="button"
+            aria-pressed={on}
+            disabled={disabled}
+            onClick={() => onChange(on ? selected.filter((n) => n !== name) : [...selected, name])}
+            className={`rounded-full px-3 ${small ? "min-h-7 text-xs" : "min-h-9 text-sm"} font-medium transition-colors disabled:opacity-50 ${
+              on
+                ? inherited
+                  ? "bg-primary/20 text-foreground ring-1 ring-primary/40"
+                  : "glass-accent text-primary-foreground"
+                : "bg-muted text-muted-foreground"
+            }`}
+          >
+            {name}
+          </button>
+        );
+      })}
+      {onReset ? (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={onReset}
+          className="rounded-full px-2 text-xs text-muted-foreground underline disabled:opacity-50"
+        >
+          wie alle
+        </button>
+      ) : null}
     </div>
   );
 }

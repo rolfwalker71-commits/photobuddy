@@ -212,3 +212,114 @@ describe("report", () => {
     await expect(guard.requireAiUser()).rejects.toMatchObject({ status: 503 });
   });
 });
+
+describe("report extras", () => {
+  const ids = ["a", "b"];
+  const mk = (id: string, extra: object = {}) =>
+    photo(id, { taken_at: "2026-07-01T10:00:00", ...extra } as never);
+
+  it("defaults without extras", () => {
+    expect(ai.parseReportExtras({}, ids)).toEqual({ context: "", everyone: [], people: {}, length: "mittel" });
+  });
+  it("clamps and validates", () => {
+    const out = ai.parseReportExtras(
+      {
+        context: `  ${"x".repeat(2500)}  `,
+        everyone: [" Anna ", "Anna", "", "B".repeat(60), "c", "d", "e", "f", "g"],
+        people: { a: ["Tom"], zzz: ["Fremd"], b: [] },
+        length: "kurz",
+      },
+      ids,
+    );
+    expect(out.context.length).toBe(2000);
+    expect(out.everyone).toHaveLength(6);
+    expect(out.everyone[0]).toBe("Anna");
+    expect(out.everyone[1].length).toBe(40);
+    expect(out.people).toEqual({ a: ["Tom"], b: [] });
+    expect(out.length).toBe("kurz");
+    expect(() => ai.parseReportExtras({ context: 5 }, ids)).toThrow(ai.ReportInputError);
+    expect(() => ai.parseReportExtras({ everyone: "Anna" }, ids)).toThrow(ai.ReportInputError);
+    expect(() => ai.parseReportExtras({ everyone: [1] }, ids)).toThrow(ai.ReportInputError);
+    expect(() => ai.parseReportExtras({ people: [] }, ids)).toThrow(ai.ReportInputError);
+    expect(() => ai.parseReportExtras({ people: { a: "x" } }, ids)).toThrow(ai.ReportInputError);
+    expect(() => ai.parseReportExtras({ length: "riesig" }, ids)).toThrow(ai.ReportInputError);
+  });
+  it("merges people per photo", () => {
+    expect(ai.peopleForPhoto("a", ["Anna"], {})).toEqual(["Anna"]);
+    expect(ai.peopleForPhoto("a", ["Anna"], { a: ["Tom"] })).toEqual(["Tom"]);
+    expect(ai.peopleForPhoto("a", ["Anna"], { a: [] })).toEqual([]);
+    expect(ai.peopleForPhoto("b", ["Anna"], { a: ["Tom"] })).toEqual(["Anna"]);
+  });
+  it("maps length to limits, tokens and prompt", () => {
+    expect(ai.reportLimits("kurz")).toMatchObject({ text: 800, maxTokens: 1400 });
+    expect(ai.reportLimits("mittel")).toMatchObject({ text: 1500, maxTokens: 2000 });
+    expect(ai.reportLimits("ausfuehrlich")).toMatchObject({ text: 4000, maxTokens: 4500 });
+    expect(ai.reportLimits().text).toBe(ai.REPORT_LIMITS.text);
+    expect(ai.reportPrompt("kurz")).toContain("höchstens 800 Zeichen");
+    expect(ai.reportPrompt("kurz")).toContain("ein bis zwei");
+    expect(ai.reportPrompt("ausfuehrlich")).toContain("fünf bis acht Absätze");
+    expect(ai.reportPrompt("ausfuehrlich")).toContain("höchstens 4000 Zeichen");
+  });
+  it("parseReport clamps text by length", () => {
+    const ps = [photo("a")];
+    const raw = JSON.stringify({ title: "T", intro: "I", text: "y".repeat(3000), photos: [] });
+    expect(ai.parseReport(raw, ps, undefined, "kurz").text.length).toBe(800);
+    expect(ai.parseReport(raw, ps, undefined, "ausfuehrlich").text.length).toBe(3000);
+    expect(ai.parseReport(raw, ps).text.length).toBe(1500);
+  });
+  it("builds input with context, people, day notes and weather", () => {
+    const ps = [
+      mk("a", { weather_code: 0, weather_temp_c: 21.6 }),
+      mk("b", { taken_at: "2026-07-02T10:00:00" }),
+    ];
+    const meta = ai.reportInput(ps, undefined, {
+      context: " Es geht los. ",
+      everyone: ["Anna"],
+      people: { b: ["Tom", "Lea"] },
+      dayNotes: [{ note_date: "2026-07-01", body: " Reisetag " } as never],
+    });
+    expect(meta.context).toBe("Es geht los.");
+    expect(meta.photos[0]).toMatchObject({ personen: ["Anna"], tagesnotiz: "Reisetag", wetter: "Sonnig, 22 °C" });
+    expect(meta.photos[1].personen).toEqual(["Tom", "Lea"]);
+    expect(meta.photos[1]).not.toHaveProperty("tagesnotiz");
+    expect(meta.photos[1]).not.toHaveProperty("wetter");
+  });
+  it("prompt carries the new rules and keeps the old ones", () => {
+    const p = ai.reportPrompt();
+    for (const part of [
+      "eigene Bericht",
+      "keine Ereignisse hinzu",
+      "NUR mit den Vornamen",
+      "rate nie Namen",
+      "nicht aufgeführt",
+      "behaupte nicht, wer darauf",
+      "Wir-Form",
+      "neutralen Vergangenheitsform",
+      "«in»",
+      "Kantonskürzel",
+      "Superlative",
+      "keinen «place»",
+    ]) {
+      expect(p).toContain(part);
+    }
+  });
+  it("leaves requests without new fields unchanged", () => {
+    const ps = [mk("a")];
+    expect(JSON.stringify(ai.reportInput(ps, "T"))).toBe(
+      JSON.stringify({ title: "T", photos: [{ id: "a", date: "2026-07-01", image: "angehängt" }] }),
+    );
+    expect(ai.reportPrompt()).toBe(ai.reportPrompt("mittel"));
+    expect(ai.reportPrompt()).toContain("zwei bis vier kurze, warme Absätze");
+    expect(ai.reportPrompt()).toContain("höchstens 1500 Zeichen");
+  });
+  it("writeReport passes max tokens by length", async () => {
+    const fn = vi.fn(async () => JSON.stringify({ title: "T", intro: "I", text: "X", photos: [] }));
+    ai.setAiChat(fn);
+    await ai.writeReport({ photos: [mk("a")], images: new Map(), length: "ausfuehrlich" });
+    await ai.writeReport({ photos: [mk("a")], images: new Map() });
+    ai.setAiChat(null);
+    const calls = fn.mock.calls as unknown as Array<[unknown, { maxTokens: number }]>;
+    expect(calls[0][1].maxTokens).toBe(4500);
+    expect(calls[1][1].maxTokens).toBe(2000);
+  });
+});
