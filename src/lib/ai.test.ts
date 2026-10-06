@@ -149,14 +149,15 @@ describe("report", () => {
   it("skips videos and sorts by capture date", () => {
     expect(ai.reportPhotos(ps).map((p) => p.id)).toEqual(["a", "b"]);
   });
-  it("builds input with place and vision marker for the first 12 only", () => {
+  it("builds input with place and vision marker for 12 photos spread evenly", () => {
     const many = Array.from({ length: 14 }, (_, i) =>
       photo(`p${i}`, { taken_at: `2026-07-01T10:${String(i).padStart(2, "0")}:00Z` }),
     );
     const meta = ai.reportInput(ai.reportPhotos(many), " Ferien ");
     expect(meta.title).toBe("Ferien");
     expect(meta.photos[0].image).toBe("angehängt");
-    expect(meta.photos[12].image).toBeUndefined();
+    expect(meta.photos.filter((p) => p.image).length).toBe(12);
+    expect(meta.photos[13].image).toBeUndefined();
     expect(ai.reportInput(ai.reportPhotos(ps)).photos[0].place).toBeUndefined();
     expect(ai.reportInput(ai.reportPhotos(ps)).photos[1].place).toBe("Luzern");
   });
@@ -219,7 +220,17 @@ describe("report extras", () => {
     photo(id, { taken_at: "2026-07-01T10:00:00", ...extra } as never);
 
   it("defaults without extras", () => {
-    expect(ai.parseReportExtras({}, ids)).toEqual({ context: "", everyone: [], people: {}, length: "mittel" });
+    expect(ai.parseReportExtras({}, ids)).toEqual({
+      context: "",
+      everyone: [],
+      people: {},
+      length: "mittel",
+      tone: "locker",
+      autor: "",
+      useStyle: true,
+      transcripts: {},
+      refine: null,
+    });
   });
   it("clamps and validates", () => {
     const out = ai.parseReportExtras(
@@ -309,7 +320,7 @@ describe("report extras", () => {
       JSON.stringify({ title: "T", photos: [{ id: "a", date: "2026-07-01", image: "angehängt" }] }),
     );
     expect(ai.reportPrompt()).toBe(ai.reportPrompt("mittel"));
-    expect(ai.reportPrompt()).toContain("zwei bis vier kurze, warme Absätze");
+    expect(ai.reportPrompt()).toContain("zwei bis vier kurze Absätze");
     expect(ai.reportPrompt()).toContain("höchstens 1500 Zeichen");
   });
   it("writeReport passes max tokens by length", async () => {
@@ -321,5 +332,98 @@ describe("report extras", () => {
     const calls = fn.mock.calls as unknown as Array<[unknown, { maxTokens: number }]>;
     expect(calls[0][1].maxTokens).toBe(4500);
     expect(calls[1][1].maxTokens).toBe(2000);
+  });
+});
+
+describe("report: tone, style, transcripts, refine, scenes", () => {
+  const ids = ["a"];
+  const mk = (id: string, taken: string, place?: string) =>
+    photo(id, { taken_at: taken, location_name: place ?? null } as never);
+
+  it("validates tone, autor, useStyle", () => {
+    expect(ai.parseReportExtras({ tone: "sachlich", autor: " rolf ", useStyle: false }, ids)).toMatchObject({
+      tone: "sachlich",
+      autor: "rolf",
+      useStyle: false,
+    });
+    expect(ai.parseReportExtras({ autor: "x".repeat(60) }, ids).autor).toHaveLength(40);
+    expect(() => ai.parseReportExtras({ tone: "wild" }, ids)).toThrow(ai.ReportInputError);
+    expect(() => ai.parseReportExtras({ autor: 5 }, ids)).toThrow(ai.ReportInputError);
+    expect(() => ai.parseReportExtras({ useStyle: "ja" }, ids)).toThrow(ai.ReportInputError);
+  });
+  it("clamps transcripts and limits entries", () => {
+    const many = Object.fromEntries(
+      Array.from({ length: 10 }, (_, i) => [`2026-10-${String(10 + i)}`, `Text ${i}`]),
+    );
+    const out = ai.parseReportExtras(
+      { transcripts: { ...many, "2026-10-01": "x".repeat(900), kaputt: "ignoriert", "2026-10-02": "  " } },
+      ids,
+    );
+    expect(Object.keys(out.transcripts)).toHaveLength(8);
+    expect(out.transcripts["2026-10-01"]).toHaveLength(800);
+    expect(out.transcripts).not.toHaveProperty("kaputt");
+    expect(() => ai.parseReportExtras({ transcripts: { "2026-10-01": 5 } }, ids)).toThrow(ai.ReportInputError);
+    expect(() => ai.parseReportExtras({ transcripts: [] }, ids)).toThrow(ai.ReportInputError);
+  });
+  it("validates refine", () => {
+    const ok = ai.parseReportExtras(
+      { refine: { title: "T", intro: "I", text: "x".repeat(5000), instruction: " kürzer " } },
+      ids,
+    ).refine;
+    expect(ok).toMatchObject({ title: "T", instruction: "kürzer" });
+    expect(ok?.text).toHaveLength(4000);
+    expect(() => ai.parseReportExtras({ refine: "x" }, ids)).toThrow(ai.ReportInputError);
+    expect(() =>
+      ai.parseReportExtras({ refine: { title: "T", intro: 1, text: "", instruction: "a" } }, ids),
+    ).toThrow(ai.ReportInputError);
+    expect(() =>
+      ai.parseReportExtras({ refine: { title: "", intro: "", text: "", instruction: " " } }, ids),
+    ).toThrow(ai.ReportInputError);
+  });
+  it("puts scenes, trip, samples, previous and transcripts into the input", () => {
+    const ps = [mk("a", "2026-10-23T08:00:00Z", "Zürich"), mk("b", "2026-10-23T09:00:00Z", "Zürich")];
+    const plan = ai.reportPlan(ps);
+    const meta = ai.reportInput(ps, undefined, {
+      scenes: plan.scenes,
+      transcripts: { "2026-10-23": "Es regnet" },
+      site: {
+        trip: { day: 1, days: 29, stations: [{ name: "Zürich", country: "Schweiz", arrival: null, departure: "2026-10-23T12:20", transport: "Swiss LX 1954" }] },
+        samples: [{ title: "T", date: "2026-10-01T10:00", autor: "rolf", excerpt: "Wir fuhren los." }],
+        previous: { title: "Vorfreude", date: "2026-09-10T08:00", intro: "Bald geht es los." },
+      },
+    }) as unknown as Record<string, unknown>;
+    expect(meta.scenes).toEqual([
+      { from: "2026-10-23T10:00", to: "2026-10-23T11:00", place: "Zürich", photoIds: ["a", "b"], people: [] },
+    ]);
+    expect(meta.trip).toMatchObject({ reisetag: 1, reisetage: 29 });
+    expect(meta.samples).toHaveLength(1);
+    expect(meta.previous).toMatchObject({ title: "Vorfreude" });
+    expect(meta.tage).toEqual([{ datum: "2026-10-23", gesprochene_notiz: "Es regnet" }]);
+  });
+  it("prompt has tone, bans AI-isms and demands facts only", () => {
+    const p = ai.reportPrompt("mittel", "humorvoll");
+    for (const part of ["leicht ironisch", "«Guillemets»", "nie «ß»", "unvergesslich", "eintauchen", "Highlight",
+      "Alles in allem", "NUR FAKTEN", "samples", "previous", "ohne ihre Sätze zu kopieren"]) {
+      expect(p).toContain(part);
+    }
+    expect(ai.reportPrompt("mittel", "sachlich")).toContain("nüchtern und knapp");
+    expect(ai.reportPrompt("ausfuehrlich")).toContain("ein Absatz pro Szene");
+  });
+  it("refine revises the draft, keeps fallback captions and Swiss spelling", async () => {
+    const ps = [mk("a", "2026-10-23T08:00:00Z", "Zürich")];
+    const fn = vi.fn(async () => JSON.stringify({ title: "Grosse Strasse ß", intro: "Kürzer.", text: "Neu ß." }));
+    ai.setAiChat(fn);
+    const out = await ai.writeReport({
+      photos: ps,
+      images: new Map([["a", { base64: "AA", mime: "image/jpeg" }]]),
+      refine: { title: "Alt", intro: "I", text: "T".repeat(2000), instruction: "kürzer" },
+    });
+    ai.setAiChat(null);
+    const [msgs] = fn.mock.calls[0] as unknown as [Array<{ role: string; content: string }>];
+    expect(msgs[0].content).toContain("Schreibe nicht von vorn");
+    expect(JSON.parse(msgs[1].content)).toMatchObject({ anweisung: "kürzer", entwurf: { title: "Alt" } });
+    expect(out.title).toBe("Grosse Strasse ss");
+    expect(out.text).toBe("Neu ss.");
+    expect(out.photos).toEqual([{ id: "a", caption: "Alt, Zürich" }]);
   });
 });

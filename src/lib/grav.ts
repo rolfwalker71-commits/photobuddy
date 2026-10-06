@@ -154,6 +154,8 @@ type RawPage = {
   published: boolean;
   template?: string;
   header?: Record<string, unknown>;
+  /** Raw markdown body (when the API returns it). */
+  content?: string;
 };
 
 export async function getGravPage(route: string): Promise<RawPage | null> {
@@ -180,6 +182,52 @@ export async function listGravChapters(): Promise<SiteChapter[]> {
   if (res.status !== 200) return [];
   const list = (res.body as { abschnitte?: unknown } | null)?.abschnitte;
   return Array.isArray(list) ? list.filter(isSiteChapter) : [];
+}
+
+/**
+ * The trip data the site embeds in every page (`<script id="reise-daten">`):
+ * stations, legs, start/end, number of days. `/route.json` only carries the
+ * chapters, so the public `/route` page is the one place with the stations.
+ */
+export async function getGravTripData(): Promise<unknown | null> {
+  const res = await send("GET", "/route", { raw: true });
+  if (res.status !== 200 || typeof res.body !== "string") return null;
+  const match = res.body.match(
+    /<script[^>]*id=["']reise-daten["'][^>]*>([\s\S]*?)<\/script>/i,
+  );
+  if (!match) return null;
+  try {
+    return JSON.parse(match[1]);
+  } catch {
+    return null;
+  }
+}
+
+/** Posts with the header fields the AI context needs (author, intro, maybe the body). */
+export type GravContextPost = GravPost & {
+  autor: string;
+  intro: string;
+  content: string;
+};
+
+export async function listGravContextPosts(): Promise<GravContextPost[]> {
+  const params = new URLSearchParams({
+    children_of: GRAV_DIARY_ROUTE,
+    template: "beitrag",
+    sort: "date",
+    order: "desc",
+    per_page: "100",
+  });
+  const pages = await call<RawPage[]>("Beiträge lesen", "GET", `/pages?${params}`);
+  return (pages ?? []).map((page) => ({
+    route: page.route,
+    title: page.title,
+    date: page.date,
+    published: page.published,
+    autor: String(page.header?.autor ?? "").trim(),
+    intro: String(page.header?.intro ?? "").trim(),
+    content: typeof page.content === "string" ? page.content : "",
+  }));
 }
 
 export async function listGravPosts(): Promise<GravPost[]> {

@@ -3,10 +3,10 @@ import { extname } from "node:path";
 import { NextResponse } from "next/server";
 import {
   REPORT_MAX_PHOTOS,
-  REPORT_VISION_PHOTOS,
   ReportInputError,
   parseReportExtras,
   reportPhotos,
+  reportPlan,
   writeReport,
 } from "@/lib/ai";
 import { requireAiUser, wrapAiError } from "@/lib/ai-guard";
@@ -15,6 +15,9 @@ import { listDayNotes, listPhotosByIds, updatePhotosLocation } from "@/lib/db/qu
 import { reverseGeocode } from "@/lib/geocode";
 import { placesMap, resolveMissingPlaces } from "@/lib/photo-places";
 import { resolvePhotoPath } from "@/lib/files";
+import { gravPublishContext } from "@/lib/publish-context-grav";
+import { sceneStamp } from "@/lib/report-scenes";
+import type { PublishContext } from "@/lib/publish-context";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +42,11 @@ export async function POST(request: Request) {
       everyone?: unknown;
       people?: unknown;
       length?: unknown;
+      tone?: unknown;
+      autor?: unknown;
+      useStyle?: unknown;
+      transcripts?: unknown;
+      refine?: unknown;
     };
     const albumId = typeof body.albumId === "string" ? body.albumId.trim() : "";
     if (!albumId) throw new HttpError(400, "albumId fehlt.");
@@ -99,8 +107,12 @@ export async function POST(request: Request) {
       );
     }
 
+    // Scenes structure long series; the images are spread evenly over them.
+    const plan = reportPlan(photos, extras);
+    const visionIds = new Set(plan.visionIds);
     const images = new Map<string, { base64: string; mime: string }>();
-    for (const p of photos.slice(0, REPORT_VISION_PHOTOS)) {
+    // A revision works on the given draft and needs no images.
+    for (const p of extras.refine ? [] : photos.filter((x) => visionIds.has(x.id))) {
       for (const rel of [p.thumbnail_path, p.storage_path]) {
         const mime = rel ? IMAGE_MIME[extname(rel).toLowerCase()] : undefined;
         if (!rel || !mime) continue;
@@ -122,16 +134,34 @@ export async function POST(request: Request) {
       } catch {
         /* optional extra */
       }
+      // Website facts and style samples; best effort, failures are ignored.
+      let site: PublishContext | undefined;
+      if (extras.useStyle) {
+        try {
+          site = await gravPublishContext(
+            extras.autor,
+            sceneStamp(photos[0].taken_at ?? photos[0].created_at),
+          );
+        } catch {
+          site = undefined;
+        }
+      }
       const draft = await writeReport({
         photos,
         images,
         title,
         length: extras.length,
+        tone: extras.tone,
+        refine: extras.refine,
         extras: {
           context: extras.context,
           everyone: extras.everyone,
           people: extras.people,
           dayNotes,
+          transcripts: extras.transcripts,
+          site,
+          scenes: plan.scenes,
+          visionIds: plan.visionIds,
         },
       });
       return NextResponse.json({ ...draft, places: placesMap(photos) });

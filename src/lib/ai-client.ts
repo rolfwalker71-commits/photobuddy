@@ -166,6 +166,8 @@ export type ReportDraft = {
 };
 
 export type ReportLengthChoice = "kurz" | "mittel" | "ausfuehrlich";
+export type ReportToneChoice = "locker" | "sachlich" | "humorvoll";
+export type ReportRefineInput = { title: string; intro: string; text: string; instruction: string };
 
 export type ReportDraftOptions = {
   context?: string;
@@ -174,6 +176,16 @@ export type ReportDraftOptions = {
   /** Per-photo first names; an entry (even empty) overrides `everyone`. */
   people?: Record<string, string[]>;
   length?: ReportLengthChoice;
+  /** Default "locker" (not sent). */
+  tone?: ReportToneChoice;
+  /** Site author key; used with `useStyle` to pick style samples. */
+  autor?: string;
+  /** Default true (not sent); false switches the site's style samples and trip facts off. */
+  useStyle?: boolean;
+  /** Spoken day notes, `YYYY-MM-DD` → text. */
+  transcripts?: Record<string, string>;
+  /** Revise the given draft by an instruction instead of writing a new one. */
+  refine?: ReportRefineInput;
 };
 
 /** Request body for `POST /api/ai/report`; optional fields are only sent when set. */
@@ -186,6 +198,22 @@ export function reportDraftBody(
   const context = options.context?.trim().slice(0, 2000);
   const everyone = options.everyone?.map((n) => n.trim()).filter(Boolean);
   const wanted = new Set(photoIds);
+  const transcripts = Object.fromEntries(
+    Object.entries(options.transcripts ?? {})
+      .filter(([day, text]) => /^\d{4}-\d{2}-\d{2}$/.test(day) && text.trim())
+      .slice(0, 8)
+      .map(([day, text]) => [day, text.trim().slice(0, 800)]),
+  );
+  const instruction = options.refine?.instruction.trim().slice(0, 300) ?? "";
+  const refine =
+    options.refine && instruction
+      ? {
+          title: options.refine.title.trim().slice(0, 80),
+          intro: options.refine.intro.trim().slice(0, 300),
+          text: options.refine.text.trim().slice(0, 4000),
+          instruction,
+        }
+      : null;
   const people = Object.fromEntries(
     Object.entries(options.people ?? {})
       .filter(([id]) => wanted.has(id))
@@ -200,6 +228,11 @@ export function reportDraftBody(
     ...(everyone?.length ? { everyone } : {}),
     ...(Object.keys(people).length ? { people } : {}),
     ...(options.length && options.length !== "mittel" ? { length: options.length } : {}),
+    ...(options.tone && options.tone !== "locker" ? { tone: options.tone } : {}),
+    ...(options.autor?.trim() ? { autor: options.autor.trim().slice(0, 40) } : {}),
+    ...(options.useStyle === false ? { useStyle: false } : {}),
+    ...(Object.keys(transcripts).length ? { transcripts } : {}),
+    ...(refine ? { refine } : {}),
   };
 }
 

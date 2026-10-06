@@ -178,3 +178,31 @@ describe("reportDraftBody", () => {
     });
   });
 });
+
+describe("reportDraftBody: tone, style, transcripts, refine", () => {
+  it("sends nothing extra by default", () => {
+    expect(reportDraftBody("a", ["1"])).toEqual({ albumId: "a", photoIds: ["1"], language: "de" });
+    expect(reportDraftBody("a", ["1"], undefined, { tone: "locker", useStyle: true, autor: " " })).toEqual({
+      albumId: "a",
+      photoIds: ["1"],
+      language: "de",
+    });
+  });
+  it("sends tone, autor, useStyle=false, transcripts and a clamped refine", () => {
+    const body = reportDraftBody("a", ["1"], undefined, {
+      tone: "humorvoll",
+      autor: "rolf",
+      useStyle: false,
+      transcripts: { "2026-10-23": " Hallo ", kaputt: "x" },
+      refine: { title: "T", intro: "I", text: "x".repeat(5000), instruction: " kürzer " },
+    });
+    expect(body).toMatchObject({
+      tone: "humorvoll",
+      autor: "rolf",
+      useStyle: false,
+      transcripts: { "2026-10-23": "Hallo" },
+      refine: { title: "T", intro: "I", instruction: "kürzer" },
+    });
+    expect((body as { refine: { text: string } }).refine.text).toHaveLength(4000);
+  });
+});

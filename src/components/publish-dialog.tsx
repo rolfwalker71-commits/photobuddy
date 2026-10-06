@@ -10,6 +10,7 @@ import {
   firstDraftPlace,
   writeReportDraft,
   type ReportLengthChoice,
+  type ReportToneChoice,
 } from "@/lib/ai-client";
 import { api } from "@/lib/api";
 import { notifyPhotosChanged } from "@/lib/photos-sync";
@@ -101,6 +102,9 @@ export function PublishDialog({
   // Per-photo override; a missing key inherits "everyone".
   const [aiPeople, setAiPeople] = useState<Record<string, string[]>>({});
   const [aiLength, setAiLength] = useState<ReportLengthChoice>("mittel");
+  const [aiTone, setAiTone] = useState<ReportToneChoice>("locker");
+  const [aiUseStyle, setAiUseStyle] = useState(true);
+  const [aiRefine, setAiRefine] = useState("");
 
   const images = useMemo(() => photos.filter((photo) => photo.kind === "photo"), [photos]);
   const chronological = useMemo(
@@ -207,8 +211,9 @@ export function PublishDialog({
     (target === "fotos" ||
       (target === "post" ? Boolean(route) : Boolean(title.trim() && date)));
 
-  async function draftWithAi() {
+  async function draftWithAi(refining = false) {
     if (aiBusy || busy || images.length === 0) return;
+    if (refining && !aiRefine.trim()) return;
     setAiBusy(true);
     setAiError(null);
     try {
@@ -216,8 +221,26 @@ export function PublishDialog({
         albumId,
         chronological.map((photo) => photo.id),
         target === "new-post" ? title : undefined,
-        { context: aiContext, everyone: aiEveryone, people: aiPeople, length: aiLength },
+        {
+          context: aiContext,
+          everyone: aiEveryone,
+          people: aiPeople,
+          length: aiLength,
+          tone: aiTone,
+          autor: autor === "alle" ? "" : autor,
+          useStyle: aiUseStyle,
+          ...(refining ? { refine: { title, intro, text, instruction: aiRefine } } : {}),
+        },
       );
+      if (refining) {
+        // Revision: replace the three fields, keep the captions as they are.
+        setTitle(draft.title || title);
+        setIntro(draft.intro);
+        setText(draft.text);
+        setAiRefine("");
+        setAiDraft(true);
+        return;
+      }
       const byId = new Map(draft.photos.map((p) => [p.id, p.caption]));
       setCaptions((prev) =>
         Object.fromEntries(
@@ -591,6 +614,44 @@ export function PublishDialog({
                     ))}
                   </div>
                 </div>
+                <div className="space-y-1">
+                  <span className="text-sm font-medium">Ton</span>
+                  <div className="grid grid-cols-3 gap-1 rounded-2xl bg-muted p-1" role="radiogroup" aria-label="Ton">
+                    {(
+                      [
+                        ["locker", "Locker"],
+                        ["sachlich", "Sachlich"],
+                        ["humorvoll", "Humorvoll"],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        role="radio"
+                        aria-checked={aiTone === value}
+                        disabled={busy || aiBusy}
+                        onClick={() => setAiTone(value)}
+                        className={`min-h-9 rounded-xl px-2 text-sm font-medium transition-colors disabled:opacity-50 ${
+                          aiTone === value
+                            ? "glass-accent text-primary-foreground"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <label className="flex min-h-11 items-center gap-3 rounded-2xl bg-muted px-3">
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-[hsl(var(--primary))]"
+                    checked={aiUseStyle}
+                    disabled={busy || aiBusy}
+                    onChange={(e) => setAiUseStyle(e.target.checked)}
+                  />
+                  <span className="text-sm font-medium">Stil aus früheren Beiträgen übernehmen</span>
+                </label>
                 <button
                   type="button"
                   onClick={() => void draftWithAi()}
@@ -613,6 +674,40 @@ export function PublishDialog({
                   <p className="text-xs leading-snug text-muted-foreground">
                     Entwurf von der KI – bitte prüfen
                   </p>
+                ) : null}
+                {aiDraft && target === "new-post" ? (
+                  <div className="space-y-1">
+                    <label className="block space-y-1">
+                      <span className="text-sm font-medium">Überarbeiten</span>
+                      <input
+                        className="h-11 w-full rounded-2xl glass-fill px-3 text-sm outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60"
+                        maxLength={300}
+                        placeholder="z. B. kürzer, mehr zum Flughafen, lockerer"
+                        value={aiRefine}
+                        disabled={busy || aiBusy}
+                        onChange={(e) => setAiRefine(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            void draftWithAi(true);
+                          }
+                        }}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => void draftWithAi(true)}
+                      disabled={busy || aiBusy || aiUnavailable || !aiRefine.trim()}
+                      className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-muted px-3 text-sm font-medium glass-interactive disabled:opacity-50"
+                    >
+                      {aiBusy ? (
+                        <Loader2 className="size-4 animate-spin" aria-hidden />
+                      ) : (
+                        <Sparkles className="size-4" aria-hidden />
+                      )}
+                      Überarbeiten
+                    </button>
+                  </div>
                 ) : null}
                 <div className="space-y-2">
                   <span className="text-sm font-medium">Bildtexte</span>
