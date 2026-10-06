@@ -330,7 +330,9 @@ export function reportPrompt() {
     `chronologisch nach Datum. caption: pro Foto höchstens ${REPORT_LIMITS.caption} Zeichen, beschreibt, was sichtbar ist, ` +
     `und den Ort, ohne Datum. Nutze nur Angaben aus den Daten und was auf den Bildern zu sehen ist; ` +
     `erfinde keine Namen von Personen oder Orten und keine Ereignisse. ` +
-    `Hat ein Foto keinen «place», darf für dieses Foto kein Ort genannt werden. Verwende nur die gegebenen Foto-IDs. ` +
+    `Hat ein Foto keinen «place», darf für dieses Foto kein Ort genannt werden. ` +
+    `Ortsnamen bleiben unverändert, werden mit «in» angeschlossen («Abend in Altdorf», nie «am Altdorf») und ` +
+    `Kantonskürzel wie «UR» lässt du weg. Keine Superlative wie «perfekt» oder «traumhaft». Verwende nur die gegebenen Foto-IDs. ` +
     `Bilder sind in der Reihenfolge der Fotos mit «image: angehängt» beigefügt.`
   );
 }
