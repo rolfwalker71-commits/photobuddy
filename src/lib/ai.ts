@@ -60,7 +60,7 @@ export type ChatContent =
 export type ChatMessage = { role: "system" | "user"; content: ChatContent };
 export type ChatFn = (
   messages: ChatMessage[],
-  opts: { json: boolean; maxTokens: number },
+  opts: { json: boolean; maxTokens: number; temperature?: number },
 ) => Promise<string>;
 
 export class AiUpstreamError extends Error {}
@@ -75,7 +75,7 @@ export const openaiChat: ChatFn = async (messages, opts) => {
       model: openaiModel(),
       messages,
       max_tokens: opts.maxTokens,
-      temperature: 0.4,
+      temperature: opts.temperature ?? 0.4,
       ...(opts.json ? { response_format: { type: "json_object" } } : {}),
     }),
     signal: AbortSignal.timeout(60_000),
@@ -586,6 +586,20 @@ const TONE_RULES: Record<ReportTone, string> = {
   humorvoll: "Ton «humorvoll»: leicht ironisch, mit trockenem Humor, aber nie albern und nie auf Kosten von Personen.",
 };
 
+/** Berichte dürfen abwechslungsreicher klingen als die strengen Beschreibungen (0.4). */
+export const REPORT_TEMPERATURE = 0.85;
+
+const VISUAL_RULES =
+  `Bilder zuerst: Beschreibe in jedem Bildtext zuerst, was auf dem Bild wirklich zu sehen ist (Motiv, Gegenstände, ` +
+  `Personen, Tätigkeit, Licht oder Stimmung), konkret und mit einem Detail, das man nur auf diesem Bild findet. ` +
+  `Datum, Uhrzeit, Tageszeit und Wetter erwähnst du nur, wenn sie für dieses Bild prägend sind (zum Beispiel ` +
+  `Abendlicht über den Bergen) und nie als Standardformel; Wendungen wie «am Mittag», «am Nachmittag» oder «gegen ` +
+  `19 Uhr» sind kein Ersatz für eine Bildbeschreibung. Jeder Bildtext hat einen anderen Aufbau und einen anderen ` +
+  `Anfang. Im Bericht nutzt du sichtbare Details der Bilder (was gegessen, gesehen, getragen oder gebaut wird, wo ` +
+  `man sitzt), soweit du sie auf den Bildern wirklich erkennst, und lässt nicht allein den Kontext die Geschichte ` +
+  `tragen. Variiere Satzanfänge und Einstiege, beginne nicht jeden Absatz mit einer Zeitangabe und reihe nicht ` +
+  `Tageszeiten aneinander. Sei einfallsreich im Ausdruck (Vergleiche, kleine Beobachtungen), aber erfinde keine Fakten.`;
+
 const STYLE_RULES =
   `Schreibweise: immer Schweizer Rechtschreibung, nie «ß» (immer «ss», z. B. «grösser», «Strasse»), ` +
   `Anführungen in «Guillemets». ` +
@@ -620,7 +634,7 @@ export function reportPrompt(
     `chronologisch nach Datum. Ist «scenes» vorhanden, gliedere den Text nach diesen Szenen in der gegebenen Reihenfolge ` +
     `und fasse sehr kurze Szenen zusammen. caption: pro Foto höchstens ${REPORT_LIMITS.caption} Zeichen, beschreibt, was sichtbar ist, ` +
     `und den Ort, ohne Datum. Verwende nur die gegebenen Foto-IDs. ` +
-    `${TONE_RULES[tone]} ${STYLE_RULES} ${FACT_RULES} ` +
+    `${TONE_RULES[tone]} ${STYLE_RULES} ${FACT_RULES} ${VISUAL_RULES} ` +
     `Hat ein Foto keinen «place», darf für dieses Foto kein Ort genannt werden. ` +
     `Ortsnamen bleiben unverändert, werden mit «in» angeschlossen («Abend in Altdorf», nie «am Altdorf») und ` +
     `Kantonskürzel wie «UR» lässt du weg. ` +
@@ -741,7 +755,7 @@ export async function writeReport(input: {
           }),
         },
       ],
-      { json: true, maxTokens: reportLimits(length).maxTokens },
+      { json: true, maxTokens: reportLimits(length).maxTokens, temperature: REPORT_TEMPERATURE },
     );
     const draft = parseReport(text, input.photos, r.title || input.title, length, textMax);
     // The model may skip a field it did not touch.
@@ -773,7 +787,7 @@ export async function writeReport(input: {
       { role: "system", content: reportPrompt(length, tone) },
       { role: "user", content: parts },
     ],
-    { json: true, maxTokens: reportLimits(length).maxTokens },
+    { json: true, maxTokens: reportLimits(length).maxTokens, temperature: REPORT_TEMPERATURE },
   );
   return parseReport(text, input.photos, input.title, length);
 }

@@ -209,6 +209,22 @@ describe("report", () => {
     expect(msgs[1].content.filter((c) => c.type === "image_url")).toHaveLength(12);
     expect(out.photos).toHaveLength(14);
   });
+  it("report prompt puts the image first, avoids time formulas and uses a livelier temperature", async () => {
+    const fn = vi.fn(async () => JSON.stringify({ title: "T", intro: "I", text: "X", photos: [] }));
+    ai.setAiChat(fn);
+    await ai.writeReport({ photos: [photo("a", { taken_at: "2026-07-01T10:00:00Z" })], images: new Map() });
+    ai.setAiChat(null);
+    const [msgs, opts] = fn.mock.calls[0] as unknown as [
+      Array<{ role: string; content: unknown }>,
+      { temperature?: number },
+    ];
+    expect(opts.temperature).toBe(ai.REPORT_TEMPERATURE);
+    expect(ai.REPORT_TEMPERATURE).toBeGreaterThan(0.4);
+    const system = String(msgs[0].content);
+    expect(system).toContain("Bilder zuerst");
+    expect(system).toContain("«am Nachmittag»");
+    expect(system).toContain("nie als Standardformel");
+  });
   it("answers 503 without key (guard)", async () => {
     await expect(guard.requireAiUser()).rejects.toMatchObject({ status: 503 });
   });
