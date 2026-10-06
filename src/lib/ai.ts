@@ -329,7 +329,8 @@ export function reportPrompt() {
     `text: zwei bis vier kurze, warme Absätze (durch Leerzeile getrennt), höchstens ${REPORT_LIMITS.text} Zeichen, ` +
     `chronologisch nach Datum. caption: pro Foto höchstens ${REPORT_LIMITS.caption} Zeichen, beschreibt, was sichtbar ist, ` +
     `und den Ort, ohne Datum. Nutze nur Angaben aus den Daten und was auf den Bildern zu sehen ist; ` +
-    `erfinde keine Namen von Personen oder Orten und keine Ereignisse. Verwende nur die gegebenen Foto-IDs. ` +
+    `erfinde keine Namen von Personen oder Orten und keine Ereignisse. ` +
+    `Hat ein Foto keinen «place», darf für dieses Foto kein Ort genannt werden. Verwende nur die gegebenen Foto-IDs. ` +
     `Bilder sind in der Reihenfolge der Fotos mit «image: angehängt» beigefügt.`
   );
 }

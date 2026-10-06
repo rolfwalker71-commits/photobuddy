@@ -1,8 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ExternalLink, Loader2, X } from "lucide-react";
+import { ExternalLink, Loader2, Sparkles, X } from "lucide-react";
+import {
+  AiError,
+  captionPatchBody,
+  changedCaptions,
+  fillEmptyFields,
+  firstDraftPlace,
+  writeReportDraft,
+} from "@/lib/ai-client";
 import { api } from "@/lib/api";
+import { notifyPhotosChanged } from "@/lib/photos-sync";
+import { publicPhotoUrl } from "@/lib/storage";
 import { dominantPlace, noteForDay, photoDayKey } from "@/lib/chapters";
 import { formatAppDateTime } from "@/lib/format-date";
 import { chapterAt, type SiteChapter } from "@/lib/site-chapters";
@@ -80,8 +90,20 @@ export function PublishDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
+  const [captions, setCaptions] = useState<Record<string, string>>({});
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiUnavailable, setAiUnavailable] = useState(false);
+  const [aiDraft, setAiDraft] = useState(false);
 
   const images = useMemo(() => photos.filter((photo) => photo.kind === "photo"), [photos]);
+  const chronological = useMemo(
+    () =>
+      [...images].sort((a, b) =>
+        (a.taken_at ?? a.created_at).localeCompare(b.taken_at ?? b.created_at),
+      ),
+    [images],
+  );
   const videoCount = photos.length - images.length;
   const localTimes = useMemo(
     () => new Map(images.map((photo) => [photo.id, localInputValue(photo.taken_at ?? photo.created_at)])),
@@ -110,6 +132,10 @@ export function PublishDialog({
     setResult(null);
     setError(null);
     setBusy(false);
+    setCaptions(Object.fromEntries(images.map((photo) => [photo.id, photo.description ?? ""])));
+    setAiBusy(false);
+    setAiError(null);
+    setAiDraft(false);
 
     const sorted = [...images].sort((a, b) =>
       (a.taken_at ?? a.created_at).localeCompare(b.taken_at ?? b.created_at),
@@ -169,10 +195,54 @@ export function PublishDialog({
   const target: Target = !blog ? "fotos" : postMode === "existing" ? "post" : "new-post";
   const canSubmit =
     !busy &&
+    !aiBusy &&
     details !== null &&
     images.length > 0 &&
     (target === "fotos" ||
       (target === "post" ? Boolean(route) : Boolean(title.trim() && date)));
+
+  async function draftWithAi() {
+    if (aiBusy || busy || images.length === 0) return;
+    setAiBusy(true);
+    setAiError(null);
+    try {
+      const draft = await writeReportDraft(
+        albumId,
+        chronological.map((photo) => photo.id),
+        target === "new-post" ? title : undefined,
+      );
+      const byId = new Map(draft.photos.map((p) => [p.id, p.caption]));
+      setCaptions((prev) =>
+        Object.fromEntries(
+          images.map((photo) => [photo.id, byId.get(photo.id) || prev[photo.id] || ""]),
+        ),
+      );
+      if (target === "new-post") {
+        const next = fillEmptyFields(
+          { title, intro, text, ort },
+          {
+            title: draft.title,
+            intro: draft.intro,
+            text: draft.text,
+            ort: firstDraftPlace(
+              chronological.map((photo) => photo.id),
+              draft.places,
+            ),
+          },
+        );
+        setTitle(next.title);
+        setIntro(next.intro);
+        setText(next.text);
+        setOrt(next.ort);
+      }
+      setAiDraft(true);
+    } catch (err) {
+      if (err instanceof AiError && err.unavailable) setAiUnavailable(true);
+      setAiError(err instanceof Error ? err.message : "KI-Entwurf fehlgeschlagen.");
+    } finally {
+      setAiBusy(false);
+    }
+  }
 
   function close() {
     onClose(result !== null);
@@ -190,6 +260,15 @@ export function PublishDialog({
       }),
     );
     try {
+      // Save edited captions first; the website takes title and description from the photos.
+      const edited = changedCaptions(images, captions);
+      for (const photo of edited) {
+        await api<{ photo: Photo }>(`/api/photos/${photo.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(captionPatchBody(photo, captions[photo.id] ?? "")),
+        });
+      }
+      if (edited.length > 0) notifyPhotosChanged();
       const data = await api<Result>("/api/publish", {
         method: "POST",
         body: JSON.stringify({
@@ -442,6 +521,64 @@ export function PublishDialog({
                   Die Fotos erscheinen auf der Seite „Fotos“ im gewählten Kapitel.
                 </p>
               )}
+
+              <section
+                className="space-y-3 rounded-2xl p-3 ring-1 ring-section-more/30"
+                style={{ backgroundColor: "hsl(var(--section-more) / 0.1)" }}
+                aria-label="KI-Entwurf"
+              >
+                <button
+                  type="button"
+                  onClick={() => void draftWithAi()}
+                  disabled={busy || aiBusy || aiUnavailable || images.length === 0}
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-muted px-3 text-sm font-medium glass-interactive disabled:opacity-50"
+                >
+                  {aiBusy ? (
+                    <Loader2 className="size-4 animate-spin" aria-hidden />
+                  ) : (
+                    <Sparkles className="size-4" aria-hidden />
+                  )}
+                  {aiBusy
+                    ? "Die KI schreibt…"
+                    : target === "new-post"
+                      ? "Bericht & Bildtexte mit KI entwerfen"
+                      : "Bildtexte mit KI entwerfen"}
+                </button>
+                {aiError ? <p className="text-xs leading-snug text-destructive">{aiError}</p> : null}
+                {aiDraft ? (
+                  <p className="text-xs leading-snug text-muted-foreground">
+                    Entwurf von der KI – bitte prüfen
+                  </p>
+                ) : null}
+                <div className="space-y-2">
+                  <span className="text-sm font-medium">Bildtexte</span>
+                  <ul className="space-y-2">
+                    {chronological.map((photo) => (
+                      <li key={photo.id} className="flex items-start gap-2">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={publicPhotoUrl(photo.thumbnail_path ?? photo.storage_path)}
+                          alt=""
+                          loading="lazy"
+                          className="size-14 shrink-0 rounded-xl bg-muted object-cover"
+                        />
+                        <textarea
+                          className="min-h-14 w-full rounded-2xl glass-fill px-3 py-2 text-sm outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/60"
+                          rows={2}
+                          maxLength={500}
+                          aria-label="Bildtext"
+                          placeholder="Bildtext"
+                          value={captions[photo.id] ?? ""}
+                          disabled={busy}
+                          onChange={(e) =>
+                            setCaptions((prev) => ({ ...prev, [photo.id]: e.target.value }))
+                          }
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </section>
             </div>
 
             {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}

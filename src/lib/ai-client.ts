@@ -155,3 +155,88 @@ export function describePatchBody(photo: Photo, suggestion: AiDescription) {
     longitude: photo.longitude,
   };
 }
+
+export type ReportDraft = {
+  title: string;
+  intro: string;
+  text: string;
+  photos: { id: string; caption: string }[];
+  /** Place per photo id (only existing or freshly resolved names). */
+  places: Record<string, string>;
+};
+
+/** Travel-diary draft for the selected photos (`POST /api/ai/report`). */
+export async function writeReportDraft(
+  albumId: string,
+  photoIds: string[],
+  title?: string,
+): Promise<ReportDraft> {
+  const data = await postAi<Partial<ReportDraft>>("/api/ai/report", {
+    albumId,
+    photoIds,
+    language: "de",
+    ...(title?.trim() ? { title: title.trim() } : {}),
+  });
+  return {
+    title: data.title?.trim() ?? "",
+    intro: data.intro?.trim() ?? "",
+    text: data.text?.trim() ?? "",
+    photos: Array.isArray(data.photos)
+      ? data.photos
+          .filter((p) => p && typeof p.id === "string")
+          .map((p) => ({ id: p.id, caption: String(p.caption ?? "").trim() }))
+      : [],
+    places:
+      data.places && typeof data.places === "object" && !Array.isArray(data.places)
+        ? Object.fromEntries(
+            Object.entries(data.places).filter(
+              ([, v]) => typeof v === "string" && v.trim(),
+            ),
+          )
+        : {},
+  };
+}
+
+/** Fill only fields that are still empty; returns the new values. */
+export function fillEmptyFields<T extends Record<string, string>>(current: T, draft: Partial<T>): T {
+  const next = { ...current };
+  for (const key of Object.keys(draft) as (keyof T)[]) {
+    const value = draft[key];
+    if (!current[key]?.trim() && typeof value === "string" && value.trim()) {
+      next[key] = value as T[keyof T];
+    }
+  }
+  return next;
+}
+
+/** Place of the first photo (in the given, chronological order) that has one. */
+export function firstDraftPlace(photoIds: string[], places: Record<string, string>) {
+  for (const id of photoIds) {
+    const name = places[id]?.trim();
+    if (name) return name;
+  }
+  return "";
+}
+
+/**
+ * Body for `PATCH /api/photos/:id` when saving a caption. Everything not
+ * edited (title, place, coordinates) is carried over because the endpoint
+ * clears missing fields.
+ */
+export function captionPatchBody(photo: Photo, caption: string) {
+  return {
+    title: photo.title || null,
+    description: caption.trim() || null,
+    location_name: photo.location_name,
+    latitude: photo.latitude,
+    longitude: photo.longitude,
+  };
+}
+
+/** Captions that differ from the photo's saved description. */
+export function changedCaptions(photos: Photo[], captions: Record<string, string>) {
+  return photos.filter((photo) => {
+    const value = captions[photo.id];
+    return value !== undefined && value.trim() !== (photo.description ?? "").trim();
+  });
+}

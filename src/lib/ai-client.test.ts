@@ -8,7 +8,11 @@ import {
   applyGallerySearch,
   canRunAiSearch,
   cleanTags,
+  captionPatchBody,
+  changedCaptions,
   describePatchBody,
+  fillEmptyFields,
+  firstDraftPlace,
   matchesTextQuery,
   recapShareText,
 } from "@/lib/ai-client";
@@ -111,5 +115,36 @@ describe("describePatchBody", () => {
       title: "Alt",
       description: null,
     });
+  });
+});
+
+describe("report draft helpers", () => {
+  it("fills only empty fields", () => {
+    expect(
+      fillEmptyFields({ title: "Mein Titel", intro: "", text: " " }, { title: "KI", intro: "Kurz", text: "Lang" }),
+    ).toEqual({ title: "Mein Titel", intro: "Kurz", text: "Lang" });
+    expect(fillEmptyFields({ a: "" }, { a: "  " })).toEqual({ a: "" });
+  });
+
+  it("takes the first place in order", () => {
+    expect(firstDraftPlace(["a", "b", "c"], { c: "Bern", b: "Luzern" })).toBe("Luzern");
+    expect(firstDraftPlace(["a"], {})).toBe("");
+  });
+
+  it("carries title, place and coordinates over in the caption patch", () => {
+    const p = photo("a", { title: "T", location_name: "Luzern", latitude: 1, longitude: 2, description: "alt" });
+    expect(captionPatchBody(p, " neu ")).toEqual({
+      title: "T",
+      description: "neu",
+      location_name: "Luzern",
+      latitude: 1,
+      longitude: 2,
+    });
+    expect(captionPatchBody(photo("b"), "").description).toBeNull();
+  });
+
+  it("finds changed captions", () => {
+    const ps = [photo("a", { description: "x" }), photo("b"), photo("c", { description: "z" })];
+    expect(changedCaptions(ps, { a: "x ", b: "neu", c: "y" }).map((p) => p.id)).toEqual(["b", "c"]);
   });
 });

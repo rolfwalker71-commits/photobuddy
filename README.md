@@ -55,7 +55,7 @@ In `.env` (oder `/secrets/keys.env`) setzen: `APNS_KEY_ID`, `APNS_TEAM_ID` und d
 
 Für die iOS-App: `POST /api/ai/describe` (Titel, Beschreibung, Tags zu einem Foto), `/api/ai/search` (Fotosuche im Album) und `/api/ai/recap` (Reisegeschichte) und `/api/ai/report`. Der Schlüssel bleibt auf dem Server: `OPENAI_API_KEY` setzen, optional `OPENAI_MODEL` (Standard `gpt-4.1-mini`). Ohne Schlüssel antworten die Routen mit 503. Pro Person sind 30 Anfragen in 10 Minuten erlaubt.
 
-`POST /api/ai/report` entwirft einen kurzen Reisebericht für die Homepage (danach editierbar und über `/api/publish` veröffentlichbar). Body: `{albumId, photoIds: [1–30 IDs], title?, language?: "de"}`. Aus Aufnahmedatum, Ortsname und Bildinhalt (die ersten 12 Fotos als Vorschaubild, der Rest nur mit Metadaten; Videos werden übersprungen) entsteht `{title (≤80), intro (≤300), text (≤1500, 2–4 Absätze), photos: [{id, caption (≤140)}]}`, sortiert nach Aufnahmedatum. Fehler: 400 (Eingabe), 401/403/404, 422 (kein verwendbares Foto), 429, 502 (KI-Fehler), 503 (kein Schlüssel).
+`POST /api/ai/report` entwirft einen kurzen Reisebericht für die Homepage (danach editierbar und über `/api/publish` veröffentlichbar). Body: `{albumId, photoIds: [1–30 IDs], title?, language?: "de"}`. Aus Aufnahmedatum, Ortsname und Bildinhalt (die ersten 12 Fotos als Vorschaubild, der Rest nur mit Metadaten; Videos werden übersprungen) entsteht `{title (≤80), intro (≤300), text (≤1500, 2–4 Absätze), photos: [{id, caption (≤140)}]}`, sortiert nach Aufnahmedatum, dazu `places: {photoId: Ort}`. Fotos mit GPS, aber ohne Ortsnamen, werden vorher per Reverse-Geocoding aufgelöst (höchstens 12 Abfragen pro Anfrage, gleiche Koordinaten auf 3 Stellen gerundet nur einmal) und der Name am Foto gespeichert; ohne Ort nennt die KI keinen. Fehler: 400 (Eingabe), 401/403/404, 422 (kein verwendbares Foto), 429, 502 (KI-Fehler), 503 (kein Schlüssel).
 
 ### Neues Design & KI
 
@@ -65,6 +65,7 @@ Mit gesetztem `OPENAI_API_KEY` (siehe oben) bietet die Web-App dieselben KI-Funk
 
 - **Foto:** «KI-Vorschlag» liefert Titel, Beschreibung und Tags; «Übernehmen» speichert sie.
 - **Galerie:** Das Suchfeld filtert beim Tippen sofort nach Titel, Beschreibung, Ort und Tags. Enter (ab 3 Zeichen) startet die KI-Suche; der Chip «KI-Suche: … · N Treffer» lässt sich wieder entfernen.
+- **Webseite:** Im Dialog «Auf die Webseite» entwirft «Bericht & Bildtexte mit KI entwerfen» (bzw. «Bildtexte mit KI entwerfen») Bericht und Bildtexte zum Prüfen und Bearbeiten.
 - **Rückblick:** «Reisebericht schreiben» erzeugt einen Text zum Kopieren oder Teilen.
 
 Fehlt der Schlüssel, zeigt die Oberfläche die Meldung des Servers und bleibt sonst unverändert. Die App-Icons erzeugt `scripts/generate-icons.mjs` beim Build.
@@ -135,6 +136,8 @@ Lokales Image bauen (nur deine Maschine, nicht der Server): `docker compose -f d
 ## Fotos auf die Webseite (Grav)
 
 In der Galerie oben **Auf die Webseite hochladen** → Fotos antippen → **Weiter**. Im Dialog das Reise-Kapitel wählen (vorausgewählt nach Aufnahmezeit, Liste aus `/route.json` der Webseite) und ob ein Blogeintrag entsteht. Ohne Blogeintrag landen die Fotos auf der Seite **Fotos** (`/fotos`), mit Blogeintrag in einem neuen Tagebuch-Beitrag (`/tagebuch/<datum>-<ort>`, standardmässig Entwurf) oder einem bestehenden. Titel und Beschreibung werden zu `bildtext` und `alt`, dazu `abschnitt` (Kapitel) und `datum` (Aufnahmezeit, Ortszeit). Schon übertragene Fotos werden übersprungen. Videos bleiben in Photobuddy.
+
+Mit gesetztem `OPENAI_API_KEY` entwirft der Button **Bericht & Bildtexte mit KI entwerfen** (bei einem neuen Beitrag; sonst **Bildtexte mit KI entwerfen**) Titel, Kurztext, Text und Ort (nur leere Felder werden gefüllt) sowie einen Bildtext pro Foto. Die Bildtexte sind im Dialog editierbar und werden vor dem Hochladen als Beschreibung am Foto gespeichert; der Hinweis «Entwurf von der KI – bitte prüfen» erinnert ans Kontrollieren.
 
 In `.env` (der Schlüssel bleibt auf dem Server, nie im Browser):
 

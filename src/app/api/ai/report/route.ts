@@ -4,7 +4,9 @@ import { NextResponse } from "next/server";
 import { REPORT_MAX_PHOTOS, REPORT_VISION_PHOTOS, reportPhotos, writeReport } from "@/lib/ai";
 import { requireAiUser, wrapAiError } from "@/lib/ai-guard";
 import { HttpError, assertCanAccessAlbum, jsonError } from "@/lib/auth/request";
-import { listPhotosByIds } from "@/lib/db/queries";
+import { listPhotosByIds, updatePhotosLocation } from "@/lib/db/queries";
+import { reverseGeocode } from "@/lib/geocode";
+import { placesMap, resolveMissingPlaces } from "@/lib/photo-places";
 import { resolvePhotoPath } from "@/lib/files";
 
 export const dynamic = "force-dynamic";
@@ -54,9 +56,29 @@ export async function POST(request: Request) {
     );
 
     // Only photos of this album come back; videos are skipped.
-    const photos = reportPhotos(await listPhotosByIds(albumId, ids));
+    let photos = reportPhotos(await listPhotosByIds(albumId, ids));
     if (photos.length === 0) {
       throw new HttpError(422, "Keine verwendbaren Fotos ausgewählt.");
+    }
+
+    // Photos with GPS but no place name: look the place up and remember it.
+    const resolved = await resolveMissingPlaces(
+      photos,
+      async (lat, lng) => (await reverseGeocode(lat, lng)).place,
+    );
+    if (resolved.size > 0) {
+      const byName = new Map<string, string[]>();
+      for (const [id, name] of resolved) byName.set(name, [...(byName.get(name) ?? []), id]);
+      for (const [name, photoIds] of byName) {
+        try {
+          await updatePhotosLocation(photoIds, { locationName: name });
+        } catch {
+          /* still usable for this request */
+        }
+      }
+      photos = photos.map((p) =>
+        resolved.has(p.id) ? { ...p, location_name: resolved.get(p.id) ?? null } : p,
+      );
     }
 
     const images = new Map<string, { base64: string; mime: string }>();
@@ -76,7 +98,8 @@ export async function POST(request: Request) {
     }
 
     try {
-      return NextResponse.json(await writeReport({ photos, images, title }));
+      const draft = await writeReport({ photos, images, title });
+      return NextResponse.json({ ...draft, places: placesMap(photos) });
     } catch (err) {
       throw wrapAiError(err);
     }
